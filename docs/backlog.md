@@ -85,3 +85,16 @@
 - LOW (S1R-29): `apps/api/test/boundaries.test.ts` создаёт нарушающие файлы в `src/modules/...`; при убитом процессе они ломают `lint`; использовать временный каталог вне `src`.
 - LOW (S1R-30): интеграционные тесты идут на `users.test.acl.tpl`; боевой ACL (`~rl:*`, `&outbox:kick`, `~bull:*`) проверяется только e2e; параметризованный тест `rate-limiter` и `outbox` на боевом шаблоне.
 - LOW (S1R-31): комментарии: `.env.test:2` ссылается на несуществующий `scripts/run-tests.mjs`, "MinIO" вместо SeaweedFS в `s3.module.ts`; в каждой строке журнала два идентификатора (`reqId` и `request_id`); `instance` в problem+json - шаблон маршрута, а не путь.
+
+## Срез 1, повторное ревью исправлений (e503d2f)
+
+- MEDIUM (исправить в начале среза 2): `idempotency.service.ts:123` — ключ завершается сырым результатом транзакции, финальное HTTP-тело записывается позже (`overwriteResponse`); повтор между коммитом и перезаписью получает сырой результат. Пометить строку как предварительную и отвечать 409 `IDEMPOTENCY_IN_PROGRESS` до перезаписи.
+- MEDIUM (исправить в начале среза 2, ПД): `err.message` у DrizzleQueryError содержит SQL и параметры и попадает в BullMQ `failedReason`/stack в Redis на 7 дней. Очищать ошибки БД до выхода из процессора задач.
+- LOW: защита от второй транзакции срабатывает после коммита первой и не покрывает `@NoIdempotency` и публичные изменяющие операции.
+- LOW: регулярка `PG_CODE` совпадает с кодами Node (EPIPE, EPERM).
+- LOW: `removeAdditional: 'all'` вырезает поля под `allOf/oneOf/anyOf` и в map-схемах; добавить правило в contract-check.
+- LOW: `tf_app` может менять журнал миграций `platform.__drizzle_migrations`; отозвать права.
+- LOW: `10-roles.sh` не срабатывает на старом томе postgres-data; описать `docker compose down -v` при обновлении.
+- LOW: HSTS в web отправляется и в dev.
+- LOW: `await connection()` в корневом layout делает все страницы динамическими (нужно для nonce CSP).
+- LOW: фиксированная подсеть compose 172.29.250.0/24 может конфликтовать с VPN.
