@@ -20,6 +20,30 @@ describe('loadConfig', () => {
     expect(Object.isFrozen(config)).toBe(true);
   });
 
+  it('S1R-12: trusts no proxy unless TRUSTED_PROXY_CIDRS says so', () => {
+    expect(
+      loadConfig(validEnv({ TRUSTED_PROXY_CIDRS: undefined }), 'api').TRUSTED_PROXY_CIDRS,
+    ).toEqual([]);
+    expect(loadConfig(validEnv({ TRUSTED_PROXY_CIDRS: '' }), 'api').TRUSTED_PROXY_CIDRS).toEqual(
+      [],
+    );
+  });
+
+  it('S1R-08: NODE_ENV=test is accepted only together with a loopback APP_ORIGIN', () => {
+    expect(
+      issuesOf(validEnv({ NODE_ENV: 'test', APP_ORIGIN: 'https://teamforge.example' })),
+    ).toEqual([{ name: 'APP_ORIGIN', reason: 'invalid' }]);
+    expect(issuesOf(validEnv({ NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:3000' }))).toEqual(
+      [],
+    );
+    expect(issuesOf(validEnv({ NODE_ENV: 'test', APP_ORIGIN: 'http://web.localhost' }))).toEqual(
+      [],
+    );
+    expect(
+      issuesOf(validEnv({ NODE_ENV: 'production', APP_ORIGIN: 'https://teamforge.example' })),
+    ).toEqual([]);
+  });
+
   it('reports a missing BETTER_AUTH_SECRET by name', () => {
     expect(issuesOf(validEnv({ BETTER_AUTH_SECRET: undefined }))).toEqual([
       { name: 'BETTER_AUTH_SECRET', reason: 'missing' },

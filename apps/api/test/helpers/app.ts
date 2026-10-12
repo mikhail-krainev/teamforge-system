@@ -5,9 +5,8 @@ import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module.js';
 import { Clock } from '../../src/platform/clock/clock.js';
 import { type AppConfig, loadConfig } from '../../src/platform/config/config.js';
-import { DB } from '../../src/platform/db/db.module.js';
 import { buildFastifyAdapter, configureHttpApp } from '../../src/platform/http/fastify.js';
-import { createTestTables } from '../../src/platform/testing/test-tables.js';
+import { TestSupportModule } from '../support/test-support.module.js';
 import { WorkerModule } from '../../src/worker.module.js';
 import { validEnv } from './env.js';
 import { type FakeS3, startFakeS3 } from './fake-s3.js';
@@ -21,6 +20,8 @@ export interface TestAppOptions {
   env?: Record<string, string | undefined>;
   clock?: Clock;
   queuePrefix?: string;
+  /** Set to false to start the application exactly as production does (no test-support module). */
+  testSupport?: boolean;
 }
 
 export interface TestApp {
@@ -69,7 +70,12 @@ export async function createTestApp(
   const config = buildConfig(options, 'api', s3.endpoint);
   const logs: string[] = [];
   let builder = Test.createTestingModule({
-    imports: [AppModule.forRoot(config, { logging: { stream: logSink(logs) } })],
+    imports: [
+      AppModule.forRoot(config, {
+        logging: { stream: logSink(logs) },
+        extraImports: options.testSupport === false ? [] : [TestSupportModule],
+      }),
+    ],
   });
   if (options.clock) builder = builder.overrideProvider(Clock).useValue(options.clock);
   const moduleRef = await customize(builder).compile();
@@ -77,7 +83,6 @@ export async function createTestApp(
   configureHttpApp(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
-  if (options.databaseUrl) await createTestTables(app.get(DB));
   return {
     app,
     config,

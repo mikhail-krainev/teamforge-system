@@ -5,6 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
 import { InvariantError } from '../errors/domain-error.js';
+import { assertAttemptAlive } from './attempt.js';
 import type { TxHost } from './tx-runner.js';
 
 export type LockMode = 'FOR UPDATE' | 'FOR NO KEY UPDATE' | 'FOR SHARE';
@@ -130,6 +131,7 @@ export class LockService {
         `Row lock on ${target.schema}.${target.table} outside a transaction`,
       );
     }
+    assertAttemptAlive(this.cls);
     this.checkOrder(target);
     const sorted = [...new Set(ids)].sort();
     if (sorted.length === 0) return [];

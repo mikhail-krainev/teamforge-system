@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { describe, expect, it } from 'vitest';
 import { resolveRequestId } from '../http/request-id.js';
 import { REDACT_PATHS, serializeErr, serializeReq, serializeRes } from './serializers.js';
@@ -43,6 +44,73 @@ describe('log serializers (SEC-07)', () => {
         '*.outcome',
       ]),
     );
+  });
+});
+
+describe('database error serialization (S1R-01, SEC-07)', () => {
+  const EMAIL = 'alice@example.com';
+  const TOKEN = 'SESSION-TOKEN-123';
+
+  function pgError(): Error {
+    return Object.assign(
+      new Error(`duplicate key value violates unique constraint "user_email_uq"`),
+      {
+        name: 'PostgresError',
+        code: '23505',
+        severity: 'ERROR',
+        constraint_name: 'user_email_uq',
+        table_name: 'user',
+        schema_name: 'auth',
+        routine: '_bt_check_unique',
+        detail: `Key (email)=(${EMAIL}) already exists.`,
+      },
+    );
+  }
+
+  it('logs a DrizzleQueryError without SQL, parameter values, PostgreSQL detail or message', () => {
+    const error = new DrizzleQueryError(
+      'INSERT INTO auth.user (email, token) VALUES ($1, $2)',
+      [EMAIL, TOKEN],
+      pgError(),
+    );
+    expect(error.message).toContain(EMAIL); // the premise: drizzle puts the values in the message
+    const serialized = serializeErr(error);
+    const text = JSON.stringify(serialized);
+    for (const secret of [EMAIL, TOKEN, 'INSERT INTO', 'alice', 'already exists']) {
+      expect(text).not.toContain(secret);
+    }
+    expect(serialized).toMatchObject({
+      type: 'Error',
+      message: 'database query failed',
+      db: {
+        code: '23505',
+        constraint_name: 'user_email_uq',
+        table_name: 'user',
+        schema_name: 'auth',
+        severity: 'ERROR',
+        routine: '_bt_check_unique',
+      },
+    });
+  });
+
+  it('strips the message line from the stack of a database error', () => {
+    const error = new DrizzleQueryError('SELECT $1', [TOKEN], pgError());
+    const stack = String(serializeErr(error).stack);
+    expect(stack).not.toContain(TOKEN);
+    expect(stack).toMatch(/\n\s+at /);
+  });
+
+  it('handles a bare PostgreSQL error (no drizzle wrapper) and never prints its detail', () => {
+    const serialized = serializeErr(pgError());
+    expect(JSON.stringify(serialized)).not.toContain(EMAIL);
+    expect(serialized).toMatchObject({ db: { code: '23505' } });
+  });
+
+  it('keeps ordinary errors readable', () => {
+    expect(serializeErr(new TypeError('bad input'))).toMatchObject({
+      type: 'TypeError',
+      message: 'bad input',
+    });
   });
 });
 

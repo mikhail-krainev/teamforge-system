@@ -1,12 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DomainError } from '../../src/platform/errors/domain-error.js';
 import { toProblem } from '../../src/platform/errors/problem.js';
 import { LockService } from '../../src/platform/tx/locks.js';
 import { TxRunner } from '../../src/platform/tx/tx-runner.js';
 import { createTestApp, type TestApp } from '../helpers/app.js';
-import { barrier, createTestDatabase, describeInfra, type TestDatabase } from '../helpers/infra.js';
+import {
+  barrier,
+  createTestDatabase,
+  describeInfra,
+  type TestDatabase,
+  waitFor,
+} from '../helpers/infra.js';
 
 describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', 'redis'], () => {
   let db: TestDatabase;
@@ -143,6 +149,65 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
     const locked = await runner.run(() => locks.lockSeats([...seatIds].reverse()));
     expect(locked.map((row) => row.id)).toEqual([...seatIds].sort());
     await expect(locks.lockTeam(randomUUID())).rejects.toThrow(/outside a transaction/);
+  });
+
+  describe('S1R-05: an attempt that exceeded its deadline rolls back, it never commits later', () => {
+    const idleInTransaction = async () =>
+      Number(
+        (
+          await db.sql`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE datname = ${db.name} AND state LIKE 'idle in transaction%'`
+        )[0]?.n,
+      );
+    const effects = async () =>
+      Number((await db.sql`SELECT count(*)::int AS n FROM public.tf_test_effect`)[0]?.n);
+
+    it('application pause: 503 now, and the INSERT is rolled back when the scenario resumes', async () => {
+      await db.sql`TRUNCATE public.tf_test_effect`;
+      const error = await runner
+        .run(
+          async () => {
+            await runner.tx.execute(sql`INSERT INTO public.tf_test_effect (value) VALUES ('late')`);
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          },
+          { attemptTimeoutMs: 300 },
+        )
+        .catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: 'LOCK_TIMEOUT', status: 503 });
+      await waitFor(async () => (await idleInTransaction()) === 0);
+      expect(await effects()).toBe(0);
+    });
+
+    it('busy transaction: statements after the deadline fail, nothing is committed', async () => {
+      await db.sql`TRUNCATE public.tf_test_effect`;
+      const error = await runner
+        .run(
+          async () => {
+            await runner.tx.execute(sql`SELECT pg_sleep(1)`);
+            await runner.tx.execute(sql`INSERT INTO public.tf_test_effect (value) VALUES ('busy')`);
+          },
+          { attemptTimeoutMs: 300 },
+        )
+        .catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: 'LOCK_TIMEOUT', status: 503 });
+      await waitFor(async () => (await idleInTransaction()) === 0);
+      expect(await effects()).toBe(0);
+    });
+
+    it('HTTP: 503 for the client, no effect, no stored idempotency answer', async () => {
+      await db.sql`TRUNCATE public.tf_test_effect, platform.idempotency_key`;
+      const response = await testApp.app.inject({
+        method: 'POST',
+        url: '/api/v1/_test/echo',
+        headers: { 'x-test-user': randomUUID(), 'idempotency-key': randomUUID() },
+        payload: { value: 'slow', delayMs: 1500, attemptTimeoutMs: 300 },
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.headers['retry-after']).toBe('1');
+      await waitFor(async () => (await idleInTransaction()) === 0);
+      expect(await effects()).toBe(0);
+      expect(await db.sql`SELECT 1 FROM platform.idempotency_key`).toHaveLength(0);
+    });
   });
 
   it('maps a real 23505 on seat_assignment_active_seat_uq to 409 SEAT_TAKEN', async () => {

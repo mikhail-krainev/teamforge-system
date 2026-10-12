@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
 import { ClsService } from 'nestjs-cls';
+import { AuthzRegistry } from '../authz/authz.registry.js';
 import { catchError, defer, from, mergeMap, type Observable, throwError } from 'rxjs';
 import type { IdempotencyContext } from '../context/cls-store.js';
 import { DomainError, IdempotentReplay, InvariantError } from '../errors/domain-error.js';
@@ -38,21 +39,23 @@ export class IdempotencyInterceptor implements NestInterceptor {
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(ClsService) private readonly cls: ClsService,
     @Inject(IdempotencyService) private readonly service: IdempotencyService,
+    @Inject(AuthzRegistry) private readonly registry: AuthzRegistry,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
     const request = context.switchToHttp().getRequest<FastifyRequest>();
     const handler = context.getHandler();
-    const userId = this.cls.get('userId');
-    if (SAFE_METHODS.has(request.method) || userId === undefined) return next.handle();
+    if (SAFE_METHODS.has(request.method)) return next.handle();
     if (this.reflector.get<boolean | undefined>(NO_IDEMPOTENCY_KEY, handler) === true) {
       return next.handle();
     }
     const operationId = this.reflector.get<string | undefined>(OPERATION_KEY, handler);
     if (operationId === undefined) {
-      throw new InvariantError(`Mutating handler ${handler.name} has no @Operation`);
+      throw new InvariantError(`Mutating handler ${handler.name} has no @Authz`);
     }
+    const userId = this.cls.get('userId');
+    if (userId === undefined) return this.withoutUser(operationId, handler.name, next);
     const key = readKey(request);
     const successStatus =
       this.reflector.get<number | undefined>(HTTP_CODE_METADATA, handler) ??
@@ -61,6 +64,22 @@ export class IdempotencyInterceptor implements NestInterceptor {
       this.service.begin({ userId, key, operationId, params: request.params, body: request.body }),
     ).pipe(
       mergeMap((decision) => this.execute(decision, { userId, key, successStatus }, request, next)),
+    );
+  }
+
+  /**
+   * A mutating operation without a signed-in user keeps no idempotency scope. That is legitimate
+   * only for public operations (actor `public`) or an explicit @NoIdempotency(); anything else
+   * means a guard did not set the user and must not silently lose idempotency (S1R-06, fail closed).
+   */
+  private withoutUser(
+    operationId: string,
+    handlerName: string,
+    next: CallHandler,
+  ): Observable<unknown> {
+    if (this.registry.get(operationId)?.authz?.actor === 'public') return next.handle();
+    throw new InvariantError(
+      `Mutating handler ${handlerName} runs without a user: mark it @NoIdempotency() or make it public`,
     );
   }
 
@@ -77,6 +96,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       ...claim,
       lockToken: decision.lockToken,
       completedInTx: false,
+      committed: false,
     };
     this.cls.set('idempotency', ctx);
     const problemContext = {

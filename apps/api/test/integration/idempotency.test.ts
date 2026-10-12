@@ -1,13 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FixedClock } from '../../src/platform/clock/clock.js';
 import {
   IdempotencyService,
   requestHash,
 } from '../../src/platform/idempotency/idempotency.service.js';
-import { call } from '../helpers/http.js';
+import { IdempotencyStore } from '../../src/platform/idempotency/idempotency.store.js';
+import { call, statuses } from '../helpers/http.js';
 import { createTestApp, type TestApp } from '../helpers/app.js';
-import { createTestDatabase, describeInfra, type TestDatabase } from '../helpers/infra.js';
+import {
+  barrier,
+  createTestDatabase,
+  describeInfra,
+  type TestDatabase,
+  waitFor,
+} from '../helpers/infra.js';
 
 describeInfra('S1-06 idempotency interceptor (FR-WORK-08)', ['db', 'redis'], () => {
   let db: TestDatabase;
@@ -203,6 +210,129 @@ describeInfra('S1-06 idempotency interceptor (FR-WORK-08)', ['db', 'redis'], () 
     clock.advance(25 * 3_600_000);
     const removed = await testApp.app.get(IdempotencyService).deleteExpired();
     expect(removed).toBe(1);
+  });
+
+  describe('S1R-02: one operation = one transaction, the key stores the HTTP response', () => {
+    it('refuses a second top-level transaction under one key (500, no second effect)', async () => {
+      const response = await call(testApp.app, 'POST', '/v1/_test/two-transactions', {
+        value: 'twice',
+      });
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toMatchObject({ code: 'INTERNAL' });
+      const rows = await db.sql`SELECT value FROM public.tf_test_effect ORDER BY id`;
+      expect(rows.map((r) => r.value)).toEqual(['twice-1']);
+    });
+
+    it('stores and replays the final HTTP body, not the raw result of the transaction', async () => {
+      const options = { user: randomUUID(), key: randomUUID() };
+      const first = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'v' }, options);
+      expect(first.statusCode).toBe(201);
+      expect(first.json()).toEqual({ id: 'v', shaped: true });
+      const stored = await db.sql`SELECT response_body FROM platform.idempotency_key`;
+      expect(stored[0]?.response_body).toEqual({ id: 'v', shaped: true });
+      const again = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'v' }, options);
+      expect(again.headers['idempotent-replayed']).toBe('true');
+      expect(again.json()).toEqual({ id: 'v', shaped: true });
+      expect(JSON.stringify(again.json())).not.toContain('must-not-leak');
+      expect(await effects()).toBe(1);
+    });
+  });
+
+  describe('S1R-04: temporary answers do not become the final answer of a key', () => {
+    const keyRows = async () =>
+      Number((await db.sql`SELECT count(*)::int AS n FROM platform.idempotency_key`)[0]?.n);
+
+    it('releases the key after a 429 inside the handler; the retry with the same key succeeds', async () => {
+      const options = { user: randomUUID() };
+      const body = { value: 'rl' };
+      const ok = await call(testApp.app, 'POST', '/v1/_test/limited-write', body, options);
+      expect(ok.statusCode).toBe(201);
+      const key = randomUUID();
+      const limited = await call(testApp.app, 'POST', '/v1/_test/limited-write', body, {
+        ...options,
+        key,
+      });
+      expect(limited.statusCode).toBe(429);
+      expect(limited.headers['retry-after']).toBeDefined();
+      expect(await db.sql`SELECT 1 FROM platform.idempotency_key WHERE key = ${key}`).toHaveLength(
+        0,
+      );
+      const retried = await waitFor(
+        async () => {
+          const response = await call(testApp.app, 'POST', '/v1/_test/limited-write', body, {
+            ...options,
+            key,
+          });
+          return response.statusCode === 201 ? response : false;
+        },
+        5000,
+        200,
+      );
+      expect(retried.headers['idempotent-replayed']).toBeUndefined();
+      expect(retried.json()).toEqual({ value: 'rl' });
+    });
+
+    it.each(['rate_limited', 'unavailable'] as const)(
+      'does not store a %s answer: the claim is released',
+      async (fail) => {
+        const response = await call(testApp.app, 'POST', '/v1/_test/echo', { value: 'a', fail });
+        expect([429, 503]).toContain(response.statusCode);
+        expect(await keyRows()).toBe(0);
+        expect(await effects()).toBe(0);
+      },
+    );
+
+    it('still stores a definitive 4xx (409) as the answer', async () => {
+      await call(testApp.app, 'POST', '/v1/_test/echo', { value: 'a', fail: 'domain' });
+      const rows = await db.sql`SELECT status, response_status FROM platform.idempotency_key`;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: 'completed', response_status: 409 });
+    });
+  });
+
+  describe('S1R-13: takeover of an expired claim (mutation: the expiry condition)', () => {
+    const lockOf = async (user: string, key: string) =>
+      (
+        await db.sql`SELECT lock_token FROM platform.idempotency_key
+        WHERE user_id = ${user} AND key = ${key}`
+      )[0]?.lock_token as string | undefined;
+
+    it('does not take over a claim whose lock is still alive and keeps its fencing token', async () => {
+      const [user, key] = [randomUUID(), randomUUID()];
+      await seedAbandonedClaim(user, key, new Date(clock.now().getTime() + 60_000));
+      const before = await lockOf(user, key);
+      const taken = await testApp.app
+        .get(IdempotencyStore)
+        .takeOver(user, key, clock.now(), 120_000);
+      expect(taken).toBeUndefined();
+      expect(await lockOf(user, key)).toBe(before);
+    });
+
+    it('lets exactly one of two simultaneous takeovers of an expired claim win', async () => {
+      const [user, key] = [randomUUID(), randomUUID()];
+      await seedAbandonedClaim(user, key, new Date(clock.now().getTime() - 1000));
+      const store = testApp.app.get(IdempotencyStore);
+      const gate = barrier(2);
+      const attempt = async () => {
+        await gate.wait();
+        return store.takeOver(user, key, clock.now(), 120_000);
+      };
+      const results = await Promise.all([attempt(), attempt()]);
+      expect(results.filter((token) => token !== undefined)).toHaveLength(1);
+      expect(await lockOf(user, key)).toBe(results.find((token) => token !== undefined));
+    });
+
+    it('runs the operation once when two requests meet an expired claim', async () => {
+      const [user, key] = [randomUUID(), randomUUID()];
+      await seedAbandonedClaim(user, key, new Date(clock.now().getTime() - 1000));
+      const send = () =>
+        call(testApp.app, 'POST', '/v1/_test/echo', { value: 'crash' }, { user, key });
+      const results = await Promise.allSettled([send(), send()]);
+      expect(await effects()).toBe(1);
+      const counts = statuses(results);
+      expect(counts[201]).toBeGreaterThanOrEqual(1);
+      expect((counts[201] ?? 0) + (counts[409] ?? 0)).toBe(2);
+    });
   });
 
   it('does not require a key for safe methods', async () => {

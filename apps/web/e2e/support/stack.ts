@@ -25,6 +25,9 @@ export const E2E_ENV: Record<string, string> = {
   S3_HOST_PORT: '19000',
   SMTP_HOST_PORT: '11025',
   MAILPIT_UI_PORT: '18025',
+  // Own subnet and web address: the dev stack keeps 172.29.250.0/24, and api trusts only its web (/32).
+  TF_NET_SUBNET: '172.29.251.0/24',
+  TF_WEB_IP: '172.29.251.10',
 };
 
 /** Runs `docker compose -p e2e <args>` from the repository root and returns its output. */

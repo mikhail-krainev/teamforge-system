@@ -107,6 +107,29 @@ export class IdempotencyStore {
     return rows.length === 1;
   }
 
+  /**
+   * Replaces the stored response of a key that this request completed (same fencing token):
+   * the final HTTP body instead of the provisional transaction result.
+   */
+  async overwriteResponse(
+    ref: { userId: string; key: string; lockToken: string },
+    response: ResponseRecord,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(idempotencyKey)
+      .set({ responseStatus: response.status, responseBody: response.body ?? null })
+      .where(
+        and(
+          eq(idempotencyKey.userId, ref.userId),
+          eq(idempotencyKey.key, ref.key),
+          eq(idempotencyKey.status, 'completed'),
+          eq(idempotencyKey.lockToken, ref.lockToken),
+        ),
+      )
+      .returning({ key: idempotencyKey.key });
+    return rows.length === 1;
+  }
+
   /** Releases a claim after a 5xx/503 so that a retry executes the operation again. */
   async release(ref: { userId: string; key: string; lockToken: string }): Promise<void> {
     await this.db

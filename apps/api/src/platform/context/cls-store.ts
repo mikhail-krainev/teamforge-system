@@ -9,6 +9,10 @@ export interface IdempotencyContext {
   successStatus: number;
   /** True once the key row was completed inside a business transaction. */
   completedInTx: boolean;
+  /** True once the transaction that completed the key has committed (set by TxRunner). */
+  committed: boolean;
+  /** JSON of the response body stored by the transaction (replaced by the final HTTP body). */
+  storedBody?: string;
 }
 
 declare module 'nestjs-cls' {
@@ -21,6 +25,8 @@ declare module 'nestjs-cls' {
     lockLevel?: number;
     /** Set when an outbox event was written in the active transaction (kick the relay after commit). */
     outboxDirty?: boolean;
+    /** Deadline state of the active transaction attempt (architecture 12.1). */
+    attempt?: import('../tx/attempt.js').AttemptState;
   }
 }
 

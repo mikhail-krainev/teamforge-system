@@ -121,6 +121,30 @@ export type AppConfig = Omit<z.infer<typeof envSchema>, 'REDIS_ACL_STRICT'> & {
   readonly role: ProcessRole;
 };
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** True for http(s) addresses of this machine; `*.localhost` counts as loopback too. */
+export function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname;
+    return LOOPBACK_HOSTS.has(host) || host.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `NODE_ENV=test` switches on test-only behaviour (lock order checks, the header-based test
+ * session in the test bootstrap). A deployed instance must never run in that mode, so it is
+ * accepted only together with a loopback `APP_ORIGIN` (S1R-08).
+ */
+function environmentIssues(parsed: z.infer<typeof envSchema>): ConfigIssue[] {
+  if (parsed.NODE_ENV === 'test' && !isLoopbackOrigin(parsed.APP_ORIGIN)) {
+    return [{ name: 'APP_ORIGIN', reason: 'invalid' }];
+  }
+  return [];
+}
+
 /** Variables that only some roles must provide (checked after the schema passes). */
 const REQUIRED_BY_ROLE: Record<ProcessRole, readonly (keyof z.infer<typeof envSchema>)[]> = {
   api: [],
@@ -167,7 +191,7 @@ function roleIssues(
 export function loadConfig(env: NodeJS.ProcessEnv, role: ProcessRole): AppConfig {
   const result = envSchema.safeParse(env);
   if (!result.success) throw new ConfigError(collectIssues(result.error, env));
-  const missing = roleIssues(result.data, role, env);
+  const missing = [...environmentIssues(result.data), ...roleIssues(result.data, role, env)];
   if (missing.length > 0) throw new ConfigError(missing);
   const strict = result.data.REDIS_ACL_STRICT ?? result.data.NODE_ENV !== 'test';
   return Object.freeze({ ...result.data, REDIS_ACL_STRICT: strict, role });

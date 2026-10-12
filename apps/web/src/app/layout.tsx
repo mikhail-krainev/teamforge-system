@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { t } from '@/i18n';
@@ -18,7 +19,10 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Every page is rendered per request: the CSP nonce (src/proxy.ts) can only be applied to
+  // server-rendered HTML, never to a prerendered page (architecture 13.10).
+  await connection();
   return (
     <html lang="ru">
       <body>

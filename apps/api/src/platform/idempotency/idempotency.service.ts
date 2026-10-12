@@ -5,7 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import type { IdempotencyContext } from '../context/cls-store.js';
 import { Clock } from '../clock/clock.js';
 import { DomainError } from '../errors/domain-error.js';
-import { toProblem } from '../errors/problem.js';
+import { type ProblemResult, toProblem } from '../errors/problem.js';
 import { canonicalJson } from '../http/canonical-json.js';
 import { TxHooks } from '../tx/tx-hooks.js';
 import type { TxHost } from '../tx/tx-runner.js';
@@ -97,40 +97,59 @@ export class IdempotencyService implements OnModuleInit {
     return { kind: 'replay', status: row.responseStatus ?? 200, body: row.responseBody };
   }
 
-  /** Step 3: last statement of the business transaction. 0 rows = the claim was taken over. */
+  /**
+   * Step 3: last statement of the business transaction. 0 rows = the claim was taken over. The
+   * transaction result is a PROVISIONAL response: it makes "effect without a stored answer"
+   * impossible; the interceptor replaces it with the final HTTP body (`afterSuccess`).
+   */
   private async completeInTx(result: unknown): Promise<void> {
     const ctx = this.cls.get('idempotency');
     if (ctx === undefined) return;
-    const body = result === undefined ? null : JSON.parse(JSON.stringify(result));
+    const body = toJson(result);
     const done = await this.store.complete(this.txHost.tx, ctx, {
       status: ctx.successStatus,
       body,
     });
     if (!done) throw inProgress();
     ctx.completedInTx = true;
+    ctx.storedBody = JSON.stringify(body);
   }
 
-  /** Handler finished without completing the key in a transaction (no database effect). */
+  /**
+   * The handler produced its final response. A key already completed in the business transaction
+   * gets the body the client really receives (the controller may reshape the transaction result);
+   * a handler without database effect completes the key here.
+   */
   async afterSuccess(ctx: IdempotencyContext, value: unknown): Promise<void> {
-    if (ctx.completedInTx) return;
-    const body = value === undefined ? null : JSON.parse(JSON.stringify(value));
-    await this.store.complete(this.txHost.tx, ctx, { status: ctx.successStatus, body });
+    const body = toJson(value);
+    if (!ctx.completedInTx) {
+      await this.store.complete(this.txHost.tx, ctx, { status: ctx.successStatus, body });
+      return;
+    }
+    if (JSON.stringify(body) === ctx.storedBody) return;
+    await this.store.overwriteResponse(ctx, { status: ctx.successStatus, body });
   }
 
-  /** Step 4: 4xx is stored as the answer; 5xx/503 releases the claim for a clean retry. */
+  /**
+   * Step 4: a definitive 4xx is stored as the answer; temporary answers (408, 423, 425, 429, any
+   * response with Retry-After, 5xx, LOCK_TIMEOUT) release the claim so that a retry with the same
+   * key executes the operation (the client keeps the key for exactly these answers).
+   * Once the business transaction committed nothing is released or replaced: the effect exists,
+   * the key keeps the stored response and a retry replays it (no double effect).
+   */
   async afterFailure(
     ctx: IdempotencyContext,
     error: unknown,
     problemContext: { instance: string; requestId: string },
   ): Promise<void> {
+    if (ctx.committed || isFencingFailure(error)) return;
     const problem = toProblem(error, problemContext);
-    const stored = problem.status >= 400 && problem.status < 500 && !isFencingFailure(error);
-    if (stored) {
+    if (isDefinitiveRejection(problem)) {
       await this.store.complete(this.txHost.tx, ctx, {
         status: problem.status,
         body: problem.body,
       });
-    } else if (!isFencingFailure(error)) {
+    } else {
       await this.store.release(ctx);
     }
   }
@@ -142,4 +161,17 @@ export class IdempotencyService implements OnModuleInit {
 
 function isFencingFailure(error: unknown): boolean {
   return error instanceof DomainError && error.code === 'IDEMPOTENCY_IN_PROGRESS';
+}
+
+function toJson(value: unknown): unknown {
+  return value === undefined ? null : JSON.parse(JSON.stringify(value));
+}
+
+/** Statuses that tell the client to try again later: never stored as the final answer. */
+const TEMPORARY_STATUSES = new Set([408, 423, 425, 429]);
+
+function isDefinitiveRejection(problem: ProblemResult): boolean {
+  if (problem.status < 400 || problem.status >= 500) return false;
+  if (TEMPORARY_STATUSES.has(problem.status)) return false;
+  return !Object.keys(problem.headers).some((name) => name.toLowerCase() === 'retry-after');
 }

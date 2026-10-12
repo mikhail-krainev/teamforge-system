@@ -3,6 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ClsPluginTransactional } from '@nestjs-cls/transactional';
 import { TransactionalAdapterDrizzleOrm } from '@nestjs-cls/transactional-adapter-drizzle-orm';
 import { ClsModule } from 'nestjs-cls';
+import { AuthzModule } from './authz/authz.module.js';
 import { ClockModule } from './clock/clock.module.js';
 import type { AppConfig } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
@@ -10,6 +11,7 @@ import { DB, DbModule } from './db/db.module.js';
 import { ProblemFilter } from './errors/problem.filter.js';
 import { HealthModule } from './health/health.module.js';
 import { OperationContextInterceptor } from './http/operation-context.interceptor.js';
+import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { LoggingModule, type LoggingOptions } from './logging/logging.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
@@ -67,11 +69,12 @@ export class PlatformModule {
     ];
     return {
       module: PlatformModule,
-      imports: options.http ? [...common, HealthModule] : common,
+      imports: options.http ? [...common, AuthzModule, HealthModule] : common,
       providers: options.http
         ? [
             { provide: APP_FILTER, useClass: ProblemFilter },
             { provide: APP_INTERCEPTOR, useClass: OperationContextInterceptor },
+            { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
           ]
         : [],
     };

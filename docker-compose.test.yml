@@ -7,6 +7,10 @@ name: tf-test
 
 x-test-env: &test-env
   POSTGRES_PASSWORD: tf_test_password
+  TF_MIGRATOR_PASSWORD: tf_test_migrator
+  TF_APP_PASSWORD: tf_test_app
+  # Tests create a database per test file as the owner role; the application role cannot.
+  TF_MIGRATOR_CREATEDB: '1'
   REDIS_API_PASSWORD: tf_test_redis_api
   REDIS_WORKER_PASSWORD: tf_test_redis_worker
   REDIS_LINKCHECK_PASSWORD: tf_test_redis_linkcheck
@@ -32,15 +36,17 @@ services:
         'max_connections=500',
       ]
     environment:
-      POSTGRES_USER: teamforge
+      <<: *test-env
+      POSTGRES_USER: postgres
       POSTGRES_DB: teamforge
-      POSTGRES_PASSWORD: tf_test_password
+    volumes:
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
     tmpfs:
       - /var/lib/postgresql/data
     ports:
       - '127.0.0.1:5433:5432'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U teamforge -d teamforge']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d teamforge']
       interval: 2s
       timeout: 3s
       retries: 30
@@ -50,13 +56,12 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer@sha256:9c78945868a6a142c7fc40ccd843bbe5a606df163c7ffce4de70e0d628d696a2
     environment:
-      DATABASE_URL: postgres://teamforge:tf_test_password@postgres:5432
+      DATABASE_URL: postgres://tf_app:tf_test_app@postgres:5432
       LISTEN_PORT: '6432'
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: '2000'
       DEFAULT_POOL_SIZE: '40'
-      ADMIN_USERS: teamforge
       UNIX_SOCKET_DIR: ''
     depends_on:
       postgres:

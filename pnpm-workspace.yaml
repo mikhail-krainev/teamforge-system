@@ -1,6 +1,9 @@
 packages:
   - apps/*
   - packages/*
+# pnpm install gate: 1 day (explicit, not the implicit default). Architecture 13.18 asks for 14 days in the update
+# process (Renovate); the exceptions below are documented in docs/security-exceptions.md.
+minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.71.2'
   - '@typescript-eslint/parser@8.71.2'

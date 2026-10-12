@@ -39,7 +39,7 @@ jobs:
         run: git diff --exit-code packages/shared
       - name: Contract rules (operationId, x-fr, x-authz, Idempotency-Key)
         run: pnpm run contract:check
-      - name: Tests of the repository scripts
+      - name: Tests of the repository scripts (including the compose security policy: DB roles, trusted proxy)
         run: pnpm run contract:test
       - name: Breaking changes against main (oasdiff)
         if: github.event_name == 'pull_request'
@@ -80,7 +80,8 @@ jobs:
 
   # Unit and integration tests against the same services as production: PostgreSQL behind PgBouncer
   # (transaction mode), Redis with ACL users, SeaweedFS as S3. The application connects through
-  # DATABASE_URL (PgBouncer); migrations and fixtures use DATABASE_DIRECT_URL (see .env.test).
+  # DATABASE_URL (PgBouncer) as the role tf_app (no superuser, no DDL); migrations and fixtures use
+  # DATABASE_DIRECT_URL as the owner role tf_migrator (roles: docker/postgres/10-roles.sh, see .env.test).
   unit-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 30

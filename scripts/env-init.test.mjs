@@ -19,8 +19,13 @@ test('env-init: fills secrets and URL passwords, keeps explicit values', () => {
   for (const name of Object.keys(GENERATORS)) assert.notEqual(env[name], '', name);
   assert.equal(
     env.DATABASE_URL,
-    `postgres://teamforge:${env.POSTGRES_PASSWORD}@localhost:6432/teamforge`,
+    `postgres://tf_app:${env.TF_APP_PASSWORD}@localhost:6432/teamforge`,
   );
+  assert.equal(
+    env.DATABASE_DIRECT_URL,
+    `postgres://tf_migrator:${env.TF_MIGRATOR_PASSWORD}@localhost:5432/teamforge`,
+  );
+  assert.equal(env.TRUSTED_PROXY_CIDRS, '', 'trust nobody by default');
   assert.equal(env.REDIS_URL, `redis://api:${env.REDIS_API_PASSWORD}@localhost:6379`);
   assert.equal(env.NODE_ENV, 'development');
   assert.equal(env.QUEUE_PREFIX, 'bull');

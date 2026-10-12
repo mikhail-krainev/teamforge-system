@@ -7,6 +7,7 @@ import { Clock } from '../clock/clock.js';
 import { outboxEvent } from '../db/schema/platform.js';
 import { InvariantError } from '../errors/domain-error.js';
 import { REDIS } from '../redis/redis.module.js';
+import { assertAttemptAlive } from '../tx/attempt.js';
 import { TxHooks } from '../tx/tx-hooks.js';
 import type { TxHost } from '../tx/tx-runner.js';
 import { type NewOutboxEvent, OUTBOX_KICK_CHANNEL } from './outbox.types.js';
@@ -30,6 +31,7 @@ export class OutboxService implements OnModuleInit {
     if (!this.txHost.isTransactionActive()) {
       throw new InvariantError('Outbox events must be written inside a transaction');
     }
+    assertAttemptAlive(this.cls);
     const id = uuidv7();
     await this.txHost.tx.insert(outboxEvent).values({
       id,

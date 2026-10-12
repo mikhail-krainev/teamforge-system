@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Supply-chain checks from docs/architecture.md 13.18 (SEC-19), run in CI after `pnpm install --frozen-lockfile`:
 //  - exactly one lockfile (pnpm-lock.yaml) and an exact `packageManager` version;
-//  - packages with a history of critical vulnerabilities must resolve to a fixed version.
+//  - packages with a history of critical vulnerabilities must resolve to a fixed version;
+//  - minimumReleaseAge is set and every release-age exception is exact and documented.
 // Usage: node scripts/check-deps.mjs
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseAllDocuments } from 'yaml';
+import { parseAllDocuments, parseDocument } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -59,6 +60,33 @@ export function lockfileProblems(lock, minimums = MINIMUM_VERSIONS) {
   return problems;
 }
 
+/** Smallest accepted `minimumReleaseAge` (minutes): the pnpm install gate must be set explicitly. */
+export const MIN_RELEASE_AGE_MINUTES = 1440;
+
+/**
+ * Release-age policy (architecture 13.18, S1R-11): `minimumReleaseAge` is set in pnpm-workspace.yaml and every
+ * `minimumReleaseAgeExclude` entry is an exact `name@x.y.z` that docs/security-exceptions.md names.
+ */
+export function releaseAgeProblems(workspace, exceptionsDoc) {
+  const problems = [];
+  const age = workspace?.minimumReleaseAge;
+  if (!Number.isInteger(age) || age < MIN_RELEASE_AGE_MINUTES) {
+    problems.push(
+      `pnpm-workspace.yaml: minimumReleaseAge must be set to at least ${MIN_RELEASE_AGE_MINUTES} (minutes)`,
+    );
+  }
+  for (const entry of workspace?.minimumReleaseAgeExclude ?? []) {
+    if (!/^(@[^/@\s]+\/)?[^/@\s]+@\d+\.\d+\.\d+$/.test(entry)) {
+      problems.push(`minimumReleaseAgeExclude: "${entry}" must be an exact name@x.y.z`);
+    } else if (!exceptionsDoc.includes(`\`${entry}\``)) {
+      problems.push(
+        `minimumReleaseAgeExclude: ${entry} is not documented in docs/security-exceptions.md`,
+      );
+    }
+  }
+  return problems;
+}
+
 export function manifestProblems(manifest, existingFiles) {
   const problems = [];
   if (!/^pnpm@\d+\.\d+\.\d+$/.test(manifest.packageManager ?? '')) {
@@ -79,7 +107,15 @@ function main() {
     packages: Object.assign({}, ...documents.map((d) => d.toJS()?.packages ?? {})),
   };
   const present = FOREIGN_LOCKFILES.filter((f) => existsSync(path.join(root, f)));
-  const problems = [...manifestProblems(manifest, present), ...lockfileProblems(lock)];
+  const workspace = parseDocument(
+    readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+  ).toJS();
+  const exceptions = readFileSync(path.join(root, 'docs/security-exceptions.md'), 'utf8');
+  const problems = [
+    ...manifestProblems(manifest, present),
+    ...lockfileProblems(lock),
+    ...releaseAgeProblems(workspace, exceptions),
+  ];
   if (problems.length > 0) {
     console.error(`Dependency policy violations:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
     process.exit(1);

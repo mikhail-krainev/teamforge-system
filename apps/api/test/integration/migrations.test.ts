@@ -1,3 +1,4 @@
+import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { runMigrations } from '../../src/platform/db/migrate.js';
 import { createTestDatabase, describeInfra, type TestDatabase } from '../helpers/infra.js';
@@ -66,5 +67,42 @@ describeInfra('S1-04 migrations (direct connection)', ['db'], () => {
         VALUES (gen_random_uuid(), gen_random_uuid(), 'x', ${Buffer.from('h')}, 'bogus', now(),
                 gen_random_uuid(), now(), now())`,
     ).rejects.toThrow(/idempotency_key_status_check/);
+  });
+
+  it('S1R-10: the application role is no superuser, has DML on platform tables and no DDL', async () => {
+    const app = postgres(db.url, { max: 1, prepare: false, onnotice: () => undefined });
+    try {
+      const role = await app`SELECT current_user AS name, rolsuper, rolcreatedb, rolcreaterole
+        FROM pg_roles WHERE rolname = current_user`;
+      expect(role[0]).toMatchObject({
+        name: 'tf_app',
+        rolsuper: false,
+        rolcreatedb: false,
+        rolcreaterole: false,
+      });
+      const id = crypto.randomUUID();
+      await app`INSERT INTO platform.inbox_event (consumer, event_id, processed_at)
+        VALUES ('role-test', ${id}, now())`;
+      await app`DELETE FROM platform.inbox_event WHERE event_id = ${id}`;
+      await expect(app.unsafe('CREATE TABLE public.tf_forbidden (id int)')).rejects.toThrow(
+        /permission denied/,
+      );
+      await expect(app.unsafe('CREATE TABLE platform.tf_forbidden (id int)')).rejects.toThrow(
+        /permission denied/,
+      );
+      await expect(app.unsafe('CREATE SCHEMA tf_forbidden')).rejects.toThrow(/permission denied/);
+      await expect(app.unsafe('DROP TABLE platform.outbox_event')).rejects.toThrow(/must be owner/);
+      await expect(app.unsafe("COPY (SELECT 1) TO PROGRAM 'true'")).rejects.toThrow(
+        /permission denied|superuser/,
+      );
+    } finally {
+      await app.end({ timeout: 5 });
+    }
+  });
+
+  it('S1R-10: migrations are owned by the migrator role, not by the application role', async () => {
+    const owners =
+      await db.sql`SELECT DISTINCT tableowner FROM pg_tables WHERE schemaname = 'platform'`;
+    expect(owners.map((o) => o.tableowner)).toEqual(['tf_migrator']);
   });
 });

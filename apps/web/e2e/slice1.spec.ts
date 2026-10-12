@@ -48,3 +48,38 @@ test.describe('slice 1: skeleton', () => {
     });
   });
 });
+
+// S1R-09: security headers of the running stack. The status card is a client component, so seeing
+// "API is up" also proves that the scripts ran under the nonce-based CSP.
+test.describe('slice 1: security headers', () => {
+  test('pages carry a nonce CSP, the scripts run, the browser reports no CSP violation', async ({
+    page,
+  }) => {
+    const violations: string[] = [];
+    page.on('console', (message) => {
+      if (/content security policy/i.test(message.text())) violations.push(message.text());
+    });
+    const response = await page.goto('/');
+    const headers = response?.headers() ?? {};
+    const csp = headers['content-security-policy'] ?? '';
+    const script = csp.split('; ').find((directive) => directive.startsWith('script-src ')) ?? '';
+    expect(script).toMatch(/^script-src 'self' 'nonce-[A-Za-z0-9+/=]{22,}' 'strict-dynamic'$/);
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['x-frame-options']).toBe('DENY');
+    expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(headers['permissions-policy']).toContain('camera=()');
+    await expect(page.getByText(status.ok, { exact: true })).toBeVisible();
+    expect(violations).toEqual([]);
+  });
+
+  test('the proxied API keeps its own headers (nosniff, no-store, no framing)', async ({
+    request,
+  }) => {
+    const response = await request.get('/api/health/live');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['x-content-type-options']).toBe('nosniff');
+    expect(response.headers()['cache-control']).toBe('no-store');
+    expect(response.headers()['x-frame-options']).toBe('DENY');
+  });
+});

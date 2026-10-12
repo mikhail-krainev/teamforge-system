@@ -75,9 +75,12 @@ describeInfra('S1-06 transactional outbox, relay, inbox, dead letter', ['db', 'r
   it('delivers a committed event to its consumer through relay, events queue and inbox', async () => {
     const eventId = await publish({ n: 1 });
     await waitFor(() => handled.find((e) => e.id === eventId));
-    const inbox =
-      await db.sql`SELECT count(*)::int AS n FROM platform.inbox_event WHERE event_id = ${eventId}`;
-    expect(inbox[0]?.n).toBe(1);
+    // The consumer runs inside the inbox transaction, so the row becomes visible a moment later.
+    await waitFor(async () => {
+      const inbox =
+        await db.sql`SELECT count(*)::int AS n FROM platform.inbox_event WHERE event_id = ${eventId}`;
+      return inbox[0]?.n === 1;
+    });
     await waitFor(async () => {
       const rows =
         await db.sql`SELECT published_at FROM platform.outbox_event WHERE id = ${eventId}`;

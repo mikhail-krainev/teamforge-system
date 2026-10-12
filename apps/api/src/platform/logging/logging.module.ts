@@ -60,6 +60,9 @@ export class LoggingModule {
               timestamp: () => `,"ts":"${new Date().toISOString()}"`,
               formatters: { level: (label: string) => ({ level: label }) },
               redact: { paths: REDACT_PATHS, censor: '[redacted]' },
+              // pino-http would otherwise run pino's std error serializer FIRST and hand ours a plain
+              // object (message with SQL parameters included, no Error instance): ours gets the real error.
+              wrapSerializers: false,
               serializers: { req: serializeReq, res: serializeRes, err: serializeErr },
               mixin: () => (cls.isActive() ? { request_id: cls.get('requestId') } : {}),
             };

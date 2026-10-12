@@ -4,8 +4,9 @@ import type { TransactionalAdapterDrizzleOrm } from '@nestjs-cls/transactional-a
 import { sql } from 'drizzle-orm';
 import { ClsService } from 'nestjs-cls';
 import type { Database } from '../db/db.module.js';
-import { lockTimeoutError } from '../errors/domain-error.js';
+import { InvariantError, lockTimeoutError } from '../errors/domain-error.js';
 import { findPgError, isRetryableTxError, PG_LOCK_NOT_AVAILABLE } from '../errors/pg-errors.js';
+import { type AttemptState, assertAttemptAlive } from './attempt.js';
 import { TxHooks } from './tx-hooks.js';
 
 export type Tx = Database;
@@ -46,10 +47,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+/**
+ * Rejects with 503 LOCK_TIMEOUT when the attempt is still running after `ms`. The attempt is
+ * marked aborted first, so that it rolls back instead of committing later; once it passed its last
+ * check (`finishing`) the deadline is ignored and the real outcome is awaited.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, state: AttemptState): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(lockTimeoutError()), ms);
+    timer = setTimeout(() => {
+      if (state.finishing) return;
+      state.aborted = true;
+      reject(lockTimeoutError());
+    }, ms);
   });
   try {
     return await Promise.race([promise, timeout]);
@@ -73,6 +83,7 @@ export class TxRunner {
 
   /** The active transaction, or the plain database outside of one. */
   get tx(): Tx {
+    assertAttemptAlive(this.cls);
     return this.host.tx;
   }
 
@@ -80,8 +91,9 @@ export class TxRunner {
     return this.host.isTransactionActive();
   }
 
-  run<T>(fn: () => Promise<T>, options: TxOptions = {}): Promise<T> {
+  async run<T>(fn: () => Promise<T>, options: TxOptions = {}): Promise<T> {
     if (this.host.isTransactionActive()) return fn();
+    this.assertOneTransactionPerOperation();
     if (!this.cls.isActive()) return this.cls.run(() => this.runAttempts(fn, options));
     return this.runAttempts(fn, options);
   }
@@ -92,6 +104,7 @@ export class TxRunner {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const result = await this.attempt(fn, options);
+        this.markCommitted();
         await this.hooks.afterCommit();
         return result;
       } catch (error) {
@@ -104,16 +117,41 @@ export class TxRunner {
 
   private attempt<T>(fn: () => Promise<T>, options: TxOptions): Promise<T> {
     const timeoutMs = options.attemptTimeoutMs ?? DEFAULTS.attemptTimeoutMs;
+    const state: AttemptState = { aborted: false, finishing: false };
     return withTimeout(
       this.host.withTransaction(async () => {
+        this.cls.set('attempt', state);
         this.resetAttemptState();
         await this.setLocalTimeouts(options);
         const result = await fn();
+        assertAttemptAlive(this.cls);
         await this.hooks.beforeCommit(result);
+        assertAttemptAlive(this.cls);
+        state.finishing = true;
         return result;
       }),
       timeoutMs,
+      state,
     );
+  }
+
+  /**
+   * One mutating operation = one business transaction (architecture 12.4). The idempotency key is
+   * completed as the last statement of the first transaction that commits under it, so a second
+   * top-level transaction in the same request would run with a key that already says "done": a
+   * retry could never complete the operation. Refused in every environment (S1R-02).
+   */
+  private assertOneTransactionPerOperation(): void {
+    if (this.cls.isActive() && this.cls.get('idempotency')?.committed === true) {
+      throw new InvariantError(
+        'A second top-level transaction under one Idempotency-Key: an operation must use exactly one transaction',
+      );
+    }
+  }
+
+  private markCommitted(): void {
+    const idempotency = this.cls.isActive() ? this.cls.get('idempotency') : undefined;
+    if (idempotency) idempotency.committed = true;
   }
 
   private resetAttemptState(): void {

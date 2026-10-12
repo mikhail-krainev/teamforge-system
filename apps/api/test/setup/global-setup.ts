@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import { runMigrations } from '../../src/platform/db/migrate.js';
+import { createTestTables } from '../support/test-tables.js';
 import { databaseUrlFor, TEMPLATE_DB } from '../helpers/db-url.js';
 
 /**
@@ -24,5 +25,13 @@ export default async function setup(): Promise<void> {
   } finally {
     await admin.end({ timeout: 5 });
   }
-  await runMigrations(databaseUrlFor(directUrl, TEMPLATE_DB));
+  const templateUrl = databaseUrlFor(directUrl, TEMPLATE_DB);
+  await runMigrations(templateUrl);
+  // Probe tables of the test-support controller; DDL needs the owner role, not the application role.
+  const owner = postgres(templateUrl, { max: 1, prepare: false, onnotice: () => undefined });
+  try {
+    await createTestTables(owner);
+  } finally {
+    await owner.end({ timeout: 5 });
+  }
 }

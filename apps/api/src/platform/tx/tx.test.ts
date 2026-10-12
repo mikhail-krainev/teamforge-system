@@ -122,6 +122,45 @@ describe('TxRunner', () => {
     );
   });
 
+  it('S1R-02: refuses a second top-level transaction once the idempotency key committed', async () => {
+    const cls = fakeCls();
+    const idempotency = { completedInTx: false, committed: false };
+    cls.set('idempotency', idempotency);
+    const runner = new TxRunner(fakeHost() as unknown as TxHost, cls as never, new TxHooks());
+    await runner.run(async () => 1);
+    expect(idempotency.committed).toBe(true);
+    const error = await runner.run(async () => 2).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(InvariantError);
+    expect(String(error)).toMatch(/exactly one transaction/);
+  });
+
+  it('S1R-02: a rolled back first transaction does not block a second one', async () => {
+    const cls = fakeCls();
+    const idempotency = { completedInTx: false, committed: false };
+    cls.set('idempotency', idempotency);
+    const runner = new TxRunner(fakeHost() as unknown as TxHost, cls as never, new TxHooks());
+    await runner
+      .run(async () => Promise.reject(new Error('domain rejection')))
+      .catch(() => undefined);
+    expect(idempotency.committed).toBe(false);
+    await expect(runner.run(async () => 2)).resolves.toBe(2);
+  });
+
+  it('S1R-05: past the attempt deadline the commit hooks do not run and the scenario fails', async () => {
+    const hooks = new TxHooks();
+    const before = vi.fn(async () => undefined);
+    hooks.register({ beforeCommit: before });
+    const runner = runnerWith(fakeHost(), hooks);
+    const error = await runner
+      .run(async () => new Promise((resolve) => setTimeout(() => resolve('late'), 120)), {
+        attemptTimeoutMs: 30,
+      })
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: 'LOCK_TIMEOUT', status: 503 });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(before).not.toHaveBeenCalled();
+  });
+
   it('joins an already active transaction instead of opening a new one', async () => {
     const host = fakeHost();
     const runner = runnerWith(host);

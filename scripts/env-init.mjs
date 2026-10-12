@@ -17,6 +17,8 @@ export const GENERATORS = {
   DATA_ENCRYPTION_KEY: () => hex(32),
   GITHUB_WEBHOOK_SECRET: () => hex(24),
   POSTGRES_PASSWORD: () => hex(16),
+  TF_MIGRATOR_PASSWORD: () => hex(16),
+  TF_APP_PASSWORD: () => hex(16),
   REDIS_API_PASSWORD: () => hex(16),
   REDIS_WORKER_PASSWORD: () => hex(16),
   REDIS_LINKCHECK_PASSWORD: () => hex(16),
@@ -28,7 +30,8 @@ export const GENERATORS = {
 
 /** Which generated password belongs to the user part of a `scheme://user:@host` URL. */
 export const URL_PASSWORDS = {
-  teamforge: 'POSTGRES_PASSWORD',
+  tf_migrator: 'TF_MIGRATOR_PASSWORD',
+  tf_app: 'TF_APP_PASSWORD',
   api: 'REDIS_API_PASSWORD',
   worker: 'REDIS_WORKER_PASSWORD',
   linkcheck: 'REDIS_LINKCHECK_PASSWORD',

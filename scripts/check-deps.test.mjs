@@ -4,6 +4,7 @@ import {
   compareVersions,
   lockfileProblems,
   manifestProblems,
+  releaseAgeProblems,
   splitPackageKey,
 } from './check-deps.mjs';
 
@@ -30,4 +31,19 @@ test('check-deps: requires an exact packageManager and a single lockfile', () =>
   assert.deepEqual(manifestProblems({ packageManager: 'pnpm@12.11.2' }, []), []);
   assert.equal(manifestProblems({ packageManager: 'pnpm@^12' }, []).length, 1);
   assert.equal(manifestProblems({ packageManager: 'pnpm@12.11.2' }, ['yarn.lock']).length, 1);
+});
+
+test('check-deps: release-age policy needs minimumReleaseAge and documented exact exceptions', () => {
+  const doc = '| `vitest@5.0.4` | 2026-10-12 | reason |';
+  const ok = { minimumReleaseAge: 1440, minimumReleaseAgeExclude: ['vitest@5.0.4'] };
+  assert.deepEqual(releaseAgeProblems(ok, doc), []);
+  assert.match(releaseAgeProblems({ minimumReleaseAgeExclude: [] }, doc)[0], /minimumReleaseAge/);
+  assert.match(
+    releaseAgeProblems({ ...ok, minimumReleaseAgeExclude: ['vitest@^5.0.0'] }, doc)[0],
+    /exact/,
+  );
+  assert.match(
+    releaseAgeProblems({ ...ok, minimumReleaseAgeExclude: ['zod@4.6.7'] }, doc)[0],
+    /not documented/,
+  );
 });
