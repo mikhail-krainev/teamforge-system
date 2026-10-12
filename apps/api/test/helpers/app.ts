@@ -6,6 +6,8 @@ import { AppModule } from '../../src/app.module.js';
 import { Clock } from '../../src/platform/clock/clock.js';
 import { type AppConfig, loadConfig } from '../../src/platform/config/config.js';
 import { buildFastifyAdapter, configureHttpApp } from '../../src/platform/http/fastify.js';
+import { SESSION_AUTHENTICATOR } from '../../src/platform/authz/actor-policies.js';
+import { TestSessionAuthenticator } from '../support/test-session.authenticator.js';
 import { TestSupportModule } from '../support/test-support.module.js';
 import { WorkerModule } from '../../src/worker.module.js';
 import { validEnv } from './env.js';
@@ -78,6 +80,11 @@ export async function createTestApp(
     ],
   });
   if (options.clock) builder = builder.overrideProvider(Clock).useValue(options.clock);
+  if (options.testSupport !== false) {
+    // AuthModule provides the real authenticator under the same token; the test one wins and
+    // delegates to it when there is no X-Test-User header.
+    builder = builder.overrideProvider(SESSION_AUTHENTICATOR).useClass(TestSessionAuthenticator);
+  }
   const moduleRef = await customize(builder).compile();
   const app = moduleRef.createNestApplication<NestFastifyApplication>(buildFastifyAdapter(config));
   configureHttpApp(app);

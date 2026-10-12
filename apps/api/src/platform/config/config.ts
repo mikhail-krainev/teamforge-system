@@ -102,6 +102,9 @@ export const envSchema = z.object({
   GITHUB_APP_PRIVATE_KEY: optionalString,
   GITHUB_APP_CLIENT_ID: optionalString,
   GITHUB_APP_CLIENT_SECRET: optionalString,
+  /** Base URLs of GitHub (OAuth pages and REST API); only tests point them at a double. */
+  GITHUB_OAUTH_BASE_URL: optionalString.pipe(httpUrl.optional()),
+  GITHUB_API_BASE_URL: optionalString.pipe(httpUrl.optional()),
   GITHUB_WEBHOOK_SECRET: optionalString,
   DATA_ENCRYPTION_KEY: encryptionKey,
   IP_HASH_SALT: secret(),
@@ -139,10 +142,20 @@ export function isLoopbackOrigin(origin: string): boolean {
  * accepted only together with a loopback `APP_ORIGIN` (S1R-08).
  */
 function environmentIssues(parsed: z.infer<typeof envSchema>): ConfigIssue[] {
+  const issues: ConfigIssue[] = [];
   if (parsed.NODE_ENV === 'test' && !isLoopbackOrigin(parsed.APP_ORIGIN)) {
-    return [{ name: 'APP_ORIGIN', reason: 'invalid' }];
+    issues.push({ name: 'APP_ORIGIN', reason: 'invalid' });
   }
-  return [];
+  // A production instance must talk to the real GitHub: client secrets are sent to these hosts.
+  if (parsed.NODE_ENV === 'production') {
+    if (parsed.GITHUB_OAUTH_BASE_URL !== undefined) {
+      issues.push({ name: 'GITHUB_OAUTH_BASE_URL', reason: 'invalid' });
+    }
+    if (parsed.GITHUB_API_BASE_URL !== undefined) {
+      issues.push({ name: 'GITHUB_API_BASE_URL', reason: 'invalid' });
+    }
+  }
+  return issues;
 }
 
 /** Variables that only some roles must provide (checked after the schema passes). */

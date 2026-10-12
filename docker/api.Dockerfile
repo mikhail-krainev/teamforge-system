@@ -33,6 +33,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /repo/apps/api/dist ./dist
 COPY --from=build --chown=node:node /repo/apps/api/drizzle ./drizzle
+COPY --from=build --chown=node:node /repo/apps/api/seeds ./seeds
 COPY --chown=node:node apps/api/package.json ./package.json
 COPY --chown=node:node docker/worker-healthcheck.mjs ./healthcheck.mjs
 USER node

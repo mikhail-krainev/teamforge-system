@@ -14,6 +14,14 @@ export interface SessionAuthenticator {
  */
 export const SESSION_AUTHENTICATOR = Symbol('SESSION_AUTHENTICATOR');
 
+/** Provider token of the consent check (module auth); run by AuthzGuard for signed-in callers. */
+export const CONSENT_GATE = Symbol('CONSENT_GATE');
+
+export interface ConsentGate {
+  /** Throws 403 CONSENT_REQUIRED when the user has not accepted the current consent text. */
+  check(operationId: string, userId: string): Promise<void>;
+}
+
 export interface ActorContext {
   operationId: string;
   request: FastifyRequest;

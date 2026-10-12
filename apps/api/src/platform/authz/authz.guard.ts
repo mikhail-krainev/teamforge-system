@@ -12,6 +12,8 @@ import { DomainError } from '../errors/domain-error.js';
 import { OPERATION_KEY } from '../http/operation.decorator.js';
 import {
   ActorPolicies,
+  CONSENT_GATE,
+  type ConsentGate,
   SESSION_AUTHENTICATOR,
   type SessionAuthenticator,
 } from './actor-policies.js';
@@ -34,6 +36,7 @@ export class AuthzGuard implements CanActivate {
     @Optional()
     @Inject(SESSION_AUTHENTICATOR)
     private readonly authenticator?: SessionAuthenticator,
+    @Optional() @Inject(CONSENT_GATE) private readonly consentGate?: ConsentGate,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,6 +50,8 @@ export class AuthzGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
     const userId = policy.requiresSession ? await this.requireSession(request) : undefined;
     await policy.check({ operationId, request, authz, userId });
+    // Consent comes before body validation: a user without consent learns nothing about schemas.
+    if (userId !== undefined) await this.consentGate?.check(operationId, userId);
     return true;
   }
 

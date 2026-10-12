@@ -23,7 +23,6 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   beforeAll(async () => {
     db = await createTestDatabase();
     await db.sql.unsafe(`
-      CREATE TABLE auth."user" (id uuid PRIMARY KEY);
       CREATE TABLE teams.team (id uuid PRIMARY KEY);
       CREATE TABLE teams.seat (id uuid PRIMARY KEY);
       CREATE TABLE teams.seat_assignment (id uuid PRIMARY KEY, seat_id uuid NOT NULL, ended_at timestamptz);
@@ -129,7 +128,8 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
 
   it('S1-05: taking a lower lock level after a higher one throws in test mode', async () => {
     const [teamId] = await insertIds('teams.team', 1);
-    const [userId] = await insertIds('auth."user"', 1);
+    const userId = randomUUID();
+    await db.sql`INSERT INTO auth."user" (id, created_at, updated_at) VALUES (${userId}, now(), now())`;
     await expect(
       runner.run(async () => {
         await locks.lockTeam(teamId ?? '');

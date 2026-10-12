@@ -57,7 +57,8 @@ describeInfra('S1-04 migrations (direct connection)', ['db'], () => {
     await runMigrations(db.directUrl);
     const after = await db.sql`SELECT count(*)::int AS n FROM platform.__drizzle_migrations`;
     expect(after[0]?.n).toBe(before[0]?.n);
-    expect(after[0]?.n).toBe(1);
+    expect(after[0]?.n).toBe(before[0]?.n);
+    expect(after[0]?.n).toBeGreaterThanOrEqual(1);
   });
 
   it('enforces idempotency_key status values', async () => {

@@ -76,6 +76,27 @@ function serializeDbError(err: Error, pg: (Error & Record<string, unknown>) | un
   return { type: err.name, message: 'database query failed', db, stack: stackFrames(err) };
 }
 
+/**
+ * A copy of a database error that is safe to store or rethrow (BullMQ keeps `failedReason` and the
+ * stack in Redis for 7 days): no SQL text, parameters, PostgreSQL message or detail. Keeps the
+ * SQLSTATE in `code` and the stack frames. Returns undefined for errors that are not database errors.
+ */
+export function sanitizeDatabaseError(err: unknown): (Error & { code?: string }) | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const chain = causeChain(err);
+  const pg = pgErrorOf(chain);
+  if (pg === undefined && !chain.some(isQueryError)) return undefined;
+  const code = typeof pg?.code === 'string' ? pg.code : undefined;
+  const clean: Error & { code?: string } = new Error(
+    code === undefined ? 'database query failed' : `database query failed (SQLSTATE ${code})`,
+  );
+  clean.name = err.name;
+  clean.code = code;
+  const frames = stackFrames(err).split('\n').slice(1).join('\n');
+  clean.stack = `${clean.name}: ${clean.message}\n${frames}`;
+  return clean;
+}
+
 /** Error serializer without request/config details that HTTP clients attach (URLs, headers). */
 export function serializeErr(err: unknown): Record<string, unknown> {
   if (!(err instanceof Error)) return { message: String(err) };

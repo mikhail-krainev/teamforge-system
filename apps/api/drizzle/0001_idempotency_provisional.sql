@@ -1,0 +1,1 @@
+ALTER TABLE "platform"."idempotency_key" ADD COLUMN "response_provisional" boolean DEFAULT false NOT NULL;

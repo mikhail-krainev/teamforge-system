@@ -59,6 +59,7 @@ function asArray(value: unknown): string[] {
 @Injectable()
 export class AuthzRegistry implements OnApplicationBootstrap {
   private readonly operations = new Map<string, OperationSpec>();
+  private readonly contractIds = new Set<string>();
   private validators: OperationValidators | undefined;
 
   constructor(
@@ -68,7 +69,10 @@ export class AuthzRegistry implements OnApplicationBootstrap {
     @Inject(ActorPolicies) private readonly policies: ActorPolicies,
     @Optional() @Inject(EXTRA_OPERATIONS) private readonly extras: OperationSpec[] = [],
   ) {
-    for (const [id, spec] of readContractOperations(doc)) this.operations.set(id, spec);
+    for (const [id, spec] of readContractOperations(doc)) {
+      this.operations.set(id, spec);
+      this.contractIds.add(id);
+    }
     for (const extra of extras) this.operations.set(extra.operationId, extra);
   }
 
@@ -86,6 +90,19 @@ export class AuthzRegistry implements OnApplicationBootstrap {
       this.doc,
       [...used].flatMap((id) => this.operations.get(id) ?? []),
     );
+  }
+
+  /**
+   * Adds operations that are not part of the public contract (OAuth callbacks of a library, probes).
+   * Modules call it from `onModuleInit`; it must happen before the application bootstrap check.
+   */
+  registerOperations(specs: readonly OperationSpec[]): void {
+    for (const spec of specs) this.operations.set(spec.operationId, spec);
+  }
+
+  /** True for operations of the public contract (not for runtime-only extras such as test probes). */
+  isContractOperation(operationId: string): boolean {
+    return this.contractIds.has(operationId);
   }
 
   get(operationId: string): OperationSpec | undefined {

@@ -11,8 +11,6 @@ export interface IdempotencyContext {
   completedInTx: boolean;
   /** True once the transaction that completed the key has committed (set by TxRunner). */
   committed: boolean;
-  /** JSON of the response body stored by the transaction (replaced by the final HTTP body). */
-  storedBody?: string;
 }
 
 declare module 'nestjs-cls' {

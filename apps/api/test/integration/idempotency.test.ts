@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FixedClock } from '../../src/platform/clock/clock.js';
 import {
   IdempotencyService,
@@ -233,6 +233,72 @@ describeInfra('S1-06 idempotency interceptor (FR-WORK-08)', ['db', 'redis'], () 
       const again = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'v' }, options);
       expect(again.headers['idempotent-replayed']).toBe('true');
       expect(again.json()).toEqual({ id: 'v', shaped: true });
+      expect(JSON.stringify(again.json())).not.toContain('must-not-leak');
+      expect(await effects()).toBe(1);
+    });
+  });
+
+  describe('S1R-02 follow-up: the raw transaction result is never replayed', () => {
+    const store = () => testApp.app.get(IdempotencyStore);
+    const rowOf = async (user: string, key: string) =>
+      (
+        await db.sql`SELECT status, response_provisional, response_body FROM platform.idempotency_key
+        WHERE user_id = ${user} AND key = ${key}`
+      )[0];
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('answers 409 IDEMPOTENCY_IN_PROGRESS between the commit and the final body, then replays the final body', async () => {
+      const options = { user: randomUUID(), key: randomUUID() };
+      const original = store().overwriteResponse.bind(store());
+      const gate = barrier(2);
+      vi.spyOn(store(), 'overwriteResponse').mockImplementation(async (ref, response) => {
+        await gate.wait();
+        return original(ref, response);
+      });
+      const first = call(testApp.app, 'POST', '/v1/_test/dto', { value: 'v' }, options);
+      await waitFor(async () => (await rowOf(options.user, options.key))?.status === 'completed');
+      expect(await rowOf(options.user, options.key)).toMatchObject({ response_provisional: true });
+      const retry = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'v' }, options);
+      expect(retry.statusCode).toBe(409);
+      expect(retry.headers['retry-after']).toBe('1');
+      expect(retry.json()).toMatchObject({ code: 'IDEMPOTENCY_IN_PROGRESS' });
+      expect(JSON.stringify(retry.json())).not.toContain('must-not-leak');
+      await gate.wait();
+      expect((await first).json()).toEqual({ id: 'v', shaped: true });
+      expect(await rowOf(options.user, options.key)).toMatchObject({ response_provisional: false });
+      const again = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'v' }, options);
+      expect(again.headers['idempotent-replayed']).toBe('true');
+      expect(again.json()).toEqual({ id: 'v', shaped: true });
+      expect(await effects()).toBe(1);
+    });
+
+    it('repeats a failed final write; the client still gets its answer', async () => {
+      const options = { user: randomUUID(), key: randomUUID() };
+      const original = store().overwriteResponse.bind(store());
+      const spy = vi
+        .spyOn(store(), 'overwriteResponse')
+        .mockRejectedValueOnce(new Error('connection lost'))
+        .mockImplementation(original);
+      const first = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'r' }, options);
+      expect(first.statusCode).toBe(201);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(await rowOf(options.user, options.key)).toMatchObject({
+        response_provisional: false,
+        response_body: { id: 'r', shaped: true },
+      });
+      const again = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'r' }, options);
+      expect(again.json()).toEqual({ id: 'r', shaped: true });
+    });
+
+    it('keeps the mark and refuses to replay the raw result when every final write fails', async () => {
+      const options = { user: randomUUID(), key: randomUUID() };
+      vi.spyOn(store(), 'overwriteResponse').mockRejectedValue(new Error('connection lost'));
+      const first = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'x' }, options);
+      expect(first.statusCode).toBe(201);
+      expect(await rowOf(options.user, options.key)).toMatchObject({ response_provisional: true });
+      const again = await call(testApp.app, 'POST', '/v1/_test/dto', { value: 'x' }, options);
+      expect(again.statusCode).toBe(409);
       expect(JSON.stringify(again.json())).not.toContain('must-not-leak');
       expect(await effects()).toBe(1);
     });

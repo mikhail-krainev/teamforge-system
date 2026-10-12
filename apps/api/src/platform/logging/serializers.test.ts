@@ -1,7 +1,13 @@
 import { DrizzleQueryError } from 'drizzle-orm/errors';
 import { describe, expect, it } from 'vitest';
 import { resolveRequestId } from '../http/request-id.js';
-import { REDACT_PATHS, serializeErr, serializeReq, serializeRes } from './serializers.js';
+import {
+  REDACT_PATHS,
+  sanitizeDatabaseError,
+  serializeErr,
+  serializeReq,
+  serializeRes,
+} from './serializers.js';
 
 describe('log serializers (SEC-07)', () => {
   it('serializes a request without URL, query or headers', () => {
@@ -47,10 +53,10 @@ describe('log serializers (SEC-07)', () => {
   });
 });
 
-describe('database error serialization (S1R-01, SEC-07)', () => {
-  const EMAIL = 'alice@example.com';
-  const TOKEN = 'SESSION-TOKEN-123';
+const EMAIL = 'alice@example.com';
+const TOKEN = 'SESSION-TOKEN-123';
 
+describe('database error serialization (S1R-01, SEC-07)', () => {
   function pgError(): Error {
     return Object.assign(
       new Error(`duplicate key value violates unique constraint "user_email_uq"`),
@@ -111,6 +117,23 @@ describe('database error serialization (S1R-01, SEC-07)', () => {
       type: 'TypeError',
       message: 'bad input',
     });
+  });
+
+  it('returns a copy without SQL, parameters or detail, keeping the SQLSTATE and stack frames', () => {
+    const error = new DrizzleQueryError('INSERT INTO t VALUES ($1)', [TOKEN, EMAIL], pgError());
+    const clean = sanitizeDatabaseError(error);
+    expect(clean?.code).toBe('23505');
+    expect(clean?.cause).toBeUndefined();
+    const text = JSON.stringify([clean?.message, clean?.stack, clean?.name]);
+    for (const secret of [EMAIL, TOKEN, 'INSERT INTO', 'already exists']) {
+      expect(text).not.toContain(secret);
+    }
+    expect(clean?.stack).toMatch(/\n\s+at /);
+  });
+
+  it('leaves non-database errors alone', () => {
+    expect(sanitizeDatabaseError(new TypeError('bad'))).toBeUndefined();
+    expect(sanitizeDatabaseError('text')).toBeUndefined();
   });
 });
 

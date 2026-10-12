@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { ClsService } from 'nestjs-cls';
+import { PinoLogger } from 'nestjs-pino';
 import type { IdempotencyContext } from '../context/cls-store.js';
 import { Clock } from '../clock/clock.js';
 import { DomainError } from '../errors/domain-error.js';
@@ -9,10 +10,13 @@ import { type ProblemResult, toProblem } from '../errors/problem.js';
 import { canonicalJson } from '../http/canonical-json.js';
 import { TxHooks } from '../tx/tx-hooks.js';
 import type { TxHost } from '../tx/tx-runner.js';
-import { type KeyRow, IdempotencyStore } from './idempotency.store.js';
+import { type KeyRow, IdempotencyStore, type ResponseRecord } from './idempotency.store.js';
 
 /** In-progress claim lifetime: longer than the 70 s worst case of a request (12.1, 12.4). */
 export const LOCK_MS = 120_000;
+/** Attempts to replace the provisional response with the final body, and the pause before each retry. */
+export const FINALIZE_ATTEMPTS = 3;
+export const FINALIZE_RETRY_MS = 100;
 /** C-50: stored responses live 24 h. */
 export const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -48,6 +52,7 @@ export class IdempotencyService implements OnModuleInit {
     @Inject(ClsService) private readonly cls: ClsService,
     @Inject(TransactionHost) private readonly txHost: TxHost,
     @Inject(TxHooks) private readonly hooks: TxHooks,
+    @Inject(PinoLogger) private readonly logger: PinoLogger,
   ) {}
 
   onModuleInit(): void {
@@ -87,6 +92,9 @@ export class IdempotencyService implements OnModuleInit {
     if (row.operationId !== input.operationId || !row.requestHash.equals(hash)) {
       throw new DomainError('IDEMPOTENCY_KEY_REUSED', 422);
     }
+    // The business transaction committed but the final HTTP body is not stored yet: the raw
+    // transaction result must never reach a client. Answer "in progress" until it is replaced.
+    if (row.status === 'completed' && row.responseProvisional) throw inProgress();
     if (row.status === 'completed') return this.replayOf(row);
     if (row.lockedUntil > now) throw inProgress();
     const lockToken = await this.store.takeOver(input.userId, input.key, now, LOCK_MS);
@@ -99,8 +107,9 @@ export class IdempotencyService implements OnModuleInit {
 
   /**
    * Step 3: last statement of the business transaction. 0 rows = the claim was taken over. The
-   * transaction result is a PROVISIONAL response: it makes "effect without a stored answer"
-   * impossible; the interceptor replaces it with the final HTTP body (`afterSuccess`).
+   * transaction result is a PROVISIONAL response (the row is marked `response_provisional`): it
+   * makes "effect without a stored answer" impossible; the interceptor replaces it with the final
+   * HTTP body (`afterSuccess`). Until then a repeated request gets 409 IDEMPOTENCY_IN_PROGRESS.
    */
   private async completeInTx(result: unknown): Promise<void> {
     const ctx = this.cls.get('idempotency');
@@ -109,10 +118,10 @@ export class IdempotencyService implements OnModuleInit {
     const done = await this.store.complete(this.txHost.tx, ctx, {
       status: ctx.successStatus,
       body,
+      provisional: true,
     });
     if (!done) throw inProgress();
     ctx.completedInTx = true;
-    ctx.storedBody = JSON.stringify(body);
   }
 
   /**
@@ -126,8 +135,26 @@ export class IdempotencyService implements OnModuleInit {
       await this.store.complete(this.txHost.tx, ctx, { status: ctx.successStatus, body });
       return;
     }
-    if (JSON.stringify(body) === ctx.storedBody) return;
-    await this.store.overwriteResponse(ctx, { status: ctx.successStatus, body });
+    await this.finalizeResponse(ctx, { status: ctx.successStatus, body });
+  }
+
+  /**
+   * Replaces the provisional response, repeating the write when it fails: the effect is committed,
+   * so the client still gets its success answer. If every attempt fails the row stays provisional
+   * and repeated requests keep getting 409 IDEMPOTENCY_IN_PROGRESS until the key expires; the raw
+   * result is never replayed.
+   */
+  private async finalizeResponse(ctx: IdempotencyContext, response: ResponseRecord): Promise<void> {
+    for (let attempt = 1; attempt <= FINALIZE_ATTEMPTS; attempt += 1) {
+      try {
+        await this.store.overwriteResponse(ctx, response);
+        return;
+      } catch (error) {
+        this.logger.warn({ err: error, attempt }, 'idempotency: final response write failed');
+        if (attempt < FINALIZE_ATTEMPTS) await pause(FINALIZE_RETRY_MS * attempt);
+      }
+    }
+    this.logger.error('idempotency: key left with a provisional response');
   }
 
   /**
@@ -162,6 +189,8 @@ export class IdempotencyService implements OnModuleInit {
 function isFencingFailure(error: unknown): boolean {
   return error instanceof DomainError && error.code === 'IDEMPOTENCY_IN_PROGRESS';
 }
+
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function toJson(value: unknown): unknown {
   return value === undefined ? null : JSON.parse(JSON.stringify(value));
