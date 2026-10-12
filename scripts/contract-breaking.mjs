@@ -10,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const baseRef = process.argv[2] ?? 'origin/main';
 const CONTRACT = 'docs/api/openapi.yaml';
+// Pinned by digest (architecture 13.18). The official ghcr.io image needs a login, Docker Hub does not.
+const OASDIFF_IMAGE =
+  'tufin/oasdiff@sha256:2e32b0c600523a308f338a7d8456603f6caf47d9bbcdbd1fb366c21d80e42c5f';
 
 function run(cmd, args, options = {}) {
   const res = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', ...options });
@@ -34,7 +37,7 @@ const docker = run(
     `${dir}:/base:ro`,
     '-v',
     `${path.join(root, 'docs/api')}:/head:ro`,
-    'ghcr.io/oasdiff/oasdiff',
+    OASDIFF_IMAGE,
     'breaking',
     '/base/base.yaml',
     '/head/openapi.yaml',

@@ -44,3 +44,6 @@ Thumbs.db
 # Local tooling
 .pnpm-debug.log
 .eslintcache
+
+# Public test values for the test stack
+!.env.test

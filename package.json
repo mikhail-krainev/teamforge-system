@@ -17,7 +17,19 @@
     "contract:generate": "pnpm --filter shared run generate",
     "contract:check": "node scripts/check-contract.mjs",
     "contract:test": "node --test scripts/*.test.mjs",
-    "contract:breaking": "node scripts/contract-breaking.mjs"
+    "contract:breaking": "node scripts/contract-breaking.mjs",
+    "env:init": "node scripts/env-init.mjs",
+    "gen:module": "node scripts/gen-module.mjs",
+    "depcruise": "pnpm --filter api run depcruise",
+    "db:check": "pnpm --filter api run db:check",
+    "trace:fr": "node scripts/trace-fr.mjs",
+    "test:env:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "test:env:down": "docker compose -f docker-compose.test.yml down -v",
+    "test:integration": "node scripts/with-env.mjs .env.test -- pnpm --filter api run test",
+    "test:coverage": "node scripts/with-env.mjs .env.test -- pnpm --filter api run test:coverage",
+    "test:concurrency": "node scripts/with-env.mjs .env.test --repeat 5 -- pnpm --filter api exec vitest run test/concurrency",
+    "test:e2e": "pnpm --filter web run test:e2e",
+    "deps:check": "node scripts/check-deps.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -1,0 +1,17 @@
+# gitleaks configuration: default rules plus an allowlist for public test constants.
+title = "teamforge"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public throwaway credentials of the local test stack and test fixtures (never real secrets)"
+paths = [
+  '''(^|/)\.env\.test$''',
+  '''(^|/)docker-compose\.test\.yml$''',
+  '''(^|/)apps/api/test/''',
+]
+
+[[allowlists]]
+description = "Step identifier in docs/playbooks.md that looks like a key (false positive)"
+regexes = ['''m6_evaluation''']

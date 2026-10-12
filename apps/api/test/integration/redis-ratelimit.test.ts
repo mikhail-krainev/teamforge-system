@@ -5,7 +5,7 @@ import { loadConfig } from '../../src/platform/config/config.js';
 import { RateLimiter } from '../../src/platform/ratelimit/rate-limiter.js';
 import { createTestApp, type TestApp } from '../helpers/app.js';
 import { validEnv } from '../helpers/env.js';
-import { describeInfra, waitFor } from '../helpers/infra.js';
+import { describeInfra, scanKeys, waitFor } from '../helpers/infra.js';
 
 describeInfra('S1-07 rate limiter (real Redis, Lua sliding window)', ['redis'], () => {
   let redis: Redis;
@@ -52,9 +52,9 @@ describeInfra('S1-07 rate limiter (real Redis, Lua sliding window)', ['redis'], 
     expect(emailSubject).toBe(limiter.emailSubject('user@example.com'));
     await limiter.consume('authLinkIp', ipSubject);
     await limiter.consume('authLinkEmail', emailSubject);
-    const keys = await redis.keys(`rl:*:*${ipSubject.slice(3, 20)}*`);
+    const keys = await scanKeys(redis, `rl:*:*${ipSubject.slice(3, 20)}*`);
     expect(keys.join()).not.toContain('203.0.113.7');
-    const emailKeys = await redis.keys(`rl:authLinkEmail:email:*`);
+    const emailKeys = await scanKeys(redis, `rl:authLinkEmail:email:*`);
     expect(emailKeys.join().toLowerCase()).not.toContain('example.com');
   });
 

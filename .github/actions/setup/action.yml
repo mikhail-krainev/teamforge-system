@@ -1,0 +1,23 @@
+name: Setup workspace
+description: Node from .nvmrc, pnpm from the packageManager field (corepack), cached pnpm store, frozen install.
+
+runs:
+  using: composite
+  steps:
+    # pnpm must exist before setup-node asks it for the store path (cache: pnpm).
+    - name: Enable corepack
+      shell: bash
+      env:
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+      run: corepack enable
+
+    - name: Set up Node.js
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

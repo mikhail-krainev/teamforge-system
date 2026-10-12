@@ -1,18 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
+import type { Redis } from 'ioredis';
 import { describe } from 'vitest';
 import { databaseUrlFor, TEMPLATE_DB } from './db-url.js';
 
-export type Need = 'db' | 'redis';
+export type Need = 'db' | 'redis' | 's3';
 
 const available: Record<Need, boolean> = {
   db: Boolean(process.env.DATABASE_URL && process.env.DATABASE_DIRECT_URL),
   redis: Boolean(process.env.REDIS_URL),
+  s3: Boolean(process.env.S3_TEST_ENDPOINT),
 };
 
 const variables: Record<Need, string> = {
   db: 'DATABASE_URL + DATABASE_DIRECT_URL',
   redis: 'REDIS_URL',
+  s3: 'S3_TEST_ENDPOINT (+ _ACCESS_KEY, _SECRET_KEY)',
 };
 
 /**
@@ -105,4 +108,16 @@ export function barrier(count: number): { wait(): Promise<void> } {
       await gate;
     },
   };
+}
+
+/** Keys matching a pattern via SCAN (the application ACL forbids KEYS, as in production). */
+export async function scanKeys(redis: Redis, pattern: string): Promise<string[]> {
+  const found: string[] = [];
+  let cursor = '0';
+  do {
+    const [next, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 1000);
+    found.push(...batch);
+    cursor = next;
+  } while (cursor !== '0');
+  return found;
 }

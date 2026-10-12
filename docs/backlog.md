@@ -41,3 +41,23 @@
 - MEDIUM: S3-04: колонки `joined_via` и `trial_until` создать миграцией явно.
 - MEDIUM: у среза 4 нет границы деления.
 - LOW: в шапке плана "x-fr у каждой операции", фактически 112 из 114 (без health).
+
+## Фаза 6, срез 1 (compose, тестовая инфраструктура, CI)
+
+- MEDIUM: MinIO заменён SeaweedFS (ADR-0019). Обновить architecture.md (разделы 1, 13.11, 13.15, 13.17, 13.18, схема и таблица сервисов), plan.md (S1-08, S1-12, S5-06), ADR-0010 и имена бакетов (`tf-resumes` в architecture против `resumes` в plan и `.env.example`); выбрать хранилище для выпуска в фазе 7.
+- MEDIUM: проверить на SeaweedFS подписанные ссылки GET с `response-content-disposition`, сроком 5 минут и `nosniff` при раздаче (S5-06), условные запросы и очистку сирот; тест на реальном хранилище в каждом срезе, где появится новая S3-операция. Если не пройдёт - Garage или RustFS (ADR-0019).
+- MEDIUM: `AuthzRegistry` (S1-13: "приложение не стартует при операции без `x-authz`") в `apps/api` не реализован, тестов на него нет. Нужна реализация в `platform/http` (B) и модульный тест; `idorMatrix` в `apps/api/test/helpers/authz.ts` уже читает `x-authz` из контракта.
+- MEDIUM: у `worker` нет собственного heartbeat; healthcheck контейнера проверяет только PING в Redis с ACL-пользователем `worker` (`docker/worker-healthcheck.mjs`). Добавить метку живости цикла очередей (B), например ключ с TTL в `~bull:*`-совместимом пространстве.
+- MEDIUM: `TRUSTED_PROXY_CIDRS` в `docker-compose.yml` по умолчанию `172.16.0.0/12` (весь диапазон мостовых сетей Docker). В фазе 7 сузить до адресов Caddy и web.
+- MEDIUM: `pnpm run format:check` падает на 12 файлах `apps/web` (сгенерированные `nav.generated.ts`, `registry.generated.ts`, `next-env.d.ts` не в `.prettierignore`; плюс несколько исходников без форматирования). Поэтому в CI нет шага `format:check`; добавить после исправления.
+- LOW: сеть compose в разработке проще, чем в architecture 1 (`edge`/`internal`/`checker-net`/`egress`): есть `default` и `resume-net` (`internal: true`); порты зависимостей опубликованы на `127.0.0.1` (в том числе Redis, вопреки 13.16 для выпуска). Боевой compose и CI-проверка "нет `ports:` кроме Caddy" - фаза 7.
+- LOW: контейнеры не ужесточены (`read_only`, `cap_drop`, `no-new-privileges`, лимиты памяти и процессов) за исключением resume-worker, которого ещё нет; ужесточить в боевом compose (фаза 7).
+- LOW: `docker-compose.yml` и e2e-проект `e2e` используют одинаковые теги образов `teamforge-api:local` и `teamforge-web:local`: пересборка в e2e подменяет образы dev-стека (работающие контейнеры не затрагиваются). При необходимости разнести через `image: teamforge-api:${COMPOSE_PROJECT_NAME}`.
+- LOW: CI-джоба `e2e` собирает образы с нуля (кэш слоёв Docker не подключён); при росте времени подключить `docker buildx bake` с кэшем GHA или использовать образы из джобы `build`.
+- LOW: `ghcr.io/oasdiff/oasdiff` требует входа в реестр, поэтому `contract:breaking` использует `tufin/oasdiff` с Docker Hub по digest (architecture 17, п. 11 называет официальный образ).
+- LOW: `eslint-plugin-boundaries` подключается из `apps/api` через `createRequire` в корневом `eslint.config.js`; работает при полной установке зависимостей. Перенести в корневые devDependencies, если когда-нибудь понадобится частичная установка (`--filter`).
+- LOW: корневые скрипты вызывают `pnpm` изнутри; на Windows без `pnpm` в PATH (только `corepack pnpm`) они не запускаются. Сказать в README: `corepack enable`.
+- LOW: `ajv` и `ajv-formats` добавлены в devDependencies `apps/api` для `expectMatchesContract`; когда B подключит валидацию входа (ADR-0007), перенести в dependencies.
+- LOW: `api.as(user)` и e2e `signIn` в срезе 1 - заготовки (заголовок `x-test-user`, ошибка-заглушка); в срезе 2 заменить созданием сессии Better Auth в Redis.
+- LOW: пороги покрытия 80% действуют на весь `src`; правила наград, голосования, подбора, антифрода и автоматы требуют 95% (spec 5.9): добавить пороги по маскам каталогов, когда появятся модули. Фактическое покрытие среза 1: строки 91%, ветви 84% (порог 80% выдержан, снижать не пришлось).
+- LOW: `trace:fr` проверяет только идентификаторы FR/CC/AF из строки "Входящие FR" среза; пункты NFR 5.x в названиях тестов не отслеживаются.

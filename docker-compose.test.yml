@@ -1,0 +1,139 @@
+# Test dependencies (docs/plan.md, "Тестовая БД"). Project name `tf-test`; ports are on 127.0.0.1 and differ
+# from the dev stack, so both can run side by side:
+#   PostgreSQL 5433, PgBouncer 6433, Redis 6380, redis-resume 6381, S3 (SeaweedFS) 9100.
+# Commands: `pnpm run test:env:up` / `pnpm run test:env:down`. The matching client settings are in `.env.test`.
+# The credentials below are public test values; they protect nothing but a throwaway local stack.
+name: tf-test
+
+x-test-env: &test-env
+  POSTGRES_PASSWORD: tf_test_password
+  REDIS_API_PASSWORD: tf_test_redis_api
+  REDIS_WORKER_PASSWORD: tf_test_redis_worker
+  REDIS_LINKCHECK_PASSWORD: tf_test_redis_linkcheck
+  REDIS_RESUME_PRODUCER_PASSWORD: tf_test_resume_producer
+  REDIS_RESUME_PASSWORD: tf_test_resume
+  S3_ACCESS_KEY: tftestaccesskey
+  S3_SECRET_KEY: tftestsecretkey0123456789
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    # Durability is irrelevant for tests; every test file clones its own database from a template.
+    command:
+      [
+        'postgres',
+        '-c',
+        'fsync=off',
+        '-c',
+        'synchronous_commit=off',
+        '-c',
+        'full_page_writes=off',
+        '-c',
+        'max_connections=500',
+      ]
+    environment:
+      POSTGRES_USER: teamforge
+      POSTGRES_DB: teamforge
+      POSTGRES_PASSWORD: tf_test_password
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - '127.0.0.1:5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U teamforge -d teamforge']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Transaction pooling like production. The wildcard database entry lets the application reach the
+  # per-file databases (tf_<random>) that the tests create from the template.
+  pgbouncer:
+    image: edoburu/pgbouncer@sha256:9c78945868a6a142c7fc40ccd843bbe5a606df163c7ffce4de70e0d628d696a2
+    environment:
+      DATABASE_URL: postgres://teamforge:tf_test_password@postgres:5432
+      LISTEN_PORT: '6432'
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: '2000'
+      DEFAULT_POOL_SIZE: '40'
+      ADMIN_USERS: teamforge
+      UNIX_SOCKET_DIR: ''
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:6433:6432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 6432']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Same command restrictions as production (docker/redis/users.acl.tpl), but any key prefix.
+  redis:
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    user: redis
+    entrypoint: ['/bin/sh', '/docker/redis/start.sh', '/docker/redis/users.test.acl.tpl']
+    command: ['--save', '', '--appendonly', 'no']
+    environment: *test-env
+    volumes:
+      - ./docker/redis:/docker/redis:ro
+    tmpfs:
+      - /tmp
+    ports:
+      - '127.0.0.1:6380:6379'
+    healthcheck:
+      test: ['CMD', '/bin/sh', '/docker/redis/healthcheck.sh', 'api', 'REDIS_API_PASSWORD']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis-resume:
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    user: redis
+    entrypoint: ['/bin/sh', '/docker/redis/start.sh', '/docker/redis/users.resume.acl.tpl']
+    command: ['--save', '', '--appendonly', 'no']
+    environment: *test-env
+    volumes:
+      - ./docker/redis:/docker/redis:ro
+    tmpfs:
+      - /tmp
+    ports:
+      - '127.0.0.1:6381:6379'
+    healthcheck:
+      test: ['CMD', '/bin/sh', '/docker/redis/healthcheck.sh', 'resume', 'REDIS_RESUME_PASSWORD']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    entrypoint: ['/bin/sh', '/docker/seaweedfs/start.sh']
+    environment: *test-env
+    volumes:
+      - ./docker/seaweedfs:/docker/seaweedfs:ro
+    tmpfs:
+      - /data
+    ports:
+      - '127.0.0.1:9100:9000'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9000/healthz']
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
+
+  seaweedfs-init:
+    image: amazon/aws-cli:2.27.0@sha256:e3e329e1d2894b7b4bbb0aacacd0a155262159b2e7a3b4275eb1f24046d3e06c
+    entrypoint: ['/bin/sh', '/docker/seaweedfs/init.sh']
+    environment:
+      S3_ENDPOINT: http://seaweedfs:9000
+      S3_ACCESS_KEY: tftestaccesskey
+      S3_SECRET_KEY: tftestsecretkey0123456789
+      S3_BUCKETS: resumes artifacts
+    volumes:
+      - ./docker/seaweedfs:/docker/seaweedfs:ro
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    restart: 'no'
