@@ -19,9 +19,9 @@ coverage/
 *.key
 
 # Uploaded user files (resumes, artifacts)
-uploads/
-storage/
-minio-data/
+/uploads/
+/storage/
+/minio-data/
 
 # Test output
 playwright-report/
@@ -40,3 +40,10 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Local tooling
+.pnpm-debug.log
+.eslintcache
+
+# Public test values for the test stack
+!.env.test

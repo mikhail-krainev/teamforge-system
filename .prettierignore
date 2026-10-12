@@ -1,0 +1,7 @@
+node_modules/
+pnpm-lock.yaml
+packages/shared/openapi.json
+packages/shared/src/generated/
+docs/
+.next/
+dist/

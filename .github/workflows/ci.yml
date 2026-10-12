@@ -1,0 +1,184 @@
+name: CI
+
+# Quality gates of every change (docs/plan.md S1-12). All third-party actions are pinned by commit SHA;
+# the container images used below are pinned by digest.
+#
+# Security of the trigger: `pull_request` (not `pull_request_target`) gives workflows from forks a
+# read-only token and no secrets, and nothing in this file uses secrets, so a fork cannot reach any.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+
+jobs:
+  # Contract: lint, regenerate types (must not change the repository), authz/idempotency rules, breaking changes.
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Lint contract, bundle and generate types
+        run: pnpm run contract:generate
+      - name: Generated files are up to date
+        run: git diff --exit-code packages/shared
+      - name: Contract rules (operationId, x-fr, x-authz, Idempotency-Key)
+        run: pnpm run contract:check
+      - name: Tests of the repository scripts, including the compose security policy (DB roles, trusted proxy)
+        run: pnpm run contract:test
+      - name: Breaking changes against main (oasdiff)
+        if: github.event_name == 'pull_request'
+        run: pnpm run contract:breaking origin/main
+
+  # Static analysis: types, lint, module boundaries, migrations vs schema, dependencies, secrets.
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Lint (includes module boundaries)
+        run: pnpm run lint
+      - name: Module graph (dependency-cruiser)
+        run: pnpm run depcruise
+      - name: Drizzle schema equals committed migrations
+        run: pnpm run db:check
+      - name: Every FR of the slice is named in a test
+        run: pnpm run trace:fr
+      - name: Dependency policy (architecture 13.18)
+        run: pnpm run deps:check
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+      - name: Verify registry signatures
+        run: pnpm audit signatures
+      - name: Secret scan (gitleaks)
+        run: >-
+          docker run --rm -v "$PWD:/repo"
+          zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          detect --source /repo --config /repo/.gitleaks.toml --redact
+
+  # Unit and integration tests against the same services as production: PostgreSQL behind PgBouncer
+  # (transaction mode), Redis with ACL users, SeaweedFS as S3. The application connects through
+  # DATABASE_URL (PgBouncer) as the role tf_app (no superuser, no DDL); migrations and fixtures use
+  # DATABASE_DIRECT_URL as the owner role tf_migrator (roles: docker/postgres/10-roles.sh, see .env.test).
+  unit-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Start test services (docker-compose.test.yml)
+        run: pnpm run test:env:up
+      - name: API tests with coverage (threshold 80%)
+        run: pnpm run test:coverage
+      - name: Concurrency tests, 5 repetitions
+        run: pnpm run test:concurrency
+      - name: Web unit tests
+        run: pnpm --filter web run test
+
+      - name: Service logs
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs --no-color
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: api-coverage
+          path: apps/api/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop test services
+        if: always()
+        run: pnpm run test:env:down
+
+  # End to end: the whole stack as compose project `e2e`, Playwright in Chromium, axe checks.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Keep the stack after the run so that logs can be collected; it is removed in the last step.
+      E2E_KEEP_STACK: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium with system dependencies
+        run: pnpm --filter web exec playwright install --with-deps chromium
+      - name: Run the slice scenarios
+        run: pnpm run test:e2e
+
+      - name: Compose logs
+        if: failure()
+        run: docker compose -p e2e logs --no-color > e2e-compose.log
+      - name: Upload Playwright report, traces and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-artifacts
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            e2e-compose.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove the e2e stack
+        if: always()
+        run: docker compose -p e2e down -v --remove-orphans || true
+
+  # The production images build from a clean checkout.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, web]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/${{ matrix.image }}.Dockerfile
+          push: false
+          build-args: |
+            ${{ matrix.image == 'web' && 'API_INTERNAL_URL=http://api:4000' || '' }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max

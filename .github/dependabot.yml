@@ -1,0 +1,38 @@
+# Dependency updates. A 14-day cooldown matches the supply-chain policy (docs/architecture.md 13.18,
+# "minimumReleaseAge: 14 days"); every update is reviewed by hand, including new transitive packages.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 14
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 14
+
+  # Base images pinned by digest in the Dockerfiles.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  # Images pinned by digest in docker-compose.yml / docker-compose.test.yml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14

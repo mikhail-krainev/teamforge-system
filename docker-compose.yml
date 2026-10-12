@@ -1,0 +1,280 @@
+# Local stack (slice 1). Run `pnpm run env:init` first, then `docker compose up --build`.
+# Images are pinned by digest (architecture 13.18). Dependencies are published on 127.0.0.1 only.
+# Caddy is not used in dev: web proxies /api/* to api (one origin). Its config comes in phase 7.
+name: teamforge
+
+x-api-build: &api-build
+  context: .
+  dockerfile: docker/api.Dockerfile
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  API_PORT: '4000'
+  # The application role: no SUPERUSER/CREATEDB, DML only (docker/postgres/10-roles.sh, S1R-10).
+  DATABASE_URL: postgres://tf_app:${TF_APP_PASSWORD:?run "pnpm run env:init" first}@pgbouncer:6432/teamforge
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-20}
+  QUEUE_PREFIX: ${QUEUE_PREFIX:-bull}
+  REDIS_ACL_STRICT: ${REDIS_ACL_STRICT:-true}
+  # Only the web container (the one proxy in dev) is trusted for X-Forwarded-For, not the whole network.
+  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${TF_WEB_IP:-172.29.250.10}/32}
+  S3_ENDPOINT: http://seaweedfs:9000
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY}
+  S3_BUCKET_RESUMES: ${S3_BUCKET_RESUMES:-resumes}
+  S3_BUCKET_ARTIFACTS: ${S3_BUCKET_ARTIFACTS:-artifacts}
+  FILES_PUBLIC_ORIGIN: ${FILES_PUBLIC_ORIGIN:-http://localhost:9000}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?run "pnpm run env:init" first}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+  APP_ORIGIN: ${WEB_URL:-http://localhost:3000}
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?run "pnpm run env:init" first}
+  IP_HASH_SALT: ${IP_HASH_SALT:?run "pnpm run env:init" first}
+  SMTP_URL: smtp://mailpit:1025
+  MAIL_FROM: ${MAIL_FROM:-Teamforge <no-reply@localhost>}
+
+networks:
+  # The default network has an explicit subnet so that the address of `web` (the trusted proxy) is
+  # known and the trust list can be a single /32. The e2e project overrides TF_NET_SUBNET/TF_WEB_IP.
+  default:
+    ipam:
+      config:
+        - subnet: ${TF_NET_SUBNET:-172.29.250.0/24}
+  # `resume-net` is internal (no route to the outside); redis-resume lives there. The resume-worker
+  # container joins it in slice 2 (architecture 13.15).
+  resume-net:
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  seaweedfs-data:
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    restart: unless-stopped
+    environment:
+      # Superuser: used by the init script and for administration only, never by the application.
+      POSTGRES_USER: postgres
+      POSTGRES_DB: teamforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run "pnpm run env:init" first}
+      TF_MIGRATOR_PASSWORD: ${TF_MIGRATOR_PASSWORD:?run "pnpm run env:init" first}
+      TF_APP_PASSWORD: ${TF_APP_PASSWORD:?run "pnpm run env:init" first}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    ports:
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d teamforge']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Transaction pooling: the application connects here (prepared statements are off on the client).
+  pgbouncer:
+    image: edoburu/pgbouncer@sha256:9c78945868a6a142c7fc40ccd843bbe5a606df163c7ffce4de70e0d628d696a2
+    restart: unless-stopped
+    environment:
+      # PgBouncer logs in to PostgreSQL as the application role only.
+      DATABASE_URL: postgres://tf_app:${TF_APP_PASSWORD:?run "pnpm run env:init" first}@postgres:5432
+      LISTEN_PORT: '6432'
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: '400'
+      DEFAULT_POOL_SIZE: '25'
+      # No admin console user (PgBouncer defaults to `postgres`, which is not in its user list).
+      UNIX_SOCKET_DIR: ''
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${PGBOUNCER_HOST_PORT:-6432}:6432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 6432']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    restart: unless-stopped
+    user: redis
+    entrypoint: ['/bin/sh', '/docker/redis/start.sh', '/docker/redis/users.acl.tpl']
+    command: ['--appendonly', 'yes', '--dir', '/data']
+    environment:
+      REDIS_API_PASSWORD: ${REDIS_API_PASSWORD:?run "pnpm run env:init" first}
+      REDIS_WORKER_PASSWORD: ${REDIS_WORKER_PASSWORD:?run "pnpm run env:init" first}
+      REDIS_LINKCHECK_PASSWORD: ${REDIS_LINKCHECK_PASSWORD:?run "pnpm run env:init" first}
+    volumes:
+      - ./docker/redis:/docker/redis:ro
+      - redis-data:/data
+    tmpfs:
+      - /tmp
+    ports:
+      - '127.0.0.1:${REDIS_HOST_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', '/bin/sh', '/docker/redis/healthcheck.sh', 'api', 'REDIS_API_PASSWORD']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Isolated instance for the resume-parse queue only: no persistence, internal network, own ACL.
+  redis-resume:
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    restart: unless-stopped
+    user: redis
+    entrypoint: ['/bin/sh', '/docker/redis/start.sh', '/docker/redis/users.resume.acl.tpl']
+    command: ['--save', '', '--appendonly', 'no']
+    environment:
+      REDIS_RESUME_PRODUCER_PASSWORD: ${REDIS_RESUME_PRODUCER_PASSWORD:?run "pnpm run env:init" first}
+      REDIS_RESUME_PASSWORD: ${REDIS_RESUME_PASSWORD:?run "pnpm run env:init" first}
+    volumes:
+      - ./docker/redis:/docker/redis:ro
+    tmpfs:
+      - /tmp
+    networks: [resume-net]
+    healthcheck:
+      test: ['CMD', '/bin/sh', '/docker/redis/healthcheck.sh', 'resume', 'REDIS_RESUME_PASSWORD']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Local S3 (ADR-0019). The application only speaks the S3 API, so production can use any provider.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    restart: unless-stopped
+    entrypoint: ['/bin/sh', '/docker/seaweedfs/start.sh']
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run "pnpm run env:init" first}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?run "pnpm run env:init" first}
+    volumes:
+      - ./docker/seaweedfs:/docker/seaweedfs:ro
+      - seaweedfs-data:/data
+    ports:
+      - '127.0.0.1:${S3_HOST_PORT:-9000}:9000'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9000/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  seaweedfs-init:
+    image: amazon/aws-cli:2.27.0@sha256:e3e329e1d2894b7b4bbb0aacacd0a155262159b2e7a3b4275eb1f24046d3e06c
+    entrypoint: ['/bin/sh', '/docker/seaweedfs/init.sh']
+    environment:
+      S3_ENDPOINT: http://seaweedfs:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKETS: ${S3_BUCKET_RESUMES:-resumes} ${S3_BUCKET_ARTIFACTS:-artifacts}
+    volumes:
+      - ./docker/seaweedfs:/docker/seaweedfs:ro
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    restart: 'no'
+
+  mailpit:
+    image: axllent/mailpit@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${SMTP_HOST_PORT:-1025}:1025'
+      - '127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: applies Drizzle migrations over the DIRECT connection (never through PgBouncer).
+  migrate:
+    build: *api-build
+    image: teamforge-api:local
+    command: ['node', 'dist/platform/db/migrate.js']
+    environment:
+      DATABASE_DIRECT_URL: postgres://tf_migrator:${TF_MIGRATOR_PASSWORD:?run "pnpm run env:init" first}@postgres:5432/teamforge
+      ADMIN_GITHUB_IDS: ${ADMIN_GITHUB_IDS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build: *api-build
+    image: teamforge-api:local
+    restart: unless-stopped
+    command: ['node', 'dist/main.js']
+    environment:
+      <<: *app-env
+      REDIS_URL: redis://api:${REDIS_API_PASSWORD}@redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+    ports:
+      - '127.0.0.1:${API_PORT:-4000}:4000'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:4000/api/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  worker:
+    build: *api-build
+    image: teamforge-api:local
+    restart: unless-stopped
+    command: ['node', 'dist/worker.js']
+    environment:
+      <<: *app-env
+      REDIS_URL: redis://worker:${REDIS_WORKER_PASSWORD}@redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'node', 'healthcheck.mjs']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4000
+    image: teamforge-web:local
+    restart: unless-stopped
+    networks:
+      default:
+        ipv4_address: ${TF_WEB_IP:-172.29.250.10}
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s

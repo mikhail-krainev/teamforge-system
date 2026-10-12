@@ -1,0 +1,20 @@
+{
+  "name": "shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./realtime": "./src/realtime.ts",
+    "./openapi.json": "./openapi.json"
+  },
+  "scripts": {
+    "generate": "redocly lint ../../docs/api/openapi.yaml && redocly bundle ../../docs/api/openapi.yaml --output openapi.json && openapi-typescript openapi.json --output src/generated/api.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.62.1",
+    "openapi-typescript": "7.13.0"
+  }
+}

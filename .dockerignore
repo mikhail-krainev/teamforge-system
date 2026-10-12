@@ -1,0 +1,24 @@
+# Build context hygiene: nothing from the host except sources reaches the images.
+.git
+.github
+.claude
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+**/playwright-report
+**/test-results
+# Secrets and local state
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+# Not needed by any image
+docs
+**/*.md
+apps/*/test
+**/*.test.ts
+**/*.test.tsx
+docker-compose*.yml

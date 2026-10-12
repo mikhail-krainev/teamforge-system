@@ -41,3 +41,60 @@
 - MEDIUM: S3-04: колонки `joined_via` и `trial_until` создать миграцией явно.
 - MEDIUM: у среза 4 нет границы деления.
 - LOW: в шапке плана "x-fr у каждой операции", фактически 112 из 114 (без health).
+
+## Фаза 6, срез 1 (compose, тестовая инфраструктура, CI)
+
+- MEDIUM: MinIO заменён SeaweedFS (ADR-0019). Обновить architecture.md (разделы 1, 13.11, 13.15, 13.17, 13.18, схема и таблица сервисов), plan.md (S1-08, S1-12, S5-06), ADR-0010 и имена бакетов (`tf-resumes` в architecture против `resumes` в plan и `.env.example`); выбрать хранилище для выпуска в фазе 7.
+- MEDIUM: проверить на SeaweedFS подписанные ссылки GET с `response-content-disposition`, сроком 5 минут и `nosniff` при раздаче (S5-06), условные запросы и очистку сирот; тест на реальном хранилище в каждом срезе, где появится новая S3-операция. Если не пройдёт - Garage или RustFS (ADR-0019).
+- MEDIUM: у `worker` нет собственного heartbeat; healthcheck контейнера проверяет только PING в Redis с ACL-пользователем `worker` (`docker/worker-healthcheck.mjs`). Добавить метку живости цикла очередей (B), например ключ с TTL в `~bull:*`-совместимом пространстве.
+- MEDIUM: `pnpm run format:check` падает на 12 файлах `apps/web` (сгенерированные `nav.generated.ts`, `registry.generated.ts`, `next-env.d.ts` не в `.prettierignore`; плюс несколько исходников без форматирования). Поэтому в CI нет шага `format:check`; добавить после исправления.
+- LOW: сеть compose в разработке проще, чем в architecture 1 (`edge`/`internal`/`checker-net`/`egress`): есть `default` и `resume-net` (`internal: true`); порты зависимостей опубликованы на `127.0.0.1` (в том числе Redis, вопреки 13.16 для выпуска). Боевой compose и CI-проверка "нет `ports:` кроме Caddy" - фаза 7.
+- LOW: контейнеры не ужесточены (`read_only`, `cap_drop`, `no-new-privileges`, лимиты памяти и процессов) за исключением resume-worker, которого ещё нет; ужесточить в боевом compose (фаза 7).
+- LOW: `docker-compose.yml` и e2e-проект `e2e` используют одинаковые теги образов `teamforge-api:local` и `teamforge-web:local`: пересборка в e2e подменяет образы dev-стека (работающие контейнеры не затрагиваются). При необходимости разнести через `image: teamforge-api:${COMPOSE_PROJECT_NAME}`.
+- LOW: CI-джоба `e2e` собирает образы с нуля (кэш слоёв Docker не подключён); при росте времени подключить `docker buildx bake` с кэшем GHA или использовать образы из джобы `build`.
+- LOW: `ghcr.io/oasdiff/oasdiff` требует входа в реестр, поэтому `contract:breaking` использует `tufin/oasdiff` с Docker Hub по digest (architecture 17, п. 11 называет официальный образ).
+- LOW: `eslint-plugin-boundaries` подключается из `apps/api` через `createRequire` в корневом `eslint.config.js`; работает при полной установке зависимостей. Перенести в корневые devDependencies, если когда-нибудь понадобится частичная установка (`--filter`).
+- LOW: корневые скрипты вызывают `pnpm` изнутри; на Windows без `pnpm` в PATH (только `corepack pnpm`) они не запускаются. Сказать в README: `corepack enable`.
+- LOW: `api.as(user)` и e2e `signIn` в срезе 1 - заготовки (заголовок `x-test-user`, ошибка-заглушка); в срезе 2 заменить созданием сессии Better Auth в Redis.
+- LOW: пороги покрытия 80% действуют на весь `src`; правила наград, голосования, подбора, антифрода и автоматы требуют 95% (spec 5.9): добавить пороги по маскам каталогов, когда появятся модули. Фактическое покрытие среза 1: строки 91%, ветви 84% (порог 80% выдержан, снижать не пришлось).
+- LOW: `trace:fr` проверяет только идентификаторы FR/CC/AF из строки "Входящие FR" среза; пункты NFR 5.x в названиях тестов не отслеживаются.
+
+## Срез 1, ревью кода
+
+Источник: `docs/reviews/slice1-code-review.md` (S1R-xx). HIGH и MEDIUM исправлены, кроме остатка ниже; LOW перенесены без правок.
+
+- MEDIUM (остаток S1R-13): нет HTTP-тестов жёсткого срока 70 с и исчерпания 3 повторов `40P01` (503 после четырёх попыток); есть только модульные тесты `TxRunner`.
+- LOW (S1R-05): срок попытки отдаётся кодом `LOCK_TIMEOUT`; завести отдельный `ErrorCode` (например `ATTEMPT_TIMEOUT`) требует изменения контракта `docs/api/openapi.yaml`.
+- LOW (S1R-07): `removeAdditional: 'all'` в Ajv ломает схемы запросов с `oneOf`/`allOf` (поля соседней ветки удаляются); сейчас такие схемы только в ответах; при первом запросе с `oneOf` перейти на `removeAdditional: true` для него.
+- LOW (S1R-09): `style-src-attr 'unsafe-inline'` в CSP web оставлен ради атрибутов `style`; убрать, когда они исчезнут. `upgrade-insecure-requests` включить вместе с HTTPS (Caddy, фаза 7).
+- LOW (S1R-14): ключи лимита не проверяются на TTL (мутант без `PEXPIRE` выживает); политика при сбое Redis ("закрыто или открыто") не определена, `rate-limiter.ts:103-122`. Тест `PTTL` и решение: вход и загрузки - закрыто 503, чтение - открыто.
+- LOW (S1R-15): `afterCommit` выполняется внутри `try` в `tx-runner.ts`: ошибка послекоммитного хука вернётся как отказ уже выполненной операции; вынести из `try`, логировать без повторов.
+- LOW (S1R-16): `deadlineAt` (жёсткий срок 70 с) нигде не передаётся; интерцептор идемпотентности должен задавать `start + 70 s` через CLS и проверять его перед каждой попыткой.
+- LOW (S1R-17): `useIdempotentMutation`: один `slot` на хук (два параллельных `mutate` затирают ключи), `AbortError` сбрасывает ключ, страховочное middleware молча подставляет новый ключ (`idempotency.ts`, `client.ts`).
+- LOW (S1R-18): правило `no-jsx-literals` пропускает шаблонные строки с выражениями, `cond && 'текст'`, `cond ? 'a' : 'b'`, `aria-valuetext`; разбор рекурсивно и тесты на обходы.
+- LOW (S1R-19): `DATA_ENCRYPTION_KEY` принимает любую base64-строку из 43-44 символов (нестрогий разбор); `REDIS_ACL_STRICT=false` допустим при `NODE_ENV=production`.
+- LOW (S1R-20): курсор пагинации без ограничения длины и арности (`pagination.ts`); лимит 512 символов и параметр `arity` в `decodeCursor`.
+- LOW (S1R-21): `request_hash` идемпотентности не включает query-параметры; включить отсортированные параметры в `canonicalJson` и уточнить 12.4.
+- LOW (S1R-22): `afterSuccess` игнорирует результат `complete` при ключе без транзакции; `afterFailure` при собственном сбое БД теряет исходную ошибку.
+- LOW (S1R-23): ошибка подписки на `outbox:kick` глотается, `onApplicationShutdown` relay не дожидается текущего прохода `tick`.
+- LOW (S1R-24): очистки (`idempotency-cleanup`, `outbox-cleanup`) - один `DELETE` без пакетов и `statement_timeout`; нет инструмента `events:replay` для строк `event_dead_letter` (срез 2).
+- LOW (S1R-25): пароль Redis в аргументах `redis-cli` виден в `ps` (использовать `REDISCLI_AUTH`); приложение работает под S3-идентификатором `Admin` (нужны Read/Write/List).
+- LOW (S1R-26): `.gitleaks.toml` исключает целиком `apps/api/test/`, `docker-compose.test.yml`, `.env.test`; заменить на `regexes` с конкретными тестовыми значениями.
+- LOW (S1R-27): CI: `cancel-in-progress` отменяет и запуски на `main`; нет сканирования образов (trivy/grype) и `actionlint`/`zizmor`.
+- LOW (S1R-28): минимальная версия Next.js `15.2.3` в `check-deps.mjs` и `next-config.test.ts` учитывает только CVE-2025-29927; завести минимумы по линиям 15.x и 16.x.
+- LOW (S1R-29): `apps/api/test/boundaries.test.ts` создаёт нарушающие файлы в `src/modules/...`; при убитом процессе они ломают `lint`; использовать временный каталог вне `src`.
+- LOW (S1R-30): интеграционные тесты идут на `users.test.acl.tpl`; боевой ACL (`~rl:*`, `&outbox:kick`, `~bull:*`) проверяется только e2e; параметризованный тест `rate-limiter` и `outbox` на боевом шаблоне.
+- LOW (S1R-31): комментарии: `.env.test:2` ссылается на несуществующий `scripts/run-tests.mjs`, "MinIO" вместо SeaweedFS в `s3.module.ts`; в каждой строке журнала два идентификатора (`reqId` и `request_id`); `instance` в problem+json - шаблон маршрута, а не путь.
+
+## Срез 1, повторное ревью исправлений (e503d2f)
+
+- MEDIUM (исправить в начале среза 2): `idempotency.service.ts:123` — ключ завершается сырым результатом транзакции, финальное HTTP-тело записывается позже (`overwriteResponse`); повтор между коммитом и перезаписью получает сырой результат. Пометить строку как предварительную и отвечать 409 `IDEMPOTENCY_IN_PROGRESS` до перезаписи.
+- MEDIUM (исправить в начале среза 2, ПД): `err.message` у DrizzleQueryError содержит SQL и параметры и попадает в BullMQ `failedReason`/stack в Redis на 7 дней. Очищать ошибки БД до выхода из процессора задач.
+- LOW: защита от второй транзакции срабатывает после коммита первой и не покрывает `@NoIdempotency` и публичные изменяющие операции.
+- LOW: регулярка `PG_CODE` совпадает с кодами Node (EPIPE, EPERM).
+- LOW: `removeAdditional: 'all'` вырезает поля под `allOf/oneOf/anyOf` и в map-схемах; добавить правило в contract-check.
+- LOW: `tf_app` может менять журнал миграций `platform.__drizzle_migrations`; отозвать права.
+- LOW: `10-roles.sh` не срабатывает на старом томе postgres-data; описать `docker compose down -v` при обновлении.
+- LOW: HSTS в web отправляется и в dev.
+- LOW: `await connection()` в корневом layout делает все страницы динамическими (нужно для nonce CSP).
+- LOW: фиксированная подсеть compose 172.29.250.0/24 может конфликтовать с VPN.
