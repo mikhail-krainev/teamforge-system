@@ -29,6 +29,9 @@ export interface IdentitySignal {
  * Facade of the auth module (architecture 3.1). `reportDeletionStep` and `matchesTombstone` join
  * it with the deletion saga (S2-07).
  */
+/** Modules that take part in the deletion saga (architecture 13.9); each joins in its own slice. */
+export type DeletionModule = 'profiles' | 'teams' | 'matching' | 'workspace' | 'github' | 'rewards';
+
 export interface AuthApi {
   /**
    * Lock #1 of the global order (`auth.user ... FOR NO KEY UPDATE`); must run inside a transaction.
@@ -40,7 +43,21 @@ export interface AuthApi {
   isAdmin(userId: UserId): Promise<boolean>;
   hasValidConsent(userId: UserId): Promise<boolean>;
   getIdentitySignals(userIds: UserId[], since: Date): Promise<IdentitySignal[]>;
+  /**
+   * Called by a module when its step of the deletion saga is done (idempotent, joins the caller's
+   * transaction). The last expected module triggers the final step of auth.
+   */
+  reportDeletionStep(
+    requestId: string,
+    module: DeletionModule,
+    counts: Record<string, number>,
+  ): Promise<void>;
+  /** SEC-13: true when the github_user_id or e-mail of the user matches a tombstone of a deleted account (AF-15). */
+  matchesTombstone(userId: UserId): Promise<boolean>;
 }
+
+/** Outbox event that starts the saga in every module: `{ requestId, userId, reason }`. */
+export const USER_DELETION_REQUESTED = 'auth.user_deletion_requested' as const;
 
 /** Injection token of the AuthApi implementation. */
 export const AUTH_API = Symbol('AUTH_API');

@@ -87,7 +87,7 @@ export class World {
       ...(process.env.REDIS_RESUME_URL ? { REDIS_RESUME_URL: process.env.REDIS_RESUME_URL } : {}),
       ...(github ? githubEnv(github) : {}),
       ...(options.secureOrigins
-        ? { BETTER_AUTH_URL: 'https://api.teamforge.test', APP_ORIGIN: 'https://teamforge.test' }
+        ? { BETTER_AUTH_URL: 'https://localhost:4000', APP_ORIGIN: 'https://localhost:3000' }
         : {}),
       ...options.env,
     };

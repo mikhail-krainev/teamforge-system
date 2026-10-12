@@ -326,19 +326,22 @@ describe('S1-13 AuthzRegistry, deny-by-default guard and ValidationGuard', () =>
         ...(payload === undefined ? {} : { payload: payload as Record<string, unknown> }),
       });
 
-    it('coerces query and path values, drops unknown fields and passes the cleaned data on', async () => {
+    it('coerces query and path values and passes the data on', async () => {
       await start({ controllers: [ThingStub] });
-      const response = await post(`/v1/things/${id}?limit=10&unknown=1`, {
-        name: 'abc',
-        tags: ['a'],
-        extra: 'dropped',
-      });
+      const response = await post(`/v1/things/${id}?limit=10`, { name: 'abc', tags: ['a'] });
       expect(response?.statusCode).toBe(201);
       expect(response?.json()).toEqual({
         params: { thingId: id },
         query: { limit: 10 },
         body: { name: 'abc', tags: ['a'] },
       });
+    });
+
+    it('refuses an unknown body field with 400 instead of removing it silently (13.3)', async () => {
+      await start({ controllers: [ThingStub] });
+      const response = await post(`/v1/things/${id}`, { name: 'abc', extra: 'x' });
+      expect(response?.statusCode).toBe(400);
+      expect(response?.json<{ code: string }>().code).toBe('VALIDATION_FAILED');
     });
 
     it('answers 400 VALIDATION_FAILED problem+json with JSON Pointers and no submitted values', async () => {

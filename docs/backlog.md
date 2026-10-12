@@ -65,7 +65,7 @@
 
 - MEDIUM (остаток S1R-13): нет HTTP-тестов жёсткого срока 70 с и исчерпания 3 повторов `40P01` (503 после четырёх попыток); есть только модульные тесты `TxRunner`.
 - LOW (S1R-05): срок попытки отдаётся кодом `LOCK_TIMEOUT`; завести отдельный `ErrorCode` (например `ATTEMPT_TIMEOUT`) требует изменения контракта `docs/api/openapi.yaml`.
-- LOW (S1R-07): `removeAdditional: 'all'` в Ajv ломает схемы запросов с `oneOf`/`allOf` (поля соседней ветки удаляются); сейчас такие схемы только в ответах; при первом запросе с `oneOf` перейти на `removeAdditional: true` для него.
+- Закрыто в срезе 2 (S1R-07): Ajv работает с `removeAdditional: false`, лишние поля тела отклоняются 400 (architecture 13.3).
 - LOW (S1R-09): `style-src-attr 'unsafe-inline'` в CSP web оставлен ради атрибутов `style`; убрать, когда они исчезнут. `upgrade-insecure-requests` включить вместе с HTTPS (Caddy, фаза 7).
 - LOW (S1R-14): ключи лимита не проверяются на TTL (мутант без `PEXPIRE` выживает); политика при сбое Redis ("закрыто или открыто") не определена, `rate-limiter.ts:103-122`. Тест `PTTL` и решение: вход и загрузки - закрыто 503, чтение - открыто.
 - LOW (S1R-15): `afterCommit` выполняется внутри `try` в `tx-runner.ts`: ошибка послекоммитного хука вернётся как отказ уже выполненной операции; вынести из `try`, логировать без повторов.
@@ -92,7 +92,7 @@
 - MEDIUM (исправлено в срезе 2: `sanitizeDatabaseError` в `queue-workers.ts`, ПД): `err.message` у DrizzleQueryError содержит SQL и параметры и попадает в BullMQ `failedReason`/stack в Redis на 7 дней. Очищать ошибки БД до выхода из процессора задач.
 - LOW: защита от второй транзакции срабатывает после коммита первой и не покрывает `@NoIdempotency` и публичные изменяющие операции.
 - LOW: регулярка `PG_CODE` совпадает с кодами Node (EPIPE, EPERM).
-- LOW: `removeAdditional: 'all'` вырезает поля под `allOf/oneOf/anyOf` и в map-схемах; добавить правило в contract-check.
+- Закрыто в срезе 2: `removeAdditional: false` (см. S1R-07), вырезания полей под `oneOf/allOf` больше нет.
 - LOW: `tf_app` может менять журнал миграций `platform.__drizzle_migrations`; отозвать права.
 - LOW: `10-roles.sh` не срабатывает на старом томе postgres-data; описать `docker compose down -v` при обновлении.
 - LOW: HSTS в web отправляется и в dev.

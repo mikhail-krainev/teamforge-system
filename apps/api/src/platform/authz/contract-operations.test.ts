@@ -36,9 +36,14 @@ describe('contract operations (packages/shared/openapi.json)', () => {
     expect(validators.validate('listStackTags', parts({}, query, undefined))).toEqual([
       expect.objectContaining({ pointer: '/query/limit', code: 'maximum' }),
     ]);
-    const good = { version: 'v1', textHash: 'a'.repeat(64), unknown: 'dropped' };
+    const good = { version: 'v1', textHash: 'a'.repeat(64) };
     expect(validators.validate('acceptConsent', parts({}, {}, good))).toEqual([]);
-    expect(good).toEqual({ version: 'v1', textHash: 'a'.repeat(64) });
+    // An unknown field is refused, not removed in silence (architecture 13.3).
+    const extra = { ...good, unknown: 'kept' };
+    expect(validators.validate('acceptConsent', parts({}, {}, extra))).toEqual([
+      expect.objectContaining({ pointer: '/', code: 'additionalProperties' }),
+    ]);
+    expect(extra).toEqual({ ...good, unknown: 'kept' });
     const bad = validators.validate('acceptConsent', parts({}, {}, { version: 'v1' }));
     expect(bad).toEqual([expect.objectContaining({ pointer: '/textHash', code: 'required' })]);
   });

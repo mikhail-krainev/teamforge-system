@@ -1,17 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNotNull } from 'drizzle-orm';
+import { APP_CONFIG } from '../../../../platform/config/config.module.js';
+import type { AppConfig } from '../../../../platform/config/config.js';
+import { hmacBytes } from '../../../../platform/crypto/secret-box.js';
 import { DB, type Database } from '../../../../platform/db/db.module.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import type {
   AuthApi,
+  DeletionModule,
   IdentitySignal,
   JoinEligibility,
   UserId,
   UserIdentity,
 } from '../../public.js';
 import { ConsentService } from '../consent/consent.service.js';
-import { identitySignal, user } from '../schema/auth.js';
+import { DeletionSagaService } from '../deletion/deletion-saga.service.js';
+import { identitySignal, identityTombstone, user } from '../schema/auth.js';
 
 type UserStatus = JoinEligibility['status'];
 
@@ -22,6 +27,8 @@ export class AuthService implements AuthApi {
     @Inject(DB) private readonly db: Database,
     @Inject(LockService) private readonly locks: LockService,
     @Inject(ConsentService) private readonly consent: ConsentService,
+    @Inject(DeletionSagaService) private readonly saga: DeletionSagaService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async lockUserForJoin(userId: UserId): Promise<JoinEligibility> {
@@ -85,5 +92,42 @@ export class AuthService implements AuthApi {
       kind: r.kind as IdentitySignal['kind'],
       valueHmac: r.valueHmac.toString('hex'),
     }));
+  }
+
+  reportDeletionStep(
+    requestId: string,
+    module: DeletionModule,
+    counts: Record<string, number>,
+  ): Promise<void> {
+    return this.saga.reportStep(requestId, module, counts);
+  }
+
+  async matchesTombstone(userId: UserId): Promise<boolean> {
+    const rows = await this.db
+      .select({ github: user.githubUserId, email: user.emailNormalized })
+      .from(user)
+      .where(eq(user.id, userId));
+    const row = rows[0];
+    if (row === undefined) return false;
+    const salt = this.config.IP_HASH_SALT;
+    const candidates = [
+      row.github === null ? null : { kind: 'github_user_id', value: String(row.github) },
+      row.email === null ? null : { kind: 'email_normalized', value: row.email },
+    ].flatMap((candidate) => (candidate === null ? [] : [candidate]));
+    for (const candidate of candidates) {
+      const found = await this.db
+        .select({ kind: identityTombstone.kind })
+        .from(identityTombstone)
+        .where(
+          and(
+            eq(identityTombstone.kind, candidate.kind),
+            eq(identityTombstone.valueHmac, hmacBytes(salt, candidate.value)),
+            gt(identityTombstone.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+      if (found.length > 0) return true;
+    }
+    return false;
   }
 }

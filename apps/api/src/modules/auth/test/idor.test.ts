@@ -37,7 +37,10 @@ describeInfra(
           if (!anonymous) {
             // public operations answer without a session (they may still validate the body)
             const response = await send(world.anonymous(), requestFor(operationId));
-            expect(response.statusCode, matrix.authz.actor).not.toBe(401);
+            // 401 is allowed when it is the operation's own answer (INVALID_TOKEN of verifyMagicLink)
+            const isJson = String(response.headers['content-type']).includes('json');
+            const code = isJson ? response.json<{ code?: string } | null>()?.code : undefined;
+            expect(code, matrix.authz.actor).not.toBe('UNAUTHENTICATED');
             return;
           }
           const response = await send(world.anonymous(), requestFor(operationId));

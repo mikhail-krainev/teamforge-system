@@ -5,7 +5,7 @@ import { InvariantError } from '../../../../platform/errors/domain-error.js';
 import { Authz } from '../../../../platform/http/operation.decorator.js';
 import type { ConsentText } from '../consent/consent-text.js';
 import { type ConsentRecord, ConsentService } from '../consent/consent.service.js';
-import { type MeDto, MeService } from '../services/me.service.js';
+import { type GithubAccountDto, type MeDto, MeService } from '../services/me.service.js';
 
 /** getMe, getCurrentConsentText, acceptConsent (FR-AUTH-02, FR-AUTH-03). */
 @Controller('v1')
@@ -27,6 +27,12 @@ export class MeController {
   @Authz('getMe')
   getMe(): Promise<MeDto> {
     return this.me.getMe(this.userId());
+  }
+
+  @Get('me/github')
+  @Authz('getMyGithubAccount')
+  getMyGithubAccount(): Promise<GithubAccountDto> {
+    return this.me.getGithubAccount(this.userId());
   }
 
   @Get('consent/current')

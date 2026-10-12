@@ -35,12 +35,14 @@ export async function forwardToAuth(
   baseOrigin: string,
   request: FastifyRequest,
   reply: FastifyReply,
+  mapLocation: (location: string) => string = (location) => location,
 ): Promise<void> {
   const response = await auth.handler(toWebRequest(request, baseOrigin));
   void reply.status(response.status);
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
-    if (name !== 'set-cookie' && name !== 'content-length') void reply.header(name, value);
+    if (name === 'location') void reply.header(name, mapLocation(value));
+    else if (name !== 'set-cookie' && name !== 'content-length') void reply.header(name, value);
   });
   if (cookies.length > 0) void reply.header('set-cookie', cookies);
   const text = await response.text();

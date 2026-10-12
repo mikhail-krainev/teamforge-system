@@ -96,7 +96,7 @@ services:
   redis-resume:
     image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     user: redis
-    entrypoint: ['/bin/sh', '/docker/redis/start.sh', '/docker/redis/users.resume.acl.tpl']
+    entrypoint: ['/bin/sh', '/docker/redis/start.sh', '/docker/redis/users.resume.test.acl.tpl']
     command: ['--save', '', '--appendonly', 'no']
     environment: *test-env
     volumes:

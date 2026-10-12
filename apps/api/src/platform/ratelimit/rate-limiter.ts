@@ -29,6 +29,17 @@ export const RATE_LIMITS = {
   deletionCancel: { limit: 10, windowMs: HOUR },
 } as const satisfies Record<string, RateLimitRule>;
 
+const LOOPBACK_CLIENTS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * True when the client address is the loopback itself: a process inside the container, never a
+ * browser (proxied clients arrive with their own address, SEC-16). Per-IP limits of anonymous
+ * operations skip such requests.
+ */
+export function isLoopbackClient(ip: string): boolean {
+  return LOOPBACK_CLIENTS.has(ip);
+}
+
 export type RateLimitCategory = keyof typeof RATE_LIMITS;
 
 export interface RateLimitResult {

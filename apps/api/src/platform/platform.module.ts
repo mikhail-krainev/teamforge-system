@@ -15,6 +15,7 @@ import { OperationContextInterceptor } from './http/operation-context.intercepto
 import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { LoggingModule, type LoggingOptions } from './logging/logging.module.js';
+import { MailModule } from './mail/mail.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
 import { QueuesModule } from './queues/queues.module.js';
 import { RateLimitModule } from './ratelimit/ratelimit.module.js';
@@ -67,6 +68,7 @@ export class PlatformModule {
       RateLimitModule,
       IdempotencyModule,
       OutboxModule,
+      MailModule,
     ];
     return {
       module: PlatformModule,

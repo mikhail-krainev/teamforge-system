@@ -40,7 +40,7 @@ networks:
       config:
         - subnet: ${TF_NET_SUBNET:-172.29.250.0/24}
   # `resume-net` is internal (no route to the outside); redis-resume lives there. The resume-worker
-  # container joins it in slice 2 (architecture 13.15).
+  # `resume-worker` lives only there; `worker` joins it to put jobs in (architecture 13.15).
   resume-net:
     internal: true
 
@@ -234,12 +234,18 @@ services:
     environment:
       <<: *app-env
       REDIS_URL: redis://worker:${REDIS_WORKER_PASSWORD}@redis:6379
+      # The worker hands the bytes of a resume to the isolated parser through redis-resume (13.15).
+      REDIS_RESUME_URL: redis://resume_producer:${REDIS_RESUME_PRODUCER_PASSWORD}@redis-resume:6379
+    # `resume-net` is internal: it reaches redis-resume, not the outside; `default` keeps the rest.
+    networks: [default, resume-net]
     depends_on:
       migrate:
         condition: service_completed_successfully
       pgbouncer:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      redis-resume:
         condition: service_healthy
       mailpit:
         condition: service_healthy
@@ -251,6 +257,37 @@ services:
       timeout: 5s
       retries: 10
       start_period: 5s
+
+  # Resume sandbox (architecture 13.15, SEC-01): the parent takes jobs from redis-resume, a one-shot child
+  # under uid 10002 with an empty environment parses the file. No database, no S3, no main Redis, no route
+  # to the outside (resume-net is internal). The parent is root with every capability dropped except
+  # SETUID/SETGID (only to start the child as another user): a non-root parent cannot do that in Docker,
+  # `cap_add` does not reach its effective set (prototype S2-10, docker/resume-worker/Dockerfile).
+  resume-worker:
+    build:
+      context: .
+      dockerfile: docker/resume-worker/Dockerfile
+    image: teamforge-resume-worker:local
+    restart: unless-stopped
+    user: '0:0'
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 0.5
+    networks: [resume-net]
+    environment:
+      NODE_ENV: production
+      QUEUE_PREFIX: ${QUEUE_PREFIX:-bull}
+      REDIS_RESUME_URL: redis://resume:${REDIS_RESUME_PASSWORD:?run "pnpm run env:init" first}@redis-resume:6379
+    depends_on:
+      redis-resume:
+        condition: service_healthy
 
   web:
     build:

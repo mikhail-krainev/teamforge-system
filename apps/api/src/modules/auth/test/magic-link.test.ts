@@ -151,7 +151,6 @@ describeInfra('S2 auth: magic link (FR-AUTH-02, FR-AUTH-04, FR-AUTH-06)', ['db',
   describe('e-mail normalization (FR-AUTH-06)', () => {
     const cases = [
       ['gmail: dots and +tag', (id: string) => [`a.b${id}+x@gmail.com`, `ab${id}@gmail.com`]],
-      ['gmail: case', (id: string) => [`Dots${id}@gmail.com`, `dots${id}@gmail.com`]],
       [
         'yandex: other domain of the family',
         (id: string) => [`ivan-${id}@yandex.ru`, `ivan-${id}@ya.ru`],
@@ -182,6 +181,14 @@ describeInfra('S2 auth: magic link (FR-AUTH-02, FR-AUTH-04, FR-AUTH-06)', ['db',
         expect(users).toBe(1);
       },
     );
+
+    it('FR-AUTH-06: only the letter case differs -> the same mailbox signs in as the same user (spec: lower case is part of the key)', async () => {
+      const email = world.email('case-only');
+      await world.signIn(email);
+      const idBefore = await world.userIdByEmail(email);
+      await world.signIn(email.toUpperCase());
+      expect(await world.userIdByEmail(email)).toBe(idBefore);
+    });
 
     it('FR-AUTH-06: the same spelling signs in again as the same user (no new record)', async () => {
       const email = world.email('same-again');

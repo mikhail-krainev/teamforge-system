@@ -30,6 +30,8 @@ export function maskEmail(email: string | null): string | null {
   return `${email.slice(0, 1)}***${email.slice(at)}`;
 }
 
+export type GithubAccountDto = MeDto['github'];
+
 /** The current user as the client sees it (getMe). */
 @Injectable()
 export class MeService {
@@ -37,6 +39,20 @@ export class MeService {
     @Inject(DB) private readonly db: Database,
     @Inject(ConsentService) private readonly consent: ConsentService,
   ) {}
+
+  async getGithubAccount(userId: string): Promise<GithubAccountDto> {
+    const rows = await this.db
+      .select({ id: user.githubUserId, login: user.githubLogin })
+      .from(user)
+      .where(eq(user.id, userId));
+    const row = rows[0];
+    return {
+      linked: row?.id != null,
+      githubUserId: row?.id ?? null,
+      login: row?.login ?? null,
+      accountAgeOk: null,
+    };
+  }
 
   async getMe(userId: string): Promise<MeDto> {
     const rows = await this.db.select().from(user).where(eq(user.id, userId));

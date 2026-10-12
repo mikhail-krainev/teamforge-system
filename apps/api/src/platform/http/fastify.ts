@@ -3,6 +3,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { Logger } from 'nestjs-pino';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
+import { registerMultipart } from './multipart.js';
 import { resolveRequestId } from './request-id.js';
 import { buildTrustProxy } from './trust-proxy.js';
 
@@ -48,6 +49,7 @@ export function configureHttpApp(app: NestFastifyApplication): void {
   app.useLogger(app.get(Logger));
   const headers = securityHeaders(app.get<AppConfig>(APP_CONFIG).NODE_ENV === 'production');
   const fastify = app.getHttpAdapter().getInstance();
+  registerMultipart(fastify);
   fastify.addHook('onRequest', (request, reply, done) => {
     void reply.header('X-Request-Id', request.id);
     done();

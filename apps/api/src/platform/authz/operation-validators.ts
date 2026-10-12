@@ -27,8 +27,9 @@ function createAjv(doc: ContractDocument, coerce: boolean): Ajv2020 {
   const ajv = new Ajv2020({
     strict: false,
     allErrors: true,
-    // Unknown fields are dropped (spec 5.3), so `request_hash` is computed over the cleaned body.
-    removeAdditional: 'all',
+    // Unknown body fields are refused (`additionalProperties: false` of the contract), not silently
+    // removed: the client learns about the mistake and the idempotency hash covers what was sent.
+    removeAdditional: false,
     coerceTypes: coerce ? 'array' : false,
   });
   addFormats.default(ajv);
