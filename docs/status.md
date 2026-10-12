@@ -6,10 +6,11 @@
 - Фаза 1: `docs/research/methodologies.md`, `docs/research/components.md`, проверены ревьюером, HIGH исправлены, MEDIUM/LOW в `docs/backlog.md`.
 - Фаза 2: `docs/spec.md` (FR с критериями приёмки, CC-1..13, константы, антифрод AF-01..25, модель данных) и `docs/playbooks.md` (веб 84 дня, ML 91 день, YAML сидов, шаблоны). Ревью пройдено, HIGH исправлены.
 - Фаза 3: `docs/architecture.md`, `docs/api/openapi.yaml` (114 операций, `x-authz` у каждой), `docs/adr/0001..0018`, `docs/security-review-phase3.md`. Ревью архитектуры и аудит безопасности пройдены, CRITICAL/HIGH/MEDIUM исправлены.
+- Фаза 4: `docs/plan.md` (7 срезов, 86 задач, покрытие всех FR и операций), `docs/todo.md` (чек-лист). Ревью пройдено, HIGH исправлены.
 
 ## Следующая фаза
 
-Фаза 4. План: `docs/plan.md`, вертикальные срезы.
+Фаза 5-6. Срез 1: каркас (`docs/plan.md`, задачи S1-01..S1-13). Требуются Node.js 22, pnpm, Docker Desktop.
 
 ## Принятые решения
 
