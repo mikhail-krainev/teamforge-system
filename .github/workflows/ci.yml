@@ -39,7 +39,7 @@ jobs:
         run: git diff --exit-code packages/shared
       - name: Contract rules (operationId, x-fr, x-authz, Idempotency-Key)
         run: pnpm run contract:check
-      - name: Tests of the repository scripts (including the compose security policy: DB roles, trusted proxy)
+      - name: Tests of the repository scripts, including the compose security policy (DB roles, trusted proxy)
         run: pnpm run contract:test
       - name: Breaking changes against main (oasdiff)
         if: github.event_name == 'pull_request'
