@@ -1,0 +1,33 @@
+{
+  "name": "teamforge",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint && eslint scripts",
+    "test": "pnpm -r run --if-present test && node --test scripts/*.test.mjs",
+    "build": "pnpm -r run --if-present build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "contract:generate": "pnpm --filter shared run generate",
+    "contract:check": "node scripts/check-contract.mjs",
+    "contract:test": "node --test scripts/*.test.mjs",
+    "contract:breaking": "node scripts/contract-breaking.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2",
+    "yaml": "2.9.1"
+  }
+}
