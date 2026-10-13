@@ -122,3 +122,15 @@ export async function closeSeat(
     params: { path: { teamId, seatId }, header: { 'Idempotency-Key': key } },
   });
 }
+
+export async function startProject(
+  teamId: string,
+  key: string,
+  client: Pick<Client, 'POST'> = apiClient,
+) {
+  const { data } = await client.POST('/v1/teams/{teamId}/start', {
+    params: { path: { teamId }, header: { 'Idempotency-Key': key } },
+  });
+  if (!data) throw new Error('Empty team response');
+  return data;
+}

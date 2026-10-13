@@ -3,6 +3,7 @@
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { ME_QUERY_KEY } from '@/features/auth/session';
+import { RealtimeProvider } from '@/features/notifications/RealtimeProvider';
 import { ApiError } from '@/lib/api/errors';
 
 const MAX_QUERY_RETRIES = 2;
@@ -48,5 +49,9 @@ export function makeQueryClient(): QueryClient {
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(makeQueryClient);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <RealtimeProvider>{children}</RealtimeProvider>
+    </QueryClientProvider>
+  );
 }

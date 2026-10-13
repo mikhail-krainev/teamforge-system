@@ -33,6 +33,11 @@ export function TeamActions({ team, meId, roles, isLead }: Props) {
             </Link>
           </>
         ) : null}
+        {team.status === 'voting' ? (
+          <Link href={`/teams/${team.id}/vote`} className="button">
+            {t('offers.actions.vote')}
+          </Link>
+        ) : null}
         <Link href={`/teams/${team.id}/seats`} className="button button-secondary">
           {t('offers.actions.seats')}
         </Link>

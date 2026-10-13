@@ -551,3 +551,81 @@ legend {
 .page-wide {
   max-width: 48rem;
 }
+
+/* Notification bell (header) */
+.bell {
+  position: relative;
+}
+
+.bell-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bell-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: var(--color-bg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.bell-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-2));
+  z-index: 20;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.bell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.bell-item:hover,
+.bell-item:focus-visible {
+  background: var(--color-bg);
+}
+
+.bell-item-unread {
+  font-weight: 700;
+}
+
+.bell-item-meta {
+  font-size: 0.875rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bell-badge {
+    transition: transform 0.15s ease-out;
+  }
+}

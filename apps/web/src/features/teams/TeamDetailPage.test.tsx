@@ -69,7 +69,7 @@ describe('FR-TEAM-02: TeamDetailPage', () => {
     const { container } = open();
     expect(await screen.findByRole('heading', { level: 1, name: '<b>Альфа</b>' })).toBeTruthy();
     expect(container.querySelector('b')).toBeNull();
-    expect(screen.getByText('Статус: Набор')).toBeTruthy();
+    expect(screen.getByText('Статус: Формируется')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Анна Смирнова' })).toBeTruthy();
     expect(await seatHeading()).toBeTruthy();
     expect(await screen.findByText('Команда создана')).toBeTruthy();

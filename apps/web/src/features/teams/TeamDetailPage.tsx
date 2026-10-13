@@ -6,12 +6,14 @@ import { useMe } from '@/features/auth/session';
 import type { CatalogEntry } from '@/features/profile/api';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { TeamActions } from '@/features/offers/TeamActions';
+import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
 import { ApiError } from '@/lib/api/errors';
 import { t } from '@/i18n';
 import type { Member, Team } from './api';
 import { AddSeatsForm } from './AddSeatsForm';
 import { useProductTypes, useTeam } from './queries';
 import { SeatRow } from './SeatRow';
+import { StartProject } from './StartProject';
 import { TeamEvents } from './TeamEvents';
 
 function MembersSection({ members }: { members: readonly Member[] }) {
@@ -79,7 +81,7 @@ function Summary({ team, typeName }: { team: Team; typeName: string }) {
   return (
     <section className="card stack" aria-labelledby="team-summary-heading">
       <h2 id="team-summary-heading">{t('teams.detail.about')}</h2>
-      <p role="status" aria-live="polite">
+      <p role="status" aria-live="polite" aria-label={t('teams.detail.statusLabel')}>
         {t('teams.detail.statusLine', { status: t(`teams.status.${team.status}`) })}
       </p>
       {team.statusReason ? <p className="muted">{team.statusReason}</p> : null}
@@ -103,6 +105,7 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
   const me = useMe();
   const roles = useRoles();
   const types = useProductTypes();
+  useTeamChannel(teamId);
 
   if (team.isError) {
     const missing = team.error instanceof ApiError && team.error.status === 404;
@@ -130,6 +133,7 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
       <Summary team={data} typeName={typeName} />
       <MembersSection members={data.members} />
       <SeatsSection team={data} roles={roles.data ?? []} canManage={canManage} />
+      {canManage && data.status === 'forming' ? <StartProject teamId={data.id} /> : null}
       <TeamActions team={data} meId={me.data?.id} roles={roles.data ?? []} isLead={canManage} />
       <TeamEvents teamId={data.id} members={data.members} />
     </div>

@@ -4,11 +4,13 @@ import errors from './ru/errors.json';
 import home from './ru/home.json';
 import invitations from './ru/invitations.json';
 import notFound from './ru/notFound.json';
+import notifications from './ru/notifications.json';
 import offers from './ru/offers.json';
 import profile from './ru/profile.json';
 import shell from './ru/shell.json';
 import status from './ru/status.json';
 import teams from './ru/teams.json';
+import votes from './ru/votes.json';
 
 export const ruDictionaries = {
   "auth": auth,
@@ -16,9 +18,11 @@ export const ruDictionaries = {
   "home": home,
   "invitations": invitations,
   "notFound": notFound,
+  "notifications": notifications,
   "offers": offers,
   "profile": profile,
   "shell": shell,
   "status": status,
   "teams": teams,
+  "votes": votes,
 } as const;
