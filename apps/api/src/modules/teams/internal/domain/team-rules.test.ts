@@ -41,7 +41,8 @@ describe('FR-TEAM-27: status gates', () => {
     expect(statusBlock('completed')).toBe('INVALID_STATE');
     expect(statusBlock('archived')).toBe('INVALID_STATE');
     expect(statusBlock('suspended')).toBe('TEAM_STATUS_BLOCKS_ACTION');
-    for (const status of ['forming', 'active', 'voting']) {
+    expect(statusBlock('voting')).toBe('TEAM_STATUS_BLOCKS_ACTION');
+    for (const status of ['forming', 'active']) {
       expect(statusBlock(status)).toBeUndefined();
     }
   });

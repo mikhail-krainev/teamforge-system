@@ -185,6 +185,9 @@ export class TeamService {
     await this.events.insertMany([
       journalRow(teamId, 'team_updated', userId, { fields: changed }, now),
     ]);
+    await this.outbox.publishMany([
+      teamsEvent('team_updated', teamId, { teamId, version: row.version + 1 }),
+    ]);
   }
 
   private async assertTimezone(name: string): Promise<void> {

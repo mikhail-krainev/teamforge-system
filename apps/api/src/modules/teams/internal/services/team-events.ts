@@ -12,7 +12,9 @@ export type JournalType =
   | 'seat_desired_changed'
   | 'seat_closed'
   | 'member_joined'
-  | 'offer_created';
+  | 'offer_created'
+  | 'invitation_created'
+  | 'invitation_revoked';
 
 /** A journal row; payloads carry identifiers and flags only (names are resolved when read). */
 export function journalRow(

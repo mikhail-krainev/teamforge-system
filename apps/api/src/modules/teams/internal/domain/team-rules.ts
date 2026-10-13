@@ -1,4 +1,4 @@
-import type { ErrorCode, FieldErrorLike } from './team-rules.types.js';
+import type { FieldErrorLike } from './team-rules.types.js';
 
 /** C-10: active projects per user (spec section 7). */
 export const MAX_ACTIVE_PROJECTS = 2;
@@ -68,15 +68,7 @@ export function assignOrdinals(
   });
 }
 
-/**
- * Whether a team in this status refuses to change its card or seats. Finished teams keep their
- * seat marks for the reward snapshot (FR-TEAM-03); a suspended project is frozen (FR-WORK-18).
- */
-export function statusBlock(status: string): ErrorCode | undefined {
-  if (status === 'completed' || status === 'archived') return 'INVALID_STATE';
-  if (status === 'suspended') return 'TEAM_STATUS_BLOCKS_ACTION';
-  return undefined;
-}
+export { statusBlock } from './team-status.js';
 
 export interface SeatPatchLike {
   desired?: boolean | undefined;

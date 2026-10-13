@@ -27,6 +27,8 @@ export const RATE_LIMITS = {
   linkCheckUser: { limit: 30, windowMs: HOUR },
   githubWebhook: { limit: 600, windowMs: MINUTE },
   deletionCancel: { limit: 10, windowMs: HOUR },
+  /** previewInvitation and acceptInvitation: token guesses per user (FR-TEAM-09). */
+  invitationToken: { limit: 60, windowMs: 15 * MINUTE },
 } as const satisfies Record<string, RateLimitRule>;
 
 const LOOPBACK_CLIENTS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);

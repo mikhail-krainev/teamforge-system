@@ -15,6 +15,7 @@ import type {
   UserId,
   UserIdentity,
 } from '../../public.js';
+import { normalizeEmail } from '../magic-link/email-normalizer.js';
 import { ConsentService } from '../consent/consent.service.js';
 import { DeletionSagaService } from '../deletion/deletion-saga.service.js';
 import { identitySignal, identityTombstone, user } from '../schema/auth.js';
@@ -73,6 +74,31 @@ export class AuthService implements AuthApi {
       .from(user)
       .where(eq(user.id, userId));
     return rows[0] ?? null;
+  }
+
+  hmacOfEmail(email: string): Buffer {
+    return hmacBytes(this.config.IP_HASH_SALT, normalizeEmail(email));
+  }
+
+  async getEmailHmac(userId: UserId): Promise<Buffer | null> {
+    const rows = await this.db
+      .select({ email: user.emailNormalized })
+      .from(user)
+      .where(eq(user.id, userId));
+    const email = rows[0]?.email;
+    return email === undefined || email === null
+      ? null
+      : hmacBytes(this.config.IP_HASH_SALT, email);
+  }
+
+  async getMailRecipient(userId: UserId): Promise<string | null> {
+    const rows = await this.db
+      .select({ email: user.email, status: user.status })
+      .from(user)
+      .where(eq(user.id, userId));
+    const row = rows[0];
+    if (row === undefined || row.status !== 'active' || !row.email) return null;
+    return (await this.consent.hasValidConsent(userId)) ? row.email : null;
   }
 
   async findUserIdsByGithubIds(githubUserIds: number[]): Promise<Map<number, UserId>> {
