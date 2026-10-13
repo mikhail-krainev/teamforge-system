@@ -118,3 +118,35 @@
 - Хвост S2SEC-03: проверить на стеке, что rewrite Next (web -> api) передаёт `X-Forwarded-For` от Caddy и добавляет ли он адрес соединения; правило api верно в обоих случаях (самый правый недоверенный адрес), но реальный `request.ip` за цепочкой Caddy -> web -> api не проверен. Добавить e2e: два клиента с разными IP получают разные корзины лимита. В production `TRUSTED_PROXY_CIDRS` = адреса Caddy и web.
 - Хвост S2SEC-01..03 (не запускались, Docker Desktop был остановлен): `apps/api/test/integration/client-ip-ratelimit.test.ts` (Redis), обновлённый `modules/auth/test/magic-link.test.ts` (alias отвечает 200 и письмо на сохранённый адрес), весь пакет `test:integration` после изменений `RateLimiter`/`preParsing`. Проверить `uploadResume` из `modules/profiles/test/resume.test.ts` (5 МиБ + 1, шестая загрузка 429).
 - Хвост S2SEC-04: флаг `RATE_LIMIT_EXEMPT_LOOPBACK` не пробрасывается в `x-app-env` compose (правит другой агент); e2e-стек (`APP_NODE_ENV=development`) без флага не освобождает loopback. Если e2e этого требует, добавить `RATE_LIMIT_EXEMPT_LOOPBACK: ${RATE_LIMIT_EXEMPT_LOOPBACK:-false}` в compose и в `E2E_ENV`.
+
+## Срез 2, ревью кода
+
+Отчёт: `docs/reviews/slice2-code-review.md` (колонка "Статус"). Исправлены S2CR-01, 03, 04, 05, 06 (только API). Интеграционные тесты к ним написаны, но не запускались (Docker был остановлен): `modules/profiles/test/resume-confirm.test.ts` (S2CR-01 событие и удаление объекта, S2CR-05 повторное подтверждение; проверки удаления объекта теперь через `waitFor`).
+
+- MEDIUM (S2CR-02): `deletion-request.service.ts:83-87`, письмо об удалении и отзыв сессий после коммита; перенести в outbox (письмо) и обработчик события с повтором (сессии), тест "падение Redis -> письмо уходит позже".
+- MEDIUM (S2CR-07): `magic-link.service.test.ts:72-85`, тест не раскрытия адреса не проверяет заявленное; интеграционный тест на Mailpit (число и адресат писем для существующего, алиаса, нового адреса), мутационная проверка.
+- MEDIUM (web, S2CR-08): `DeletionSection.tsx`, после `requestDeletion` очистить кэш и перейти на вход, баннер по `me.status==='deleting'`.
+- MEDIUM (web, S2CR-09): `ProfilePage.tsx`, `ResumeSection.tsx`, `SuggestionsForm.tsx`, `adopt` перемонтирует `ProfileForm` и теряет несохранённые правки.
+- MEDIUM (web, S2CR-10): `SuggestionsForm.tsx:71`, 422 `required_for_new_profile` без объяснения; показывать `problem.errors`.
+- MEDIUM (web, S2CR-11): `providers.tsx`, `ConsentGate.tsx`, нет глобальной обработки 401 и 403 `CONSENT_REQUIRED` (`QueryCache`/`MutationCache onError`).
+- MEDIUM (web, S2CR-12): `DeleteResume.tsx`, `ResumeSection.tsx`, `SuggestionsForm.tsx`, отпечаток ключа идемпотентности без `uploadId` и `keepFile`.
+- MEDIUM (web, S2CR-13): `ProfileForm.test.tsx`, `ConfirmMagicLink.test.tsx`, не хватает тестов (опрос статуса, `aria-live`, `SuggestionsForm`, `UploadForm`, `DeleteResume`, `CancelDeletion`, `DeletionSection`, `ConsentScreen`, `MagicLinkForm` 429, `useFragmentToken`, StrictMode, двойной клик).
+- Хвост S2CR-01: если `orphan-objects` когда-либо удалит объект, на который ссылается ещё не зафиксированная строка, - защита только окном в 1 час (`ORPHAN_GRACE_MS`); ограничение пачки 500 объектов за прогон. Интеграционный тест задачи с реальным MinIO (положить объект без строки, дождаться удаления).
+- Хвост S2CR-03: добавить `deletionRequest` в `LOCK_TARGETS` (`platform/tx/locks.ts`, уровень после user) и в проверку порядка блокировок в тестах; `cancel` ставит `status='active'` без проверки текущего `user.status`.
+- Хвост S2CR-04: 23505 по `account_provider_account_uq` не переводится в 409 `GITHUB_ALREADY_LINKED`; интеграционный тест "сбой вставки аккаунта, повтор того же пользователя -> успех".
+- Хвост S2CR-05: отдавать `confirmedAt`/статус `confirmed` в DTO резюме (контракт) и не показывать форму подтверждения для подтверждённого (web).
+- Хвост S2CR-06: интеграционный тест "parser не отвечает 3 раза -> причина не `corrupted`"; при желании отдельная причина контракта `unavailable` вместо `timeout`.
+- LOW: S2CR-14 частичный уникальный индекс согласия `(user_id, version) WHERE revoked_at IS NULL`.
+- LOW: S2CR-15 кэш результата проверки согласия на 60 с с инвалидацией в `accept`.
+- LOW: S2CR-16 зафиксировать коды в `s2-b-link-github.test.ts` и `s2-d-accept-consent.test.ts`, добавить тест сбоя вставки аккаунта.
+- LOW: S2CR-17 `stuck-scan` считает по `createdAt`, нужен `processing_started_at`.
+- LOW: S2CR-18 вынести Redis- и S3-вызовы из DB-транзакции саги удаления; `ILIKE '%email%'` без индекса (см. S2SEC-11).
+- LOW: S2CR-19 клиент не должен задавать причину `consent_revoked`.
+- LOW: S2CR-20 `listMatchingProfilesByRole` отдаёт профили пользователей в статусе `deleting`.
+- LOW: S2CR-21 мутабельная модульная переменная `loopbackExempt` в `rate-limiter.ts`.
+- LOW: S2CR-22 `void emailNormalized` и разбор причины по регулярному выражению в `Location` (`auth.controller.ts`).
+- LOW: S2CR-23 гонка `status==='active'` при создании сессии и `requestDeletion` (`create-auth.ts:105-110`).
+- LOW: S2CR-24 `EXPECTED_DELETION_MODULES` жёстко в коде; DI-токен и тест соответствия подписчикам.
+- LOW (web): S2CR-25 `cancelQueries` перед `setQueryData`; S2CR-26 "Повторить" для окончательных ошибок и `Retry-After`; S2CR-27 `ConflictPanel` при падении `fetchMyProfile`; S2CR-28 фокус на первое невалидное поле; S2CR-29 фокус и сброс ошибок мутаций; S2CR-30 `StackPicker` скрывает выбранные теги, обрезка каталога; S2CR-31 bfcache у `GithubButton`, `signOut` с 401; S2CR-32 `parseRetryAfter('')` и HTTP-date.
+- LOW: S2CR-33 мутационные проверки тестов на стеке с Docker.
+- NIT (web): S2CR-34 лишняя проверка `startsWith('?')` в `fragment.ts`; S2CR-35 `key={item}` в `PublicProfileView.tsx`.

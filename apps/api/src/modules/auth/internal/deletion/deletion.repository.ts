@@ -47,6 +47,15 @@ export class DeletionRepository {
     return rows[0];
   }
 
+  /** Owner of the request behind a cancel token, without taking any lock. */
+  async userIdByCancelHash(hash: Buffer): Promise<string | undefined> {
+    const rows = await this.tx.tx
+      .select({ userId: deletionRequest.userId })
+      .from(deletionRequest)
+      .where(eq(deletionRequest.cancelTokenHash, hash));
+    return rows[0]?.userId;
+  }
+
   /** Locks the request that was given this cancel token (hash), whatever its state. */
   async lockByCancelHash(hash: Buffer): Promise<DeletionRow | undefined> {
     const rows = await this.tx.tx

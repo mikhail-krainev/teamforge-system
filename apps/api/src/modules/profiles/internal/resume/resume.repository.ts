@@ -125,6 +125,16 @@ export class ResumeRepository {
       .where(eq(resumeUpload.id, id));
   }
 
+  /** Which of the storage keys still belong to a row. */
+  async referencedKeys(keys: string[]): Promise<Set<string>> {
+    if (keys.length === 0) return new Set();
+    const rows = await this.tx.tx
+      .select({ key: resumeUpload.storageKey })
+      .from(resumeUpload)
+      .where(inArray(resumeUpload.storageKey, keys));
+    return new Set(rows.flatMap((row) => (row.key === null ? [] : [row.key])));
+  }
+
   async deleteOwn(id: string, userId: string): Promise<ResumeRow | undefined> {
     const rows = await this.tx.tx
       .delete(resumeUpload)

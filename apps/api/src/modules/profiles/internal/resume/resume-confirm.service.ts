@@ -5,8 +5,8 @@ import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { ProfileRepository } from '../profile/profile.repository.js';
 import { ProfileService } from '../profile/profile.service.js';
 import type { ProfileDto, ProfileInput } from '../profile/profile.types.js';
-import { ResumeStorage } from './resume-storage.js';
 import { ResumeRepository } from './resume.repository.js';
+import { ResumeService } from './resume.service.js';
 
 /** `ProfileFields` of the contract: any subset of the profile, none of it applied before confirmation. */
 export type ConfirmedFields = Partial<Omit<ProfileInput, 'version'>>;
@@ -67,17 +67,18 @@ export class ResumeConfirmService {
     @Inject(ResumeRepository) private readonly resumes: ResumeRepository,
     @Inject(ProfileRepository) private readonly profiles: ProfileRepository,
     @Inject(ProfileService) private readonly profileService: ProfileService,
-    @Inject(ResumeStorage) private readonly storage: ResumeStorage,
+    @Inject(ResumeService) private readonly resumeService: ResumeService,
     @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(Clock) private readonly clock: Clock,
   ) {}
 
   async confirm(userId: string, uploadId: string, body: ResumeConfirmation): Promise<ProfileDto> {
-    let released: string | null = null;
     const saved = await this.tx.run(async () => {
       const upload = await this.resumes.lockOwn(uploadId, userId);
       if (upload === undefined) throw new DomainError('NOT_FOUND', 404);
-      if (upload.status !== 'done') throw new DomainError('INVALID_STATE', 409);
+      if (upload.status !== 'done' || upload.confirmedAt !== null) {
+        throw new DomainError('INVALID_STATE', 409);
+      }
       const current = await this.profiles.find(userId);
       if ((current?.version ?? null) !== body.profileVersion) {
         throw new DomainError('VERSION_CONFLICT', 409, current ? { current: { ...current } } : {});
@@ -87,10 +88,10 @@ export class ResumeConfirmService {
         mergedInput(current, body.confirmedFields, body.profileVersion),
       );
       await this.resumes.markConfirmed(uploadId, body.keepFile, this.clock.now());
-      released = body.keepFile ? null : upload.storageKey;
+      // Same transaction: the file cannot outlive the reference to it (S2CR-01).
+      if (!body.keepFile) await this.resumeService.requestFileRemoval(userId, upload.storageKey);
       return profile;
     });
-    await this.storage.remove(released);
     return saved;
   }
 }

@@ -97,14 +97,18 @@ export class DeletionRequestService {
       await this.limiter.enforce('deletionCancel', this.limiter.ipSubject(ip));
     }
     return this.tx.run(async () => {
-      const found = await this.repository.lockByCancelHash(sha256(token));
+      // Lock order (architecture 12.1): the user (#1) before the deletion_request row.
+      const hash = sha256(token);
+      const ownerId = await this.repository.userIdByCancelHash(hash);
+      if (ownerId === undefined) throw new DomainError('DELETION_CANCEL_GONE', 410);
+      await this.locks.lockUser(ownerId);
+      const found = await this.repository.lockByCancelHash(hash);
       if (found === undefined) throw new DomainError('DELETION_CANCEL_GONE', 410);
       if (found.status === 'cancelled') return toDeletionDto(found);
       const now = this.clock.now();
       if (found.status !== 'requested' || found.scheduledAt <= now) {
         throw new DomainError('DELETION_CANCEL_GONE', 410);
       }
-      await this.locks.lockUser(found.userId);
       await this.tx.tx
         .update(user)
         .set({ status: 'active', updatedAt: now })

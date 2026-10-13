@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   NoSuchKey,
   PutObjectCommand,
   type S3Client,
@@ -52,7 +53,37 @@ export class ResumeStorage {
     );
   }
 
-  /** Best effort: a leftover object is removed later by the `orphan-objects` task. */
+  /** Keys under a prefix older than the cutoff (one page per call, `maxKeys` at most). */
+  async listOlderThan(prefix: string, cutoff: Date, maxKeys: number): Promise<string[]> {
+    const keys: string[] = [];
+    let token: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.config.S3_BUCKET_RESUMES,
+          Prefix: prefix,
+          ContinuationToken: token,
+        }),
+      );
+      for (const item of page.Contents ?? []) {
+        if (
+          item.Key !== undefined &&
+          item.LastModified !== undefined &&
+          item.LastModified < cutoff
+        ) {
+          keys.push(item.Key);
+        }
+      }
+      token = keys.length < maxKeys ? page.NextContinuationToken : undefined;
+    } while (token !== undefined);
+    return keys.slice(0, maxKeys);
+  }
+
+  /**
+   * Best effort, only for an upload that never got a row. Files of existing or deleted rows are
+   * removed through the `profiles.resume_file_removal_requested` event; anything that still
+   * leaks is swept by `orphan-objects`.
+   */
   async remove(key: string | null): Promise<void> {
     if (key === null) return;
     try {

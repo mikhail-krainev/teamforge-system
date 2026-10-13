@@ -9,6 +9,7 @@ import { QueuesService } from '../../../../platform/queues/queues.service.js';
 import { RateLimiter } from '../../../../platform/ratelimit/rate-limiter.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { PROFILES_MODULE } from '../../public.js';
+import { RESUME_FILE_REMOVAL_REQUESTED } from './resume-file-removal.js';
 import { MAX_RESUME_BYTES, sniffResume } from './resume-file.js';
 import { ResumeStorage } from './resume-storage.js';
 import { ResumeRepository, type ResumeDto, toResumeDto } from './resume.repository.js';
@@ -100,12 +101,23 @@ export class ResumeService {
 
   /** Removes the row, the extracted text and the file; someone else's upload is a 404 (IDOR). */
   async delete(userId: string, uploadId: string): Promise<void> {
-    const removed = await this.tx.run(async () => {
+    await this.tx.run(async () => {
       const row = await this.repository.deleteOwn(uploadId, userId);
       if (row === undefined) throw new DomainError('NOT_FOUND', 404);
-      return row;
+      // Same transaction as the row: the file removal cannot be lost (S2CR-01).
+      await this.requestFileRemoval(userId, row.storageKey);
     });
-    await this.storage.remove(removed.storageKey);
+  }
+
+  /** Outbox event "remove this object": the consumer retries until storage confirms. */
+  async requestFileRemoval(userId: string, storageKey: string | null): Promise<void> {
+    if (storageKey === null) return;
+    await this.outbox.publish({
+      module: PROFILES_MODULE,
+      type: RESUME_FILE_REMOVAL_REQUESTED,
+      aggregateId: userId,
+      payload: { storageKey },
+    });
   }
 
   publishUpdated(userId: string, uploadId: string, status: string): Promise<string> {

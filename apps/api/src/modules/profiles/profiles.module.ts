@@ -8,6 +8,10 @@ import { ProfileRepository } from './internal/profile/profile.repository.js';
 import { ProfileService } from './internal/profile/profile.service.js';
 import { ProfilesFacade } from './internal/profile/profiles-facade.service.js';
 import { ResumeConfirmService } from './internal/resume/resume-confirm.service.js';
+import {
+  OrphanObjectsSweeper,
+  ResumeFileRemovalConsumer,
+} from './internal/resume/resume-file-removal.js';
 import { ResumeParseClient } from './internal/resume/resume-parse.client.js';
 import { ResumePipeline } from './internal/resume/resume-pipeline.js';
 import { ResumeStorage } from './internal/resume/resume-storage.js';
@@ -33,6 +37,8 @@ import { PROFILES_API } from './public.js';
     ResumeParseClient,
     ResumePipeline,
     ProfilesDeletionConsumer,
+    ResumeFileRemovalConsumer,
+    OrphanObjectsSweeper,
   ],
   exports: [PROFILES_API],
 })

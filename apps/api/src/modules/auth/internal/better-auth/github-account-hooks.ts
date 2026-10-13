@@ -19,6 +19,25 @@ const alreadyLinked = (): APIError =>
 
 const lockKey = (accountId: string): string => `${SESSION_KEY_PREFIX}lock:github:${accountId}`;
 
+/** Deletes the lock only while it still belongs to this user (it may have expired and been retaken). */
+const RELEASE_IF_OWNER =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+
+async function releaseLock(redis: Redis, accountId: string, userId: string): Promise<void> {
+  try {
+    await redis.eval(RELEASE_IF_OWNER, 1, lockKey(accountId), userId);
+  } catch {
+    // The lock expires on its own after LOCK_SECONDS.
+  }
+}
+
+/** True when another user holds the lock; the same user's own leftover lock (failed insert) is reused. */
+async function heldByAnother(redis: Redis, accountId: string, userId: string): Promise<boolean> {
+  const taken = await redis.set(lockKey(accountId), userId, 'EX', LOCK_SECONDS, 'NX');
+  if (taken !== null) return false;
+  return (await redis.get(lockKey(accountId))) !== userId;
+}
+
 async function ownedByAnother(db: Database, userId: string, accountId: string): Promise<boolean> {
   const rows = await db
     .select({ id: account.id })
@@ -64,15 +83,22 @@ export function githubAccountHooks(db: Database, redis: Redis): AccountHooks {
     create: {
       before: async (created) => {
         if (created.providerId !== GITHUB) return;
-        const taken = await redis.set(lockKey(created.accountId), '1', 'EX', LOCK_SECONDS, 'NX');
-        if (taken === null || (await ownedByAnother(db, created.userId, created.accountId))) {
-          throw alreadyLinked();
+        if (await heldByAnother(redis, created.accountId, created.userId)) throw alreadyLinked();
+        try {
+          if (await ownedByAnother(db, created.userId, created.accountId)) throw alreadyLinked();
+        } catch (error) {
+          // No `after` hook will run for a refused account: do not leave a lock behind (S2CR-04).
+          await releaseLock(redis, created.accountId, created.userId);
+          throw error;
         }
       },
       after: async (created) => {
         if (created.providerId !== GITHUB) return;
-        await clearTokens(db, created.userId, created.accountId);
-        await redis.del(lockKey(created.accountId));
+        try {
+          await clearTokens(db, created.userId, created.accountId);
+        } finally {
+          await releaseLock(redis, created.accountId, created.userId);
+        }
       },
     },
     update: {

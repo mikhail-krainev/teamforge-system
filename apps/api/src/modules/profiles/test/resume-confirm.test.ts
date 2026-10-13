@@ -13,7 +13,7 @@ import {
 } from '../../../../test/fixtures/profiles.js';
 import type { World } from '../../../../test/fixtures/world.js';
 import { expectMatchesContract } from '../../../../test/helpers/contract.js';
-import { describeInfra } from '../../../../test/helpers/infra.js';
+import { describeInfra, waitFor } from '../../../../test/helpers/infra.js';
 import { confirmUrl, PROFILE_URL, RESUME_URL, useResumeWorld } from './resume-harness.js';
 import { pointersOf, type ProfileDto } from './support.js';
 
@@ -232,6 +232,45 @@ describeInfra(
         );
       });
 
+      it('S2CR-05: a second confirmation of the same upload -> 409 INVALID_STATE, the profile stays', async () => {
+        const user = await newUser('conf-twice');
+        await insertProfile(world.sql, user.id);
+        const uploadId = await uploaded(user);
+        const first = await world.as(user).post(confirmUrl(uploadId), {
+          confirmedFields: { stack: ['typescript'] },
+          keepFile: true,
+          profileVersion: 1,
+        });
+        expect(first.statusCode, first.body).toBe(200);
+        const second = await world.as(user).post(confirmUrl(uploadId), {
+          confirmedFields: { stack: ['react'] },
+          keepFile: true,
+          profileVersion: first.json<ProfileDto>().version,
+        });
+        expectProblem('confirmResumeFields', second, 409, 'INVALID_STATE');
+        const profile = await world.as(user).get(PROFILE_URL);
+        expect(profile.json<ProfileDto>().stack).toEqual(['typescript']);
+      });
+
+      it('S2CR-01: the removal event is written with the row change, and the object disappears', async () => {
+        const user = await newUser('conf-event');
+        await insertProfile(world.sql, user.id);
+        const uploadId = await uploaded(user);
+        const key = (await rowOf(uploadId))?.storage_key ?? '';
+        const response = await world.as(user).post(confirmUrl(uploadId), {
+          confirmedFields: { stack: ['typescript'] },
+          keepFile: false,
+          profileVersion: 1,
+        });
+        expect(response.statusCode, response.body).toBe(200);
+        const events = await world.sql<{ n: number }[]>`
+          SELECT count(*)::int AS n FROM platform.outbox_event
+           WHERE module = 'profiles' AND type = 'resume_file_removal_requested'
+             AND payload->>'storageKey' = ${key}`;
+        expect(events[0]?.n).toBe(1);
+        await waitFor(async () => !(await bucket.exists(key)), 15_000);
+      });
+
       it('FR-PROF-05: keepFile=false removes the object and the extracted text, and keeps the confirmed profile', async () => {
         const user = await newUser('conf-drop');
         await insertProfile(world.sql, user.id);
@@ -245,7 +284,7 @@ describeInfra(
         });
         expect(response.statusCode, response.body).toBe(200);
         expect(response.json<ProfileDto>().stack).toEqual(['typescript']);
-        expect(await bucket.exists(key)).toBe(false);
+        await waitFor(async () => !(await bucket.exists(key)), 15_000);
         const row = await rowOf(uploadId);
         expect(row).toBeDefined();
         expect(row?.extracted_text).toBeNull();
@@ -370,7 +409,7 @@ describeInfra(
         expect(response.statusCode, response.body).toBe(204);
         expect(response.body).toBe('');
         expectMatchesContract('deleteResume', response);
-        expect(await bucket.exists(key)).toBe(false);
+        await waitFor(async () => !(await bucket.exists(key)), 15_000);
         expect(await rowOf(id)).toBeUndefined();
         expectProblem('getMyResume', await world.as(user).get(RESUME_URL), 404, 'NOT_FOUND');
       });
@@ -387,7 +426,7 @@ describeInfra(
         });
         expect(await bucket.exists(key)).toBe(true);
         expect((await remove(user, id)).statusCode).toBe(204);
-        expect(await bucket.exists(key)).toBe(false);
+        await waitFor(async () => !(await bucket.exists(key)), 15_000);
         expect(await rowOf(id)).toBeUndefined();
       });
 

@@ -89,13 +89,19 @@ export class ResumePipeline implements JobProcessor, OnModuleInit {
     return { at, text: result.text, suggestions: stack.length > 0 ? { stack } : {} };
   }
 
-  /** The upload cannot be parsed after the last attempt: say so instead of leaving it queued. */
-  async onExhausted(job: QueueJob): Promise<void> {
+  /**
+   * The last attempt threw. A damaged file never gets here: it comes back from the parser as a
+   * `CORRUPTED` result and is stored by `process`. A throw means the infrastructure failed (storage,
+   * Redis, parser unreachable), so the user is told to try again later (`timeout`), not that the
+   * file is broken (S2CR-06).
+   */
+  async onExhausted(job: QueueJob, error?: Error): Promise<void> {
     const uploadId = String(job.data.uploadId ?? '');
+    this.logger.error({ upload_id: uploadId, err: error }, 'resume parsing attempts exhausted');
     await this.tx.run(async () => {
       const row = await this.repository.finish(uploadId, {
         at: this.clock.now(),
-        failure: 'corrupted',
+        failure: 'timeout',
       });
       if (row !== undefined) await this.resumes.publishUpdated(row.userId, uploadId, row.status);
     });
