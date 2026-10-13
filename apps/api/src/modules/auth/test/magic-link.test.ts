@@ -107,8 +107,9 @@ describeInfra('S2 auth: magic link (FR-AUTH-02, FR-AUTH-04, FR-AUTH-06)', ['db',
     });
 
     it('FR-AUTH-06 / S2CR-07: existing, alias and unknown addresses get the same status, body and headers; exactly one mail each, never to the alias', async () => {
-      const stored = `a.b${world.runId}@gmail.com`;
-      const alias = `ab${world.runId}+x@gmail.com`;
+      // A local part of its own: the it.each cases below use a.b<runId>, which normalizes to the same mailbox.
+      const stored = `e.n${world.runId}@gmail.com`;
+      const alias = `en${world.runId}+x@gmail.com`;
       const unknown = world.email('enum-unknown');
       await world.signIn(stored);
       const baseStored = await world.mail.countTo(stored);
