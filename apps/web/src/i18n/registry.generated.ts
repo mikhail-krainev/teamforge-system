@@ -6,6 +6,7 @@ import notFound from './ru/notFound.json';
 import profile from './ru/profile.json';
 import shell from './ru/shell.json';
 import status from './ru/status.json';
+import teams from './ru/teams.json';
 
 export const ruDictionaries = {
   "auth": auth,
@@ -15,4 +16,5 @@ export const ruDictionaries = {
   "profile": profile,
   "shell": shell,
   "status": status,
+  "teams": teams,
 } as const;

@@ -2,8 +2,10 @@
 import type { NavItem } from './nav-types';
 import { navItems as homeNav } from '@/features/home/nav';
 import { navItems as profileNav } from '@/features/profile/nav';
+import { navItems as teamsNav } from '@/features/teams/nav';
 
 export const allNavItems: readonly NavItem[] = [
   ...homeNav,
   ...profileNav,
+  ...teamsNav,
 ];
