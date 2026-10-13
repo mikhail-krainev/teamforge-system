@@ -16,8 +16,8 @@
 ## Следующая фаза
 
 Срез 3, часть 2, в ветке `feat/teams` (продолжать её, не создавать новую):
-1. Проверить S3-06 (выход и решение тимлида; последний коммит ветки) и `idor.test.ts`.
-2. S3-07, S3-08 голосование за тимлида (автомат 95%, CC-4 а-в на FakeClock), публикация событий `lead_changed`, `vote_updated`, `member_left`, `invitation_*` для уведомлений.
+1. S3-06 и S3-07 сделаны (выход, открытие голосования, выдвижение, автомат 100%, CC-4(б) зелёный). Отклонения S3-07: отмена при возвращении тимлида срабатывает на `listLeaderVotes`; нет обработчика `auth.user_deletion_requested` (`lead_deleted`); архивация пустой команды идёт мимо таблицы `team-status`.
+2. S3-08 бюллетени, второй тур, предложение, таймеры `vote-deadline` и сканер (CC-4 а, в на FakeClock; 21 тест ждёт S3-08), `idor.test.ts`, публикация событий `lead_changed`, `vote_updated`, `member_left`, `invitation_*` для уведомлений.
 3. Закрыть MEDIUM S3SEC-01, S3SEC-02, S3CR-01 (офферы), S3CR-03 (S3CR-02 и S3CR-01 для приглашений исправлены); привести описание `closeSeat` в OpenAPI к `INVALID_STATE`.
 4. S3-14 граничные тесты, фаза 6: integration, concurrency x5, `compose up` с чистых томов, Playwright `slice3.spec.ts` (не запускался), повторное ревью и аудит, PR, зелёный CI, слияние. Затем срез 4.
 Известно: `src/resume-worker/parsers.test.ts` (6 тестов) падает только на Windows, в CI на Linux зелёный. `pnpm` нет в PATH, использовать `corepack pnpm`.
