@@ -31,13 +31,15 @@ export const RATE_LIMITS = {
 
 const LOOPBACK_CLIENTS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
+let loopbackExempt = false;
+
 /**
- * True when the client address is the loopback itself: a process inside the container, never a
- * browser (proxied clients arrive with their own address, SEC-16). Per-IP limits of anonymous
- * operations skip such requests.
+ * True when per-IP limits of anonymous operations skip this client: the address is the loopback
+ * itself and `RATE_LIMIT_EXEMPT_LOOPBACK=true` (S2SEC-04; the config refuses the flag in production).
+ * The flag is taken from the config by `RateLimiter`; without it nobody is exempt.
  */
 export function isLoopbackClient(ip: string): boolean {
-  return LOOPBACK_CLIENTS.has(ip);
+  return loopbackExempt && LOOPBACK_CLIENTS.has(ip);
 }
 
 export type RateLimitCategory = keyof typeof RATE_LIMITS;
@@ -77,7 +79,25 @@ if allowed == 0 then retry = reset end
 return {allowed, limit - count, retry, reset}
 `;
 
+/** Like the sliding window but counts nothing: {allowed, remaining, retryAfterMs, resetMs}. */
+const WINDOW_PEEK_LUA = `
+local t = redis.call('TIME')
+local now = t[1] * 1000 + math.floor(t[2] / 1000)
+local limit = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
+local count = redis.call('ZCARD', KEYS[1])
+local reset = 0
+if count > 0 then
+  local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+  reset = window - (now - tonumber(oldest[2]))
+end
+if count < limit then return {1, limit - count, 0, reset} end
+return {0, 0, reset, reset}
+`;
+
 type RateLimitCommand = Redis & {
+  tfWindowPeek(key: string, limit: number, windowMs: number): Promise<number[]>;
   tfSlidingWindow(key: string, limit: number, windowMs: number, member: string): Promise<number[]>;
 };
 
@@ -95,6 +115,8 @@ export class RateLimiter {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {
     redis.defineCommand('tfSlidingWindow', { numberOfKeys: 1, lua: SLIDING_WINDOW_LUA });
+    redis.defineCommand('tfWindowPeek', { numberOfKeys: 1, lua: WINDOW_PEEK_LUA });
+    loopbackExempt = config.RATE_LIMIT_EXEMPT_LOOPBACK === true;
     this.redis = redis as RateLimitCommand;
   }
 
@@ -130,6 +152,27 @@ export class RateLimiter {
       retryAfterSeconds: Math.ceil((retryMs ?? 0) / 1000),
       resetSeconds: Math.ceil((resetMs ?? 0) / 1000),
     };
+  }
+
+  /** Throws 429 when the window is already full, without counting a hit (checks before the work is done). */
+  async assertBelowLimit(
+    category: RateLimitCategory,
+    subject: string,
+    rule: RateLimitRule = RATE_LIMITS[category],
+  ): Promise<void> {
+    const [allowed, remaining, retryMs, resetMs] = await this.redis.tfWindowPeek(
+      `rl:${category}:${subject}`,
+      rule.limit,
+      rule.windowMs,
+    );
+    if (allowed === 1) return;
+    throw rateLimitedError({
+      allowed: false,
+      limit: rule.limit,
+      remaining: Math.max(0, remaining ?? 0),
+      retryAfterSeconds: Math.ceil((retryMs ?? 0) / 1000),
+      resetSeconds: Math.ceil((resetMs ?? 0) / 1000),
+    });
   }
 
   /** Like consume, but throws 429 RATE_LIMITED with Retry-After and RateLimit-* headers. */

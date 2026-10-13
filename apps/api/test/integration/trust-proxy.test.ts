@@ -36,4 +36,17 @@ describe('S1-07 trustProxy (SEC-16): X-Forwarded-For is honoured only from liste
     const second = await ipSeenBy('10.20.1.1', '203.0.113.10');
     expect(first).not.toBe(second);
   });
+
+  it('S2SEC-03: behind Caddy and web the client is the first untrusted address from the right', async () => {
+    // remote = web (10.20.0.2); X-Forwarded-For = "client, caddy"; both proxies are trusted.
+    expect(await ipSeenBy('10.20.0.2', '203.0.113.9, 10.20.0.3')).toBe('203.0.113.9');
+    // addresses prepended by the client sit to the left of the real one and are ignored
+    expect(await ipSeenBy('10.20.0.2', '6.6.6.6, 203.0.113.9, 10.20.0.3')).toBe('203.0.113.9');
+    // web did not append anything: the last entry is the client itself
+    expect(await ipSeenBy('10.20.0.2', '203.0.113.9')).toBe('203.0.113.9');
+  });
+
+  it('S2SEC-03: an untrusted peer cannot inject a chain, whatever the header says', async () => {
+    expect(await ipSeenBy('198.51.100.5', '203.0.113.9, 10.20.0.3')).toBe('198.51.100.5');
+  });
 });

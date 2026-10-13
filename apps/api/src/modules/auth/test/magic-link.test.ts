@@ -166,15 +166,19 @@ describeInfra('S2 auth: magic link (FR-AUTH-02, FR-AUTH-04, FR-AUTH-06)', ['db',
     ] as const;
 
     it.each(cases)(
-      'FR-AUTH-06: %s -> the second spelling of an existing account is refused (422), no second user',
+      'FR-AUTH-06 / S2SEC-02: %s -> the second spelling answers like an unknown address (200 {status:true}), the link goes to the stored address, no second user',
       async (_name, pair) => {
         const [first = '', alias = ''] = pair(world.runId);
         await world.signIn(first);
-        const before = await world.mail.countTo(alias);
+        const unknown = await requestLink(world.browser(), world.email('alias-unknown'));
+        const beforeStored = await world.mail.countTo(first);
+        const beforeAlias = await world.mail.countTo(alias);
         const response = await requestLink(world.browser(), alias);
-        expect(response.statusCode).toBe(422);
+        expect(response.statusCode).toBe(unknown.statusCode);
+        expect(response.json()).toEqual(unknown.json());
         expectMatchesContract('signInMagicLink', response);
-        expect(await world.mail.countTo(alias)).toBe(before);
+        await world.mail.latestTo(first, { minCount: beforeStored + 1 });
+        expect(await world.mail.countTo(alias)).toBe(beforeAlias);
         const users = await countOf(world.sql<{ n: number }[]>`
           SELECT count(*)::int AS n FROM auth."user"
            WHERE email_normalized = (SELECT email_normalized FROM auth."user" WHERE email = ${first})`);

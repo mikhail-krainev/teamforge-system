@@ -1,11 +1,37 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import type { RateLimitCategory } from '../ratelimit/rate-limiter.js';
+
+const MIB = 1024 * 1024;
+/** Room for boundaries and part headers on top of the file. */
+const FORM_OVERHEAD = 64 * 1024;
+
+/** What a route that takes `multipart/form-data` may read before the operation itself runs. */
+export interface MultipartOperationPolicy {
+  /** The body stream is cut (413 FILE_TOO_LARGE) when it grows past this many bytes. */
+  maxBodyBytes: number;
+  /** Per-user limit checked before the body is read (the operation counts the hit). */
+  rateLimit?: RateLimitCategory;
+}
 
 /**
- * Largest multipart request accepted (resume 5 MiB + form overhead). The file size itself is checked
- * by the operation, which answers 413 FILE_TOO_LARGE as problem+json.
+ * Routes that may receive multipart (S2SEC-01), by `operationId`; the contract must declare
+ * `multipart/form-data` for them too. Any other route answers 415 without reading the body. The
+ * exact file limit (C-21, C-34...) stays in the operation: this is the transport cut-off.
  */
-export const MULTIPART_BODY_LIMIT = 6 * 1024 * 1024;
+export const MULTIPART_OPERATIONS: Readonly<Record<string, MultipartOperationPolicy>> = {
+  uploadResume: { maxBodyBytes: 5 * MIB + FORM_OVERHEAD, rateLimit: 'resumeUpload' },
+  uploadArtifactFile: { maxBodyBytes: 10 * MIB + FORM_OVERHEAD, rateLimit: 'artifactUpload' },
+};
+
+/** Cut-off for a multipart operation of the contract that has no entry above yet. */
+export const DEFAULT_MULTIPART_BODY_BYTES = MIB + FORM_OVERHEAD;
+
+/** Backstop of the Fastify parser: the largest cut-off of any route. */
+export const MULTIPART_BODY_LIMIT = Math.max(
+  DEFAULT_MULTIPART_BODY_BYTES,
+  ...Object.values(MULTIPART_OPERATIONS).map((policy) => policy.maxBodyBytes),
+);
 
 /** The one file of a multipart form. Bytes and names are hidden from enumeration (see `parsedForm`). */
 export interface UploadedFile {
@@ -110,6 +136,9 @@ export function parseMultipart(body: Buffer, contentType: string): MultipartBody
   return parsed;
 }
 
+/** Seam for tests: they assert that the parser is not reached by requests the gate refuses. */
+export const multipartParser = { parse: parseMultipart };
+
 /**
  * Registers the multipart parser. The request body becomes a small JSON-like object (field values
  * and the SHA-256 and size of each file), so that the idempotency hash covers the content of the file
@@ -120,7 +149,10 @@ export function registerMultipart(fastify: FastifyInstance): void {
     'multipart/form-data',
     { parseAs: 'buffer', bodyLimit: MULTIPART_BODY_LIMIT },
     (request, body, done) => {
-      const parsed = parseMultipart(body as Buffer, String(request.headers['content-type'] ?? ''));
+      const parsed = multipartParser.parse(
+        body as Buffer,
+        String(request.headers['content-type'] ?? ''),
+      );
       // A malformed form is an empty one: the operation answers 400 for the missing file.
       done(null, parsed ?? { fields: {}, files: {} });
     },

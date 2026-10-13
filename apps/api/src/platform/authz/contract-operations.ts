@@ -28,6 +28,8 @@ export interface OperationSpec {
   /** Absent when the contract operation has no `x-authz`: AuthzRegistry rejects it at startup. */
   authz?: XAuthz;
   schemas: OperationSchemas;
+  /** True when the contract takes `multipart/form-data` (the only routes that may read such a body). */
+  multipart?: boolean;
 }
 
 type Json = Record<string, unknown>;
@@ -119,6 +121,12 @@ function bodySchema(doc: ContractDocument, operation: Json): Partial<OperationSc
   return { body: rewriteRefs(schema as JsonSchema), bodyRequired: body?.required === true };
 }
 
+function acceptsMultipart(doc: ContractDocument, operation: Json): boolean {
+  const body =
+    operation.requestBody === undefined ? undefined : deref(doc, operation.requestBody as Json);
+  return 'multipart/form-data' in ((body?.content ?? {}) as Record<string, unknown>);
+}
+
 /** Every operation of the contract keyed by `operationId`. */
 export function readContractOperations(doc: ContractDocument): Map<string, OperationSpec> {
   const operations = new Map<string, OperationSpec>();
@@ -132,6 +140,7 @@ export function readContractOperations(doc: ContractDocument): Map<string, Opera
         path,
         authz: operation['x-authz'] as XAuthz | undefined,
         schemas: { ...parameterSchemas(doc, operation), ...bodySchema(doc, operation) },
+        ...(acceptsMultipart(doc, operation) ? { multipart: true } : {}),
       });
     }
   }

@@ -12,6 +12,31 @@ function issuesOf(env: NodeJS.ProcessEnv, role: 'api' | 'worker' = 'api') {
   return [];
 }
 
+describe('S2SEC-04: RATE_LIMIT_EXEMPT_LOOPBACK', () => {
+  it('is off unless set explicitly', () => {
+    expect(loadConfig(validEnv({ RATE_LIMIT_EXEMPT_LOOPBACK: undefined }), 'api')).toMatchObject({
+      RATE_LIMIT_EXEMPT_LOOPBACK: false,
+    });
+    expect(loadConfig(validEnv({ RATE_LIMIT_EXEMPT_LOOPBACK: 'true' }), 'api')).toMatchObject({
+      RATE_LIMIT_EXEMPT_LOOPBACK: true,
+    });
+  });
+
+  it('is refused in production, before the application starts', () => {
+    const production = { NODE_ENV: 'production', APP_ORIGIN: 'https://teamforge.example' };
+    expect(issuesOf(validEnv({ ...production, RATE_LIMIT_EXEMPT_LOOPBACK: 'true' }))).toEqual([
+      { name: 'RATE_LIMIT_EXEMPT_LOOPBACK', reason: 'invalid' },
+    ]);
+    expect(issuesOf(validEnv({ ...production, RATE_LIMIT_EXEMPT_LOOPBACK: 'false' }))).toEqual([]);
+  });
+
+  it('rejects anything but true/false', () => {
+    expect(issuesOf(validEnv({ RATE_LIMIT_EXEMPT_LOOPBACK: 'yes' }))).toEqual([
+      { name: 'RATE_LIMIT_EXEMPT_LOOPBACK', reason: 'invalid' },
+    ]);
+  });
+});
+
 describe('loadConfig', () => {
   it('accepts a complete environment and freezes the result', () => {
     const config = loadConfig(validEnv(), 'api');

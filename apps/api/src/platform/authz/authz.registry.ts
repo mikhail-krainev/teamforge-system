@@ -105,6 +105,11 @@ export class AuthzRegistry implements OnApplicationBootstrap {
     return this.contractIds.has(operationId);
   }
 
+  /** Operations whose contract body is `multipart/form-data`. */
+  multipartOperations(): OperationSpec[] {
+    return [...this.operations.values()].filter((spec) => spec.multipart === true);
+  }
+
   get(operationId: string): OperationSpec | undefined {
     return this.operations.get(operationId);
   }

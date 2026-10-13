@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { isAPIError } from 'better-auth/api';
-import { and, eq, ne } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
 import { DB, type Database } from '../../../../platform/db/db.module.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
@@ -48,21 +48,27 @@ export class MagicLinkService {
     if (isDisposableDomain(emailDomain(email))) {
       throw refused('disposable_domain', 'Disposable e-mail domains are not accepted');
     }
-    await this.assertNoOtherSpelling(email, normalized);
-    await this.auth.api.signInMagicLink({ body: { email }, headers: toWebHeaders(request) });
+    // The answer never depends on whether the mailbox is registered (S2SEC-02).
+    const target = await this.registeredSpelling(email, normalized);
+    await this.auth.api.signInMagicLink({
+      body: { email: target },
+      headers: toWebHeaders(request),
+    });
     return { status: true };
   }
 
-  /** The same mailbox under another spelling is an existing account, not a new one. */
-  private async assertNoOtherSpelling(email: string, normalized: string): Promise<void> {
+  /**
+   * The same mailbox under another spelling is an existing account, not a new one. The link goes to
+   * the address stored with the account (the same single mail and the same `{status: true}` as for
+   * any other request), so the response gives no hint that the account exists (S2SEC-02).
+   */
+  private async registeredSpelling(email: string, normalized: string): Promise<string> {
     const rows = await this.db
-      .select({ id: user.id })
+      .select({ email: user.email })
       .from(user)
-      .where(and(eq(user.emailNormalized, normalized), ne(user.email, email.trim().toLowerCase())))
+      .where(eq(user.emailNormalized, normalized))
       .limit(1);
-    if (rows.length > 0) {
-      throw refused('email_alias', 'This mailbox is already registered under another spelling');
-    }
+    return rows[0]?.email ?? email;
   }
 
   /** Exchanges the token for a session. One use only: concurrent calls race inside the library. */

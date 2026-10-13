@@ -116,9 +116,14 @@ jobs:
         run: pnpm run test:env:down
 
   # End to end: the whole stack as compose project `e2e`, Playwright in Chromium, axe checks.
+  # Playwright brings the stack up itself (webServer: `docker compose -p e2e up --build`): Postgres,
+  # PgBouncer, Redis, SeaweedFS, Mailpit (mail of slice 2), api, worker, the isolated resume-worker
+  # with its redis-resume, and web. The GitHub double (apps/api/test/fakes/github-server.ts) is started
+  # by the slice 2 spec on the runner at 0.0.0.0:4900; api reaches it as host.docker.internal, which
+  # compose maps to the host gateway (extra_hosts), and runs with GITHUB_*_BASE_URL pointing there.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       # Keep the stack after the run so that logs can be collected; it is removed in the last step.
       E2E_KEEP_STACK: '1'

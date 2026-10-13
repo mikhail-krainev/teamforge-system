@@ -98,3 +98,23 @@
 - LOW: HSTS в web отправляется и в dev.
 - LOW: `await connection()` в корневом layout делает все страницы динамическими (нужно для nonce CSP).
 - LOW: фиксированная подсеть compose 172.29.250.0/24 может конфликтовать с VPN.
+
+## Срез 2, аудит безопасности
+
+Отчёт: `docs/reviews/slice2-security-audit.md`. MEDIUM (S2SEC-01..03) и S2SEC-04 исправлены; ниже остальные LOW и хвосты исправлений.
+
+- LOW (S2SEC-05): `resume-file.ts:186-192`, поиск активного содержимого PDF по подстрокам обходится (hex-имена, `/JS<<`, `ObjStm`). Записать в архитектуре, что это эвристика, и брать флаги активного содержимого из дочернего процесса (`/OpenAction`, `/AA`, `/JavaScript`, `/EmbeddedFiles`).
+- LOW (S2SEC-06): `resume-worker/parsers.ts:34`, отладочный вывод `DBGPDF` в stderr; удалить.
+- LOW (S2SEC-07): `resume-worker/main.ts:67`, `run-child.ts:152-158`, два дочерних процесса под одним uid 10002 при `concurrency: 2`; `concurrency: 1` или отдельный uid на слот, либо проверка `kernel.yama.ptrace_scope >= 1` при старте.
+- LOW (S2SEC-08): compose, resume-worker, `/tmp` tmpfs с правами 1777; `size=16m,noexec,nosuid,mode=0700,uid=0` или без `/tmp`.
+- LOW (S2SEC-09): compose resume-worker `mem_limit: 512m`, `--max-old-space-size=256` не ограничивает ArrayBuffer и нативную память pdf.js; `concurrency: 1` или `prlimit --as` на дочерний процесс, тест "огромное изображение даёт LIMIT, родитель жив".
+- LOW (S2SEC-10): `resume-parse.client.ts:12,71`, `removeOnFail: { age: 3600 }` держит байты резюме в redis-resume час; `removeOnFail: true` (исход пишет `markFailed`).
+- LOW (S2SEC-11): `deletion-saga.service.ts:46,154`, удаление `verification` по `value ILIKE '%<email>%'` задевает чужие записи (`a@b.ru` и `xa@b.ru`); точное совпадение `(value::jsonb->>'email') = $1`.
+- LOW (S2SEC-12): `deletion-request.service.ts:194`, `assertFreshSession` пропускает запрос без `sessionCreatedAt`; закрывать по умолчанию, тестовый аутентификатор тоже ставит поле.
+- LOW (S2SEC-13): `session.authenticator.ts:25`, `deletion-request.service.ts:229`, при сбое `revokeUserSessions` сессии пользователя в статусе `deleting` остаются рабочими; аутентификатор должен пускать только `active`.
+- LOW (S2SEC-14): `config.ts` (`GITHUB_OAUTH_BASE_URL`, `GITHUB_API_BASE_URL`) запрещены только при `NODE_ENV=production`; разрешать только при `NODE_ENV=test` или с loopback-хостом. Учесть: e2e-стек работает как `development` и использует двойник GitHub (`APP_NODE_ENV`), нужен отдельный признак для e2e.
+- LOW (S2SEC-15): cookie сессии без префикса `__Host-` (SEC-23); `advanced.cookies.session_token.name`, правка `apps/web/src/proxy.ts`, или перенос в decisions.md.
+- INFO: I-01 `registerOperations` может переписать операцию контракта; I-02 один `IP_HASH_SALT` для лимитов, согласия, сигналов и надгробий (HKDF с метками); I-03 `sprintf-js` через `mammoth>argparse`, записать отсрочку с датой; I-04 снимки Redis только с шифрованием; I-05 родитель resume-worker под root, ADR-0012.
+- Хвост S2SEC-03: проверить на стеке, что rewrite Next (web -> api) передаёт `X-Forwarded-For` от Caddy и добавляет ли он адрес соединения; правило api верно в обоих случаях (самый правый недоверенный адрес), но реальный `request.ip` за цепочкой Caddy -> web -> api не проверен. Добавить e2e: два клиента с разными IP получают разные корзины лимита. В production `TRUSTED_PROXY_CIDRS` = адреса Caddy и web.
+- Хвост S2SEC-01..03 (не запускались, Docker Desktop был остановлен): `apps/api/test/integration/client-ip-ratelimit.test.ts` (Redis), обновлённый `modules/auth/test/magic-link.test.ts` (alias отвечает 200 и письмо на сохранённый адрес), весь пакет `test:integration` после изменений `RateLimiter`/`preParsing`. Проверить `uploadResume` из `modules/profiles/test/resume.test.ts` (5 МиБ + 1, шестая загрузка 429).
+- Хвост S2SEC-04: флаг `RATE_LIMIT_EXEMPT_LOOPBACK` не пробрасывается в `x-app-env` compose (правит другой агент); e2e-стек (`APP_NODE_ENV=development`) без флага не освобождает loopback. Если e2e этого требует, добавить `RATE_LIMIT_EXEMPT_LOOPBACK: ${RATE_LIMIT_EXEMPT_LOOPBACK:-false}` в compose и в `E2E_ENV`.
