@@ -156,6 +156,7 @@ export class TxRunner {
 
   private resetAttemptState(): void {
     this.cls.set('lockLevel', 0);
+    this.cls.set('lockedUsers', {});
     this.cls.set('outboxDirty', false);
     const idempotency = this.cls.get('idempotency');
     if (idempotency) idempotency.completedInTx = false;

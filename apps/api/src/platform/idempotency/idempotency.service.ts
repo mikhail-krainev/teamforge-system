@@ -5,7 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 import type { IdempotencyContext } from '../context/cls-store.js';
 import { Clock } from '../clock/clock.js';
-import { DomainError } from '../errors/domain-error.js';
+import { CommittedDomainError, DomainError } from '../errors/domain-error.js';
 import { type ProblemResult, toProblem } from '../errors/problem.js';
 import { canonicalJson } from '../http/canonical-json.js';
 import { TxHooks } from '../tx/tx-hooks.js';
@@ -169,7 +169,14 @@ export class IdempotencyService implements OnModuleInit {
     error: unknown,
     problemContext: { instance: string; requestId: string },
   ): Promise<void> {
-    if (ctx.committed || isFencingFailure(error)) return;
+    if (isFencingFailure(error)) return;
+    if (ctx.committed) {
+      if (error instanceof CommittedDomainError && ctx.completedInTx) {
+        const committed = toProblem(error, problemContext);
+        await this.finalizeResponse(ctx, { status: committed.status, body: committed.body });
+      }
+      return;
+    }
     const problem = toProblem(error, problemContext);
     if (isDefinitiveRejection(problem)) {
       await this.store.complete(this.txHost.tx, ctx, {

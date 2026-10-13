@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ClsService } from 'nestjs-cls';
 import { and, eq, gt, gte, inArray, isNotNull } from 'drizzle-orm';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
@@ -29,6 +30,7 @@ export class AuthService implements AuthApi {
     @Inject(ConsentService) private readonly consent: ConsentService,
     @Inject(DeletionSagaService) private readonly saga: DeletionSagaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(ClsService) private readonly cls: ClsService,
   ) {}
 
   async lockUserForJoin(userId: UserId): Promise<JoinEligibility> {
@@ -39,13 +41,26 @@ export class AuthService implements AuthApi {
     }>(userId);
     if (row === undefined) throw new DomainError('NOT_FOUND', 404);
     if (row.status !== 'active') throw new DomainError('USER_INACTIVE', 409);
-    return {
+    const eligibility: JoinEligibility = {
       userId,
       status: row.status,
       // bigint columns come back from the raw query as strings.
       githubUserId: row.github_user_id === null ? null : Number(row.github_user_id),
       consentValid: await this.consent.hasValidConsent(userId),
     };
+    this.rememberLock(eligibility);
+    return eligibility;
+  }
+
+  /** Lets `TeamsApi.joinSeat({ userLocked: true })` verify lock #1 and reuse what was read under it. */
+  private rememberLock(eligibility: JoinEligibility): void {
+    if (!this.cls.isActive()) return;
+    const locked = this.cls.get('lockedUsers') ?? {};
+    locked[eligibility.userId] = {
+      githubUserId: eligibility.githubUserId,
+      consentValid: eligibility.consentValid,
+    };
+    this.cls.set('lockedUsers', locked);
   }
 
   async getIdentity(userId: UserId): Promise<UserIdentity | null> {

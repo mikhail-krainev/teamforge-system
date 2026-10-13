@@ -4,6 +4,7 @@ import { DomainError, InvariantError } from '../../../../platform/errors/domain-
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
+  JoinSeatInput,
   JoinSeatResult,
   RosterMember,
   RosterSnapshot,
@@ -14,6 +15,7 @@ import type {
   UserId,
 } from '../../public.js';
 import { membership, seat, seatAssignment, team } from '../schema/teams.js';
+import { JoinService } from './join.service.js';
 
 type TeamRow = typeof team.$inferSelect;
 
@@ -30,12 +32,13 @@ function toView(row: TeamRow): TeamLockView {
   };
 }
 
-/** Facade of the teams module (`TeamsApi`). `joinSeat` arrives with the join service (S3-04). */
+/** Facade of the teams module (`TeamsApi`); `joinSeat` is the join service (S3-04). */
 @Injectable()
 export class TeamsFacade implements TeamsApi {
   constructor(
     @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(LockService) private readonly locks: LockService,
+    @Inject(JoinService) private readonly joins: JoinService,
   ) {}
 
   async getTeamView(teamId: TeamId): Promise<TeamLockView | null> {
@@ -98,8 +101,8 @@ export class TeamsFacade implements TeamsApi {
     if (rows[0]?.leadUserId !== userId) throw new DomainError('NOT_TEAM_LEAD', 403);
   }
 
-  joinSeat(): Promise<JoinSeatResult> {
-    return Promise.reject(new InvariantError('TeamsApi.joinSeat is implemented in S3-04'));
+  joinSeat(input: JoinSeatInput): Promise<JoinSeatResult> {
+    return this.joins.join(input);
   }
 
   async lockTeam(teamId: TeamId, mode: 'update' | 'share' = 'update'): Promise<TeamLockView> {

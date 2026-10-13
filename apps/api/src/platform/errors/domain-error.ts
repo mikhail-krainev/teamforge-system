@@ -35,6 +35,13 @@ export class DomainError extends Error {
   }
 }
 
+/**
+ * A refusal thrown AFTER the business transaction committed because the transaction itself wrote
+ * something worth keeping (e.g. an offer moved to `cancelled`). The idempotency key then stores this
+ * answer instead of the transaction result, so a repeated request replays the same 4xx.
+ */
+export class CommittedDomainError extends DomainError {}
+
 /** Raised for programmer errors (violated invariants); never shown to users, maps to 500. */
 export class InvariantError extends Error {
   constructor(message: string) {
