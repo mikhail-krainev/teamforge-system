@@ -106,6 +106,32 @@ describeInfra('S2 auth: magic link (FR-AUTH-02, FR-AUTH-04, FR-AUTH-06)', ['db',
       await world.mail.latestTo(unknownEmail);
     });
 
+    it('FR-AUTH-06 / S2CR-07: existing, alias and unknown addresses get the same status, body and headers; exactly one mail each, never to the alias', async () => {
+      const stored = `a.b${world.runId}@gmail.com`;
+      const alias = `ab${world.runId}+x@gmail.com`;
+      const unknown = world.email('enum-unknown');
+      await world.signIn(stored);
+      const baseStored = await world.mail.countTo(stored);
+
+      const existing = await requestLink(world.browser(), stored);
+      await world.mail.latestTo(stored, { minCount: baseStored + 1 });
+      const viaAlias = await requestLink(world.browser(), alias);
+      await world.mail.latestTo(stored, { minCount: baseStored + 2 });
+      const fresh = await requestLink(world.browser(), unknown);
+      await world.mail.latestTo(unknown);
+
+      for (const other of [viaAlias, fresh]) {
+        expect(other.statusCode).toBe(existing.statusCode);
+        expect(other.body).toBe(existing.body);
+        expect(other.headers['content-type']).toBe(existing.headers['content-type']);
+      }
+      expect(existing.json()).toEqual({ status: true });
+      // The alias request was queued before the unknown one and has been delivered by now.
+      expect(await world.mail.countTo(stored)).toBe(baseStored + 2);
+      expect(await world.mail.countTo(alias)).toBe(0);
+      expect(await world.mail.countTo(unknown)).toBe(1);
+    });
+
     it.each([
       ['an absolute URL', 'https://evil.example/steal'],
       ['a protocol-relative URL', '//evil.example'],

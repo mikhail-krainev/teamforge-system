@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
+import { Alert } from '@/components/ui/Alert';
 import { t } from '@/i18n';
 import { ConsentScreen } from './ConsentScreen';
 import { useMe } from './session';
@@ -34,5 +35,12 @@ export function ConsentGate({ children }: { children: ReactNode }) {
   }
   if (!me.data) return <p role="status">{t('auth.session.redirecting')}</p>;
   if (me.data.consentRequired) return <ConsentScreen />;
-  return <>{children}</>;
+  return (
+    <>
+      {me.data.status === 'deleting' ? (
+        <Alert tone="warn">{t('auth.session.deleting')}</Alert>
+      ) : null}
+      {children}
+    </>
+  );
 }

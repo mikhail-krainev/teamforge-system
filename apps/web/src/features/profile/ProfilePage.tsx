@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import { t } from '@/i18n';
 import { PROFILE_KEY } from './api';
@@ -12,13 +12,40 @@ import { ResumeSection } from './resume/ResumeSection';
 import { browserTimezone } from './TimezoneSelect';
 import { useMyProfile, useRoles, useStackTags } from './useProfileQueries';
 
-export function ProfilePage() {
+/**
+ * How new server data reaches the form. Remounting (a new `formKey`) throws away unsaved edits
+ * (S2CR-09), so it happens only when the user chose the server's data (`adopt`) or the form has no
+ * edits. A profile changed by the resume while the form has edits only marks the form `stale`.
+ */
+function useProfileAdoption() {
   const queryClient = useQueryClient();
+  const [formKey, setFormKey] = useState(0);
+  const [stale, setStale] = useState(false);
+  const dirty = useRef(false);
+
+  const adopt = (current: Profile) => {
+    queryClient.setQueryData(PROFILE_KEY, current);
+    dirty.current = false;
+    setStale(false);
+    setFormKey((key) => key + 1);
+  };
+  const profileChanged = (current: Profile) => {
+    queryClient.setQueryData(PROFILE_KEY, current);
+    if (dirty.current) setStale(true);
+    else setFormKey((key) => key + 1);
+  };
+  const onDirtyChange = useCallback((value: boolean) => {
+    dirty.current = value;
+    if (!value) setStale(false);
+  }, []);
+  return { formKey, stale, adopt, profileChanged, onDirtyChange };
+}
+
+export function ProfilePage() {
   const profile = useMyProfile();
   const roles = useRoles();
   const tags = useStackTags();
-  // Bumping the key remounts the form with fresh initial data (after adopting server data).
-  const [formKey, setFormKey] = useState(0);
+  const { formKey, stale, adopt, profileChanged, onDirtyChange } = useProfileAdoption();
 
   if (profile.isError || roles.isError || tags.isError) {
     return (
@@ -36,13 +63,17 @@ export function ProfilePage() {
   }
 
   const stored = profile.data;
-  const adopt = (current: Profile) => {
-    queryClient.setQueryData(PROFILE_KEY, current);
-    setFormKey((key) => key + 1);
-  };
   return (
     <div className="stack">
       {stored === null ? <Alert tone="info">{t('profile.page.firstTime')}</Alert> : null}
+      {stale && stored ? (
+        <Alert tone="warn">
+          <p>{t('profile.page.stale')}</p>
+          <button type="button" className="button button-secondary" onClick={() => adopt(stored)}>
+            {t('profile.page.staleReload')}
+          </button>
+        </Alert>
+      ) : null}
       <ProfileForm
         key={formKey}
         initial={stored ? toDraft(stored) : emptyDraft(browserTimezone())}
@@ -50,8 +81,9 @@ export function ProfilePage() {
         roles={roles.data}
         tags={tags.data}
         onAdoptCurrent={adopt}
+        onDirtyChange={onDirtyChange}
       />
-      <ResumeSection profileVersion={stored?.version ?? null} onProfileChanged={adopt} />
+      <ResumeSection profileVersion={stored?.version ?? null} onProfileChanged={profileChanged} />
       {stored ? (
         <p>
           <Link href={`/users/${stored.userId}`}>{t('profile.page.viewPublic')}</Link>

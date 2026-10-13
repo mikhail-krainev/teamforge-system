@@ -19,7 +19,9 @@ export const E2E_ENV: Record<string, string> = {
   WEB_PORT,
   API_PORT,
   WEB_URL: E2E_WEB_URL,
-  BETTER_AUTH_URL: `http://localhost:${API_PORT}`,
+  // The browser reaches the api only through the web origin (it proxies /api): OAuth callbacks and
+  // relative redirects (callbackURL '/profile') must resolve there, not on the api port.
+  BETTER_AUTH_URL: E2E_WEB_URL,
   POSTGRES_HOST_PORT: '15432',
   PGBOUNCER_HOST_PORT: '16432',
   REDIS_HOST_PORT: '16379',

@@ -121,16 +121,11 @@
 
 ## Срез 2, ревью кода
 
-Отчёт: `docs/reviews/slice2-code-review.md` (колонка "Статус"). Исправлены S2CR-01, 03, 04, 05, 06 (только API). Интеграционные тесты к ним написаны, но не запускались (Docker был остановлен): `modules/profiles/test/resume-confirm.test.ts` (S2CR-01 событие и удаление объекта, S2CR-05 повторное подтверждение; проверки удаления объекта теперь через `waitFor`).
+Отчёт: `docs/reviews/slice2-code-review.md` (колонка "Статус"). Исправлены S2CR-01, 03, 04, 05, 06 (только API), S2CR-02, 07 (API) и S2CR-08..13 (веб). Интеграционные тесты к ним написаны, но не запускались (Docker был остановлен): `modules/profiles/test/resume-confirm.test.ts` (S2CR-01 событие и удаление объекта, S2CR-05 повторное подтверждение; проверки удаления объекта теперь через `waitFor`).
 
-- MEDIUM (S2CR-02): `deletion-request.service.ts:83-87`, письмо об удалении и отзыв сессий после коммита; перенести в outbox (письмо) и обработчик события с повтором (сессии), тест "падение Redis -> письмо уходит позже".
-- MEDIUM (S2CR-07): `magic-link.service.test.ts:72-85`, тест не раскрытия адреса не проверяет заявленное; интеграционный тест на Mailpit (число и адресат писем для существующего, алиаса, нового адреса), мутационная проверка.
-- MEDIUM (web, S2CR-08): `DeletionSection.tsx`, после `requestDeletion` очистить кэш и перейти на вход, баннер по `me.status==='deleting'`.
-- MEDIUM (web, S2CR-09): `ProfilePage.tsx`, `ResumeSection.tsx`, `SuggestionsForm.tsx`, `adopt` перемонтирует `ProfileForm` и теряет несохранённые правки.
-- MEDIUM (web, S2CR-10): `SuggestionsForm.tsx:71`, 422 `required_for_new_profile` без объяснения; показывать `problem.errors`.
-- MEDIUM (web, S2CR-11): `providers.tsx`, `ConsentGate.tsx`, нет глобальной обработки 401 и 403 `CONSENT_REQUIRED` (`QueryCache`/`MutationCache onError`).
-- MEDIUM (web, S2CR-12): `DeleteResume.tsx`, `ResumeSection.tsx`, `SuggestionsForm.tsx`, отпечаток ключа идемпотентности без `uploadId` и `keepFile`.
-- MEDIUM (web, S2CR-13): `ProfileForm.test.tsx`, `ConfirmMagicLink.test.tsx`, не хватает тестов (опрос статуса, `aria-live`, `SuggestionsForm`, `UploadForm`, `DeleteResume`, `CancelDeletion`, `DeletionSection`, `ConsentScreen`, `MagicLinkForm` 429, `useFragmentToken`, StrictMode, двойной клик).
+- Хвост S2CR-02: интеграционный тест "падение Redis при запросе удаления -> письмо уходит, сессии отзываются позже" и мутационная проверка; окно между коммитом и отзывом сессий (сессия `deleting` проходит `authenticate`); `DeletionMailConsumer` при повторе после сбоя может поставить второе письмо (токен тот же).
+- Хвост S2CR-07, S2CR-13: интеграционный тест `magic-link.test.ts` (сравнение статуса, тела, заголовков и числа писем) и интеграционные тесты `deletion.test.ts` с ожиданием отзыва сессий не запускались (Docker); мутационные проверки (удалить `registeredSpelling`, убрать `keepFile` из переменных) выполнить на стеке; e2e `requestDeletion` теперь ждёт отзыв сессий через `expect.poll`, не запускался.
+- Хвост S2CR-09..12 (веб): `ProfilePage` оставляет форму с правками как есть, при сохранении сработает 409-панель; остаток от S2CR-10 - обязательные поля, которые парсер не нашёл (пустые), нельзя подтвердить, пользователю предложено заполнить профиль вручную.
 - Хвост S2CR-01: если `orphan-objects` когда-либо удалит объект, на который ссылается ещё не зафиксированная строка, - защита только окном в 1 час (`ORPHAN_GRACE_MS`); ограничение пачки 500 объектов за прогон. Интеграционный тест задачи с реальным MinIO (положить объект без строки, дождаться удаления).
 - Хвост S2CR-03: добавить `deletionRequest` в `LOCK_TARGETS` (`platform/tx/locks.ts`, уровень после user) и в проверку порядка блокировок в тестах; `cancel` ставит `status='active'` без проверки текущего `user.status`.
 - Хвост S2CR-04: 23505 по `account_provider_account_uq` не переводится в 409 `GITHUB_ALREADY_LINKED`; интеграционный тест "сбой вставки аккаунта, повтор того же пользователя -> успех".

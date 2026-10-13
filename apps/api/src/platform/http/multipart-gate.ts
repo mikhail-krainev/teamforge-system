@@ -11,6 +11,7 @@ import {
 import { AuthzRegistry } from '../authz/authz.registry.js';
 import type { OperationSpec } from '../authz/contract-operations.js';
 import { DomainError } from '../errors/domain-error.js';
+import { IdempotencyStore } from '../idempotency/idempotency.store.js';
 import { RateLimiter } from '../ratelimit/rate-limiter.js';
 import {
   DEFAULT_MULTIPART_BODY_BYTES,
@@ -45,6 +46,21 @@ export function byteLimit(max: number): Transform {
   });
 }
 
+const KEY_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True when the request repeats an Idempotency-Key of this user whose response is already stored. */
+async function isCompletedReplay(
+  store: IdempotencyStore,
+  request: FastifyRequest,
+  userId: string,
+): Promise<boolean> {
+  const header = request.headers['idempotency-key'];
+  const key = Array.isArray(header) ? header[0] : header;
+  if (key === undefined || !KEY_FORMAT.test(key)) return false;
+  const row = await store.find(userId, key.toLowerCase());
+  return row?.status === 'completed' && !row.responseProvisional && row.expiresAt > new Date();
+}
+
 interface Admission {
   specFor(request: FastifyRequest): OperationSpec | undefined;
   admit(request: FastifyRequest, spec: OperationSpec): Promise<void>;
@@ -54,6 +70,7 @@ function buildAdmission(app: NestFastifyApplication, apiPrefix: string): Admissi
   const registry = app.get(AuthzRegistry, { strict: false });
   const policies = app.get(ActorPolicies, { strict: false });
   const limiter = app.get(RateLimiter, { strict: false });
+  const idempotency = app.get(IdempotencyStore, { strict: false });
   const authenticator = optionalProvider<SessionAuthenticator>(app, SESSION_AUTHENTICATOR);
   const consent = optionalProvider<ConsentGate>(app, CONSENT_GATE);
   return {
@@ -80,7 +97,13 @@ function buildAdmission(app: NestFastifyApplication, apiPrefix: string): Admissi
       await consent?.check(spec.operationId, userId);
       const category = MULTIPART_OPERATIONS[spec.operationId]?.rateLimit;
       if (category !== undefined) {
-        await limiter.assertBelowLimit(category, limiter.userSubject(userId));
+        try {
+          await limiter.assertBelowLimit(category, limiter.userSubject(userId));
+        } catch (error) {
+          // A repeat of an already accepted request is a replay of the stored answer, not new
+          // work: the limit does not apply to it (FR-WORK-08; the interceptor replays it).
+          if (!(await isCompletedReplay(idempotency, request, userId))) throw error;
+        }
       }
     },
   };

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { ClsService } from 'nestjs-cls';
@@ -6,13 +6,13 @@ import { Clock } from '../../../../platform/clock/clock.js';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
-import { MailService } from '../../../../platform/mail/mail.service.js';
+import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { isLoopbackClient, RateLimiter } from '../../../../platform/ratelimit/rate-limiter.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
-import { SessionRevoker } from '../services/session-revoker.js';
+import { AUTH_MODULE } from '../../public.js';
 import { user } from '../schema/auth.js';
-import { deletionRequestedMessage } from './deletion-mail.js';
+import { cancelTokenFor, DELETION_REQUEST_CREATED_TYPE } from './deletion-notice.js';
 import { DeletionRepository, type DeletionDto, toDeletionDto } from './deletion.repository.js';
 
 const HOUR_MS = 3_600_000;
@@ -37,8 +37,7 @@ export class DeletionRequestService {
     @Inject(Clock) private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(RateLimiter) private readonly limiter: RateLimiter,
-    @Inject(MailService) private readonly mail: MailService,
-    @Inject(SessionRevoker) private readonly sessions: SessionRevoker,
+    @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(ClsService) private readonly cls: ClsService,
   ) {}
 
@@ -51,40 +50,44 @@ export class DeletionRequestService {
   }
 
   /**
-   * Marks the account `deleting` under lock #1 and records the request; afterwards all sessions are
-   * revoked and the mail with the cancel link goes out. Only a hash of the token is stored.
+   * Marks the account `deleting` under lock #1, records the request and writes the outbox event
+   * `auth.deletion_request_created` in the same transaction (S2CR-02). The mail with the cancel link
+   * and the revocation of all sessions are done by the consumers of that event, with retries, so a
+   * failure of Redis or SMTP after the commit cannot lose them. Only a hash of the token is stored;
+   * the token itself is derived from the request id (`cancelTokenFor`).
    */
   async request(userId: string, reason: DeletionReason): Promise<DeletionDto> {
     this.assertFreshSession();
-    const token = randomBytes(32).toString('base64url');
-    const { row, email } = await this.tx.run(async () => {
-      const locked = await this.locks.lockUser<{ status: string; email: string | null }>(userId);
+    const row = await this.tx.run(async () => {
+      const locked = await this.locks.lockUser<{ status: string }>(userId);
       if (locked === undefined) throw new DomainError('NOT_FOUND', 404);
       if (locked.status !== 'active' || (await this.repository.openOf(userId)) !== undefined) {
         throw new DomainError('DELETION_ALREADY_REQUESTED', 409);
       }
       const now = this.clock.now();
+      const id = randomUUID();
       const created = await this.repository.insert({
-        id: randomUUID(),
+        id,
         userId,
         reason,
         status: 'requested',
         requestedAt: now,
         scheduledAt: new Date(now.getTime() + GRACE_MS),
         deadlineAt: new Date(now.getTime() + DEADLINE_MS),
-        cancelTokenHash: sha256(token),
+        cancelTokenHash: sha256(cancelTokenFor(this.config.IP_HASH_SALT, id)),
       });
       await this.tx.tx
         .update(user)
         .set({ status: 'deleting', updatedAt: now })
         .where(eq(user.id, userId));
-      return { row: created, email: locked.email };
+      await this.outbox.publish({
+        module: AUTH_MODULE,
+        type: DELETION_REQUEST_CREATED_TYPE,
+        aggregateId: userId,
+        payload: { requestId: id, userId },
+      });
+      return created;
     });
-    await this.sessions.revokeUserSessions(userId);
-    if (email !== null) {
-      const link = `${this.config.APP_ORIGIN}/deletion/cancel#token=${token}`;
-      await this.mail.enqueue(deletionRequestedMessage(email, link, row.scheduledAt));
-    }
     return toDeletionDto(row);
   }
 

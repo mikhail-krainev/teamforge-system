@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import { describeError, invalidFields } from '@/lib/api/error-message';
 import { useIdempotentMutation } from '@/lib/api/idempotency';
@@ -20,22 +20,36 @@ interface Props {
   tags: readonly CatalogEntry[];
   /** Called when the user picks the server's current data after a conflict. */
   onAdoptCurrent: (current: Profile) => void;
+  /** Whether the form holds edits that were not saved (the page must not replace them silently). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 /** `saveMyProfile` with an idempotency key per intent; remembers the version of the last save. */
-function useProfileSave(version: number | null) {
+function useProfileSave(version: number | null, onDirtyChange?: (dirty: boolean) => void) {
   const queryClient = useQueryClient();
   const [baseVersion, setBaseVersion] = useState(version);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
   const mutation = useIdempotentMutation({
     mutationFn: (input: ReturnType<typeof toInput>, key) => saveMyProfile(input, key),
     onSuccess: (profile) => {
       queryClient.setQueryData(PROFILE_KEY, profile);
       setBaseVersion(profile.version);
       setSaved(true);
+      setDirty(false);
     },
   });
-  return { mutation, baseVersion, saved, markDirty: () => setSaved(false) };
+  return {
+    mutation,
+    baseVersion,
+    saved,
+    dirty,
+    markDirty: () => {
+      setSaved(false);
+      setDirty(true);
+    },
+  };
 }
 
 function fieldErrorLookup(errors: DraftErrors, serverInvalid: ReadonlySet<string>) {
@@ -46,10 +60,17 @@ function fieldErrorLookup(errors: DraftErrors, serverInvalid: ReadonlySet<string
   };
 }
 
-export function ProfileForm({ initial, version, roles, tags, onAdoptCurrent }: Props) {
+export function ProfileForm({
+  initial,
+  version,
+  roles,
+  tags,
+  onAdoptCurrent,
+  onDirtyChange,
+}: Props) {
   const [draft, setDraft] = useState(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
-  const { mutation: save, baseVersion, saved, markDirty } = useProfileSave(version);
+  const { mutation: save, baseVersion, saved, markDirty } = useProfileSave(version, onDirtyChange);
 
   const patch = (change: Partial<ProfileDraft>) => {
     markDirty();
@@ -88,14 +109,20 @@ export function ProfileForm({ initial, version, roles, tags, onAdoptCurrent }: P
         <Alert tone="error">{t('profile.form.fixErrors')}</Alert>
       ) : null}
       {save.isError && !conflict ? <Alert tone="error">{describeError(save.error)}</Alert> : null}
-      <div className="row">
-        <button type="submit" className="button" disabled={save.isPending}>
-          {save.isPending ? t('profile.form.saving') : t('profile.form.save')}
-        </button>
-        <span role="status" aria-live="polite">
-          {saved ? t('profile.form.saved') : ''}
-        </span>
-      </div>
+      <SaveRow pending={save.isPending} saved={saved} />
     </form>
+  );
+}
+
+function SaveRow({ pending, saved }: { pending: boolean; saved: boolean }) {
+  return (
+    <div className="row">
+      <button type="submit" className="button" disabled={pending}>
+        {pending ? t('profile.form.saving') : t('profile.form.save')}
+      </button>
+      <span role="status" aria-live="polite">
+        {saved ? t('profile.form.saved') : ''}
+      </span>
+    </div>
   );
 }

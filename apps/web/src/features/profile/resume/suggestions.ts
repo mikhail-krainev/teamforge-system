@@ -1,3 +1,4 @@
+import { ApiError } from '@/lib/api/errors';
 import type { ProfileFields } from '../model';
 import { levelLabel } from '../model';
 
@@ -61,4 +62,40 @@ export function pickConfirmed(
     if (selected.has(field) && hasValue(suggestions[field])) picked[field] = suggestions[field];
   }
   return picked as ProfileFields;
+}
+
+/** What the API needs in `confirmedFields` when the user has no profile yet (S2CR-10). */
+export const NEW_PROFILE_REQUIRED: readonly SuggestionField[] = [
+  'displayName',
+  'timezone',
+  'hoursPerWeek',
+  'stack',
+  'rolePrefs',
+  'experience',
+  'strengths',
+  'weaknesses',
+];
+
+/**
+ * Required fields a confirmation for a new profile would still lack: not ticked, or ticked but
+ * empty in the suggestions (an empty value is not sent at all).
+ */
+export function missingForNewProfile(
+  suggestions: ProfileFields,
+  selected: ReadonlySet<SuggestionField>,
+): SuggestionField[] {
+  const sent = pickConfirmed(suggestions, selected);
+  return NEW_PROFILE_REQUIRED.filter((field) => !(field in sent));
+}
+
+/** Fields named by a 422 `required_for_new_profile` problem (`/confirmedFields/<name>`). */
+export function requiredFieldsFromError(error: unknown): SuggestionField[] {
+  if (!(error instanceof ApiError) || error.status !== 422) return [];
+  const names = new Set<string>();
+  for (const item of error.problem?.errors ?? []) {
+    if (item.code !== 'required_for_new_profile') continue;
+    const name = item.pointer.split('/').filter(Boolean).pop();
+    if (name) names.add(name);
+  }
+  return SUGGESTION_FIELDS.filter((field) => names.has(field));
 }

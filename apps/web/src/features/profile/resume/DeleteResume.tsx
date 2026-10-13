@@ -10,7 +10,8 @@ import { removeResume } from './api';
 export function DeleteResume({ uploadId, onDeleted }: { uploadId: string; onDeleted: () => void }) {
   const [asking, setAsking] = useState(false);
   const remove = useIdempotentMutation({
-    mutationFn: (_: void, key) => removeResume(uploadId, key),
+    // The upload id is a variable (not a closure) so that it is part of the idempotency key.
+    mutationFn: (input: { uploadId: string }, key) => removeResume(input.uploadId, key),
     onSuccess: () => {
       setAsking(false);
       onDeleted();
@@ -34,7 +35,7 @@ export function DeleteResume({ uploadId, onDeleted }: { uploadId: string; onDele
           type="button"
           className="button button-danger"
           disabled={remove.isPending}
-          onClick={() => remove.mutate()}
+          onClick={() => remove.mutate({ uploadId })}
         >
           {remove.isPending ? t('profile.resume.deleting') : t('profile.resume.deleteConfirm')}
         </button>

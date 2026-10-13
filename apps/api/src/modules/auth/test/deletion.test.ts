@@ -9,7 +9,7 @@ import {
 import { randomIp } from '../../../../test/fixtures/clients.js';
 import { World } from '../../../../test/fixtures/world.js';
 import { expectMatchesContract } from '../../../../test/helpers/contract.js';
-import { describeInfra } from '../../../../test/helpers/infra.js';
+import { describeInfra, waitFor } from '../../../../test/helpers/infra.js';
 import { cancelTokenOf } from './deletion-helpers.js';
 
 interface DeletionRequestBody {
@@ -66,12 +66,12 @@ describeInfra('S2 auth: account deletion request and cancel (FR-AUTH-09)', ['db'
       expect(rows).toEqual([{ status: 'requested', user_status: 'deleting' }]);
     });
 
-    it('FR-AUTH-09: all sessions are revoked at once and the old cookie no longer works', async () => {
+    it('FR-AUTH-09 / S2CR-02: the sessions are revoked by the event consumer shortly after the 202 and the old cookie no longer works', async () => {
       const { user, session } = await world.signedIn('del-revoke');
       const other = await world.signIn(user.email);
       await request(session);
-      expect((await session.get('/v1/me')).statusCode).toBe(401);
-      expect((await other.get('/v1/me')).statusCode).toBe(401);
+      await waitFor(async () => (await session.get('/v1/me')).statusCode === 401);
+      await waitFor(async () => (await other.get('/v1/me')).statusCode === 401);
     });
 
     it('FR-AUTH-09: the confirmation mail carries a one-time cancel link; only a hash of the token is stored', async () => {

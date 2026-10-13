@@ -166,8 +166,12 @@ export async function requestDeletion(): Promise<void> {
   await expect(settingsUi.deletionRequested(page)).toBeVisible();
   const mail = await mailAfter(world.ivanEmail, before);
   world.cancelLink = tokenLink(mail, CANCEL_LINK_PATH).link;
-  const revoked = await apiGet(context.request, '/v1/me');
-  expect(revoked.status, 'sessions are revoked at once').toBe(401);
+  // S2CR-02: the worker revokes the sessions when it handles the "request created" event.
+  await expect
+    .poll(async () => (await apiGet(context.request, '/v1/me')).status, {
+      message: 'sessions are revoked by the event consumer',
+    })
+    .toBe(401);
 }
 
 export async function cancelDeletionFromMail(): Promise<void> {

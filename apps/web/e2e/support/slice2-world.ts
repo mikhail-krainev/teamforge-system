@@ -80,6 +80,9 @@ export async function openSession(browser: Browser): Promise<Session> {
 
 /** Opens the link from the mail and presses the confirm button if the page has one. */
 export async function completeSignInLink(page: Page, link: string): Promise<void> {
+  // A mail link opens in a fresh navigation. From /auth/confirm (no token) it would be a
+  // fragment-only change of the same document: no reload, so the page would never read the token.
+  await page.goto('about:blank');
   await page.goto(onWebOrigin(link));
   await expect(async () => {
     const onConfirm = new URL(page.url()).pathname.startsWith(ROUTES.confirm);
@@ -95,7 +98,8 @@ export async function completeSignInLink(page: Page, link: string): Promise<void
 
 /** Wanted entries by code first, topped up from the rest of the active ones. */
 function choose(items: CatalogEntry[], preferred: string[], count: number): CatalogEntry[] {
-  const active = items.filter((item) => item.active);
+  // One entry per code: the same tag can come from several lookups as distinct objects.
+  const active = [...new Map(items.filter((item) => item.active).map((i) => [i.code, i])).values()];
   const first = preferred.flatMap((code) => active.filter((item) => item.code === code));
   const rest = active.filter((item) => !first.includes(item));
   return [...first, ...rest].slice(0, count);

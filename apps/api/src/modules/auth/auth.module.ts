@@ -12,6 +12,8 @@ import { ConsentGuard } from './internal/consent/consent.gate.js';
 import { ConsentService } from './internal/consent/consent.service.js';
 import { AuthCallbacksImpl } from './internal/better-auth/auth-callbacks.js';
 import { DeletionController } from './internal/deletion/deletion.controller.js';
+import { DeletionMailConsumer } from './internal/deletion/deletion-mail.consumer.js';
+import { DeletionSessionsConsumer } from './internal/deletion/deletion-sessions.consumer.js';
 import { DeletionRepository } from './internal/deletion/deletion.repository.js';
 import { DeletionRequestService } from './internal/deletion/deletion-request.service.js';
 import { DeletionSagaService } from './internal/deletion/deletion-saga.service.js';
@@ -44,6 +46,8 @@ import { SessionRevoker } from './internal/services/session-revoker.js';
     IdentitySignalsService,
     DeletionRepository,
     DeletionRequestService,
+    DeletionMailConsumer,
+    DeletionSessionsConsumer,
     DeletionSagaService,
     AuthCallbacksImpl,
     MagicLinkService,

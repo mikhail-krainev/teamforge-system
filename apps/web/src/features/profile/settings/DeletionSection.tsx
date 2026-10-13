@@ -7,9 +7,10 @@ import { ApiError } from '@/lib/api/errors';
 import { describeError } from '@/lib/api/error-message';
 import { useIdempotentMutation } from '@/lib/api/idempotency';
 import { t } from '@/i18n';
+import { useMarkAccountDeleting, useMe } from '@/features/auth/session';
 
 /** `requestDeletion` with an explicit confirmation (FR-AUTH-09). */
-function useDeletionRequest() {
+function useDeletionRequest(onRequested: (scheduledAt: string) => void) {
   return useIdempotentMutation({
     mutationFn: async (_: void, key) => {
       const { data } = await apiClient.POST('/v1/me/deletion-requests', {
@@ -19,24 +20,38 @@ function useDeletionRequest() {
       if (!data) throw new Error('Empty deletion response');
       return data;
     },
+    onSuccess: (data) => onRequested(data.scheduledAt),
   });
+}
+
+function Requested({ scheduledAt }: { scheduledAt: string | null }) {
+  return (
+    <Alert tone="success">
+      <h2>{t('profile.settings.deletion.requestedTitle')}</h2>
+      <p>
+        {scheduledAt
+          ? t('profile.settings.deletion.requestedBody', {
+              scheduledAt: new Date(scheduledAt).toLocaleString('ru-RU'),
+            })
+          : t('profile.settings.deletion.requestedNoDate')}
+      </p>
+    </Alert>
+  );
 }
 
 export function DeletionSection() {
   const [asking, setAsking] = useState(false);
-  const request = useDeletionRequest();
+  const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const me = useMe();
+  const markDeleting = useMarkAccountDeleting();
+  const request = useDeletionRequest((at) => {
+    setScheduledAt(at);
+    markDeleting();
+  });
 
-  if (request.isSuccess) {
-    return (
-      <Alert tone="success">
-        <h2>{t('profile.settings.deletion.requestedTitle')}</h2>
-        <p>
-          {t('profile.settings.deletion.requestedBody', {
-            scheduledAt: new Date(request.data.scheduledAt).toLocaleString('ru-RU'),
-          })}
-        </p>
-      </Alert>
-    );
+  // The account state decides, not the local click: a reload or a second tab shows the same.
+  if (scheduledAt !== null || me.data?.status === 'deleting') {
+    return <Requested scheduledAt={scheduledAt} />;
   }
   return (
     <section className="card stack" aria-labelledby="deletion-heading">

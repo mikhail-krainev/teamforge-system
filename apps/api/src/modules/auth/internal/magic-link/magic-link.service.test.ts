@@ -25,33 +25,29 @@ function build(stored: string | undefined) {
   return { service: new MagicLinkService(auth, db, limiter), signInMagicLink };
 }
 
-describe('S2SEC-02: signInMagicLink does not reveal whether the mailbox is registered', () => {
-  const timed = async (stored: string | undefined, email: string) => {
+/**
+ * Which address the link goes to. That the answer does not reveal whether a mailbox is registered
+ * (status, body, number and recipient of mails) is proved over HTTP against the real stack in
+ * `src/modules/auth/test/magic-link.test.ts` (S2CR-07): a unit test on mocks cannot prove it.
+ */
+describe('S2SEC-02: signInMagicLink target address', () => {
+  const run = async (stored: string | undefined, email: string) => {
     const { service, signInMagicLink } = build(stored);
-    const started = performance.now();
-    const body = await service.request(request, email);
-    return { body, ms: performance.now() - started, signInMagicLink };
+    await service.request(request, email);
+    return signInMagicLink;
   };
 
-  it('answers an alias of an existing account exactly like an unknown address', async () => {
-    const unknown = await timed(undefined, 'ab@gmail.com');
-    const alias = await timed('a.b@gmail.com', 'ab+x@gmail.com');
-    expect(alias.body).toEqual(unknown.body);
-    expect(JSON.stringify(alias.body)).toBe(JSON.stringify(unknown.body));
-    expect(Math.abs(alias.ms - unknown.ms)).toBeLessThan(250);
-  });
-
   it('sends the link to the address stored with the account, not to the alias', async () => {
-    const alias = await timed('a.b@gmail.com', 'ab+x@gmail.com');
-    expect(alias.signInMagicLink).toHaveBeenCalledOnce();
-    expect(alias.signInMagicLink).toHaveBeenCalledWith(
+    const signInMagicLink = await run('a.b@gmail.com', 'ab+x@gmail.com');
+    expect(signInMagicLink).toHaveBeenCalledOnce();
+    expect(signInMagicLink).toHaveBeenCalledWith(
       expect.objectContaining({ body: { email: 'a.b@gmail.com' } }),
     );
   });
 
   it('an unknown address gets the link at the address it typed', async () => {
-    const unknown = await timed(undefined, 'new@example.test');
-    expect(unknown.signInMagicLink).toHaveBeenCalledWith(
+    const signInMagicLink = await run(undefined, 'new@example.test');
+    expect(signInMagicLink).toHaveBeenCalledWith(
       expect.objectContaining({ body: { email: 'new@example.test' } }),
     );
   });

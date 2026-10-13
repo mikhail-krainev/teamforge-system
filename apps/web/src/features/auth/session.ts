@@ -26,6 +26,19 @@ export function useMe() {
   return useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => fetchMe(), staleTime: 60_000 });
 }
 
+/**
+ * After `requestDeletion` the account is `deleting` and its sessions are being revoked: remember
+ * that in the cached `me` (the banner and the settings page read it) and drop everything else that
+ * was cached for the user, so no stale profile or resume stays on screen (S2CR-08).
+ */
+export function useMarkAccountDeleting() {
+  const client = useQueryClient();
+  return () => {
+    client.setQueryData<Me | null>(ME_QUERY_KEY, (me) => (me ? { ...me, status: 'deleting' } : me));
+    client.removeQueries({ predicate: (query) => query.queryKey[0] !== ME_QUERY_KEY[0] });
+  };
+}
+
 /** Forget everything cached for the previous user (after sign-in or sign-out). */
 export function useResetSession() {
   const client = useQueryClient();

@@ -116,4 +116,44 @@ describe('ProfileForm', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('30 секунд');
   });
+
+  it('a double click on save sends one request', async () => {
+    let calls = 0;
+    server.use(
+      http.put(PUT_URL, () => {
+        calls += 1;
+        return HttpResponse.json(sampleProfile({ version: 2 }));
+      }),
+    );
+    renderForm(sampleProfile());
+    rename('Мария');
+    const button = screen.getByRole('button', { name: 'Сохранить профиль' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(await screen.findByText('Профиль сохранён.')).toBeTruthy();
+    expect(calls).toBe(1);
+  });
+
+  it('S2CR-09: reports unsaved edits to the page and clears the report after a save', async () => {
+    server.use(http.put(PUT_URL, () => HttpResponse.json(sampleProfile({ version: 2 }))));
+    const dirty = vi.fn();
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <ProfileForm
+          initial={toDraft(sampleProfile())}
+          version={1}
+          roles={ROLES}
+          tags={STACK_TAGS}
+          onAdoptCurrent={vi.fn()}
+          onDirtyChange={dirty}
+        />
+      </QueryClientProvider>,
+    );
+    expect(dirty).toHaveBeenLastCalledWith(false);
+    rename('Мария');
+    expect(dirty).toHaveBeenLastCalledWith(true);
+    save();
+    await screen.findByText('Профиль сохранён.');
+    expect(dirty).toHaveBeenLastCalledWith(false);
+  });
 });

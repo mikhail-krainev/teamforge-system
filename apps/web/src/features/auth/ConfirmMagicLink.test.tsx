@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,9 +31,11 @@ afterAll(() => server.close());
 function open(hash: string) {
   window.history.replaceState(null, '', `/auth/confirm${hash}`);
   render(
-    <QueryClientProvider client={makeQueryClient()}>
-      <ConfirmMagicLink />
-    </QueryClientProvider>,
+    <StrictMode>
+      <QueryClientProvider client={makeQueryClient()}>
+        <ConfirmMagicLink />
+      </QueryClientProvider>
+    </StrictMode>,
   );
 }
 
@@ -47,6 +50,7 @@ describe('ConfirmMagicLink', () => {
     );
     open(`#token=${TOKEN}`);
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/profile'));
+    // Under StrictMode (effects run twice) exactly one POST leaves the browser.
     expect(seen).toEqual([{ url: CONFIRM_URL, body: { token: TOKEN } }]);
     expect(window.location.hash).toBe('');
     expect(window.location.href).not.toContain(TOKEN);
