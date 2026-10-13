@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONSENT_GATE } from '../../src/platform/authz/actor-policies.js';
+import { IdempotencyStore } from '../../src/platform/idempotency/idempotency.store.js';
 import { rateLimitedError, RateLimiter } from '../../src/platform/ratelimit/rate-limiter.js';
 import { multipartParser } from '../../src/platform/http/multipart.js';
 import { multipartBody } from '../fixtures/clients.js';
@@ -20,6 +21,7 @@ describe('S2SEC-01: multipart is admitted before its body is read', () => {
   let testApp: TestApp;
   const assertBelowLimit = vi.fn(async () => undefined);
   const consentCheck = vi.fn(async () => undefined);
+  const findKey = vi.fn<(userId: string, key: string) => Promise<unknown>>(async () => undefined);
   const parse = vi.spyOn(multipartParser, 'parse');
 
   beforeAll(async () => {
@@ -28,7 +30,9 @@ describe('S2SEC-01: multipart is admitted before its body is read', () => {
         .overrideProvider(CONSENT_GATE)
         .useValue({ check: consentCheck })
         .overrideProvider(RateLimiter)
-        .useValue({ assertBelowLimit, userSubject: (id: string) => `user:${id}` }),
+        .useValue({ assertBelowLimit, userSubject: (id: string) => `user:${id}` })
+        .overrideProvider(IdempotencyStore)
+        .useValue({ find: findKey }),
     );
   });
 
@@ -40,6 +44,8 @@ describe('S2SEC-01: multipart is admitted before its body is read', () => {
     parse.mockClear();
     assertBelowLimit.mockClear();
     consentCheck.mockClear();
+    findKey.mockReset();
+    findKey.mockResolvedValue(undefined);
   });
 
   const post = (url: string, headers: Record<string, string> = {}, payload = form()) =>
@@ -135,5 +141,50 @@ describe('S2SEC-01: multipart is admitted before its body is read', () => {
     expect([401, 415, 413, 429]).not.toContain(response.statusCode);
     expect(parse).toHaveBeenCalledOnce();
     expect(assertBelowLimit).toHaveBeenCalledOnce();
+  });
+
+  describe('an exhausted limit and an Idempotency-Key', () => {
+    const KEY = '0b9f3c1e-5d2a-4f6b-8a7c-1e2d3c4b5a69';
+    const exhausted = () =>
+      rateLimitedError({
+        allowed: false,
+        limit: 5,
+        remaining: 0,
+        retryAfterSeconds: 60,
+        resetSeconds: 60,
+      });
+    const completedRow = (operationId: string) => ({
+      status: 'completed',
+      operationId,
+      responseProvisional: false,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const withKey = { 'x-test-user': 'u-1', 'idempotency-key': KEY };
+
+    it('a completed key of another operation does not bypass the limit -> 429 without reading the body', async () => {
+      assertBelowLimit.mockRejectedValueOnce(exhausted());
+      findKey.mockResolvedValueOnce(completedRow('saveMyProfile'));
+      const response = await post(RESUME, withKey);
+      expect(response.statusCode, response.body).toBe(429);
+      expect(parse).not.toHaveBeenCalled();
+    });
+
+    it('a real replay of the same operation passes the exhausted limit', async () => {
+      assertBelowLimit.mockRejectedValueOnce(exhausted());
+      findKey.mockResolvedValueOnce(completedRow('uploadResume'));
+      const response = await post(RESUME, withKey);
+      expect(response.statusCode, response.body).not.toBe(429);
+      expect(parse).toHaveBeenCalledOnce();
+      expect(findKey).toHaveBeenCalledWith('u-1', KEY);
+    });
+
+    it('a Redis error in the limiter is not swallowed (fail closed), even with a replayable key', async () => {
+      assertBelowLimit.mockRejectedValueOnce(new Error('redis is down'));
+      findKey.mockResolvedValueOnce(completedRow('uploadResume'));
+      const response = await post(RESUME, withKey);
+      expect(response.statusCode, response.body).toBeGreaterThanOrEqual(500);
+      expect(parse).not.toHaveBeenCalled();
+      expect(findKey).not.toHaveBeenCalled();
+    });
   });
 });

@@ -48,17 +48,28 @@ export function byteLimit(max: number): Transform {
 
 const KEY_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** True when the request repeats an Idempotency-Key of this user whose response is already stored. */
+/**
+ * True when the request repeats an Idempotency-Key of this user whose response is already stored
+ * for THIS operation. The request hash is derived from the parsed body, which is not available
+ * before the body is read, so only the operationId is compared here; the interceptor still
+ * compares the full hash and answers 422 IDEMPOTENCY_KEY_REUSED for a different payload.
+ */
 async function isCompletedReplay(
   store: IdempotencyStore,
   request: FastifyRequest,
   userId: string,
+  operationId: string,
 ): Promise<boolean> {
   const header = request.headers['idempotency-key'];
   const key = Array.isArray(header) ? header[0] : header;
   if (key === undefined || !KEY_FORMAT.test(key)) return false;
   const row = await store.find(userId, key.toLowerCase());
-  return row?.status === 'completed' && !row.responseProvisional && row.expiresAt > new Date();
+  return (
+    row?.status === 'completed' &&
+    row.operationId === operationId &&
+    !row.responseProvisional &&
+    row.expiresAt > new Date()
+  );
 }
 
 interface Admission {
@@ -100,9 +111,14 @@ function buildAdmission(app: NestFastifyApplication, apiPrefix: string): Admissi
         try {
           await limiter.assertBelowLimit(category, limiter.userSubject(userId));
         } catch (error) {
-          // A repeat of an already accepted request is a replay of the stored answer, not new
-          // work: the limit does not apply to it (FR-WORK-08; the interceptor replays it).
-          if (!(await isCompletedReplay(idempotency, request, userId))) throw error;
+          // Only a refusal by the limit itself may be waived; any other failure (Redis down)
+          // propagates so that the gate fails closed.
+          if (!(error instanceof DomainError) || error.code !== 'RATE_LIMITED') throw error;
+          // A repeat of an already accepted request of the same operation is a replay of the
+          // stored answer, not new work: the limit does not apply to it (FR-WORK-08).
+          if (!(await isCompletedReplay(idempotency, request, userId, spec.operationId))) {
+            throw error;
+          }
         }
       }
     },
