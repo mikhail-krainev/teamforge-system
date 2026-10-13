@@ -67,11 +67,13 @@ export class TeamAccessRepository implements TeamAccess {
     userId: string,
   ): Promise<{ participant: boolean } | undefined> {
     const rows = await this.db
-      .select({ participant: sql<boolean>`(
+      .select({
+        participant: sql<boolean>`(
           EXISTS (SELECT 1 FROM ${voteEligible} e WHERE e.vote_id = ${leaderVote.id} AND e.user_id = ${userId})
           OR EXISTS (SELECT 1 FROM ${voteCandidate} c WHERE c.vote_id = ${leaderVote.id} AND c.user_id = ${userId})
           OR EXISTS (SELECT 1 FROM ${voteOffer} o WHERE o.vote_id = ${leaderVote.id} AND o.user_id = ${userId})
-        )` })
+        )`,
+      })
       .from(leaderVote)
       .where(
         and(

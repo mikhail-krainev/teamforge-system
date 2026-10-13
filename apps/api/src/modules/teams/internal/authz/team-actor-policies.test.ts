@@ -80,7 +80,9 @@ describe('team actor policies (architecture 13.14)', () => {
 
   it('team-member: only leaveTeam lets a former member through (replay of a finished leave)', async () => {
     expect(await outcome('team-member', ctx(FORMER, { teamId: TEAM }))).toBe('404 NOT_FOUND');
-    expect(await outcome('team-member', ctx(FORMER, { teamId: TEAM }, 'leaveTeam'))).toBe('allowed');
+    expect(await outcome('team-member', ctx(FORMER, { teamId: TEAM }, 'leaveTeam'))).toBe(
+      'allowed',
+    );
     expect(await outcome('team-member', ctx(OUTSIDER, { teamId: TEAM }, 'leaveTeam'))).toBe(
       '404 NOT_FOUND',
     );
@@ -116,7 +118,10 @@ describe('team actor policies (architecture 13.14)', () => {
   it('every policy answers 401 without a session user', async () => {
     for (const actor of ['team-member', 'team-lead', 'offer-party', 'vote-participant']) {
       expect(
-        await outcome(actor, ctx(undefined, { teamId: TEAM, offerId: 'offer-1', voteId: 'vote-1' })),
+        await outcome(
+          actor,
+          ctx(undefined, { teamId: TEAM, offerId: 'offer-1', voteId: 'vote-1' }),
+        ),
       ).toBe('401 UNAUTHENTICATED');
     }
   });

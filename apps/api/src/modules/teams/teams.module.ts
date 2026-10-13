@@ -3,6 +3,7 @@ import { InvitationController } from './internal/controllers/invitation.controll
 import { OfferController } from './internal/controllers/offer.controller.js';
 import { SeatController } from './internal/controllers/seat.controller.js';
 import { TeamController } from './internal/controllers/team.controller.js';
+import { VOTE_CONTROLLERS, VOTE_PROVIDERS } from './internal/vote.providers.js';
 import { DEPARTURE_CONTROLLERS, DEPARTURE_PROVIDERS } from './internal/departure.providers.js';
 import { TeamOperations } from './internal/authz/team-operations.js';
 import { StubDeficitPort, StubTeamLifecyclePort } from './internal/ports/stub-ports.js';
@@ -42,10 +43,19 @@ import { DEFICIT_PORT, TEAM_LIFECYCLE_PORT, TEAMS_API } from './public.js';
  */
 @Global()
 @Module({
-  controllers: [TeamController, SeatController, OfferController, InvitationController, ...START_CONTROLLERS, ...DEPARTURE_CONTROLLERS],
+  controllers: [
+    TeamController,
+    SeatController,
+    OfferController,
+    InvitationController,
+    ...START_CONTROLLERS,
+    ...DEPARTURE_CONTROLLERS,
+    ...VOTE_CONTROLLERS,
+  ],
   providers: [
     ...START_PROVIDERS,
     ...DEPARTURE_PROVIDERS,
+    ...VOTE_PROVIDERS,
     TeamAccessRepository,
     TeamRepository,
     TeamListRepository,

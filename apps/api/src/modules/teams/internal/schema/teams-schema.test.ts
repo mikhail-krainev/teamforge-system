@@ -145,9 +145,9 @@ describeInfra('S3-02 teams schema from a clean database', ['db'], () => {
       await expect(
         sql`UPDATE teams.team SET member_count = 9 WHERE id = ${teamId}`,
       ).rejects.toThrow(/team_member_count_check/);
-      await expect(sql`UPDATE teams.team SET status = 'bogus' WHERE id = ${teamId}`).rejects.toThrow(
-        /team_status_check/,
-      );
+      await expect(
+        sql`UPDATE teams.team SET status = 'bogus' WHERE id = ${teamId}`,
+      ).rejects.toThrow(/team_status_check/);
     });
 
     it('lets the application role do DML on the new tables and no DDL', async () => {

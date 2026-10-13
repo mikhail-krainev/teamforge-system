@@ -115,6 +115,29 @@ describeInfra('S3 teams: the leader vote (FR-TEAM-14..21)', ['db', 'redis'], () 
       expect((await currentVote(world, a, t.id)).trigger).toBe('lead_inactive');
     });
 
+    it('FR-TEAM-14: the lead returns (opens the votes) before the first ballot: the vote is cancelled, the team is restored', async () => {
+      const t = await team(world, { members: 3, openSeats: 0, status: 'active' });
+      clock.advance(15 * DAY);
+      for (const requester of t.members) {
+        await world.as(requester).post(`/v1/teams/${t.id}/leader-vote-requests`);
+      }
+      expect(await teamRow(world, t.id)).toMatchObject({ status: 'voting' });
+      const page = expectOk<{ items: VoteDto[] }>(
+        'listLeaderVotes',
+        await world.as(t.lead).get(`/v1/teams/${t.id}/leader-votes`),
+        200,
+      );
+      expect(page.items[0]).toMatchObject({
+        status: 'cancelled',
+        outcome: 'cancelled_lead_returned',
+      });
+      expect(await teamRow(world, t.id)).toMatchObject({
+        status: 'active',
+        lead_user_id: t.lead.id,
+      });
+      expect(await openVotes(world, t.id)).toBe(0);
+    });
+
     it('FR-TEAM-14: a stranger cannot request or read the counter -> 404', async () => {
       const t = await team(world, { members: 3, openSeats: 0 });
       const stranger = await githubUser(world, 'request-stranger');

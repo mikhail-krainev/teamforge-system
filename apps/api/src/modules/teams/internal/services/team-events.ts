@@ -16,7 +16,13 @@ export type JournalType =
   | 'departure_decided'
   | 'offer_created'
   | 'invitation_created'
-  | 'invitation_revoked';
+  | 'invitation_revoked'
+  | 'vote_opened'
+  | 'vote_cancelled'
+  | 'lead_changed'
+  | 'candidate_nominated'
+  | 'candidacy_confirmed'
+  | 'candidacy_withdrawn';
 
 /** A journal row; payloads carry identifiers and flags only (names are resolved when read). */
 export function journalRow(
