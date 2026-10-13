@@ -154,7 +154,11 @@ describeInfra('S3 workspace: notifications (FR-WORK-19)', ['db', 'redis'], () =>
         'markNotificationsRead',
         await world
           .as(person)
-          .post('/v1/me/notifications/read-marks', { ids: [] }, { idempotencyKey: null }),
+          .post(
+            '/v1/me/notifications/read-marks',
+            { ids: [randomUUID()] },
+            { idempotencyKey: null },
+          ),
         400,
         'IDEMPOTENCY_KEY_MISSING',
       );
