@@ -2,7 +2,9 @@
 import auth from './ru/auth.json';
 import errors from './ru/errors.json';
 import home from './ru/home.json';
+import invitations from './ru/invitations.json';
 import notFound from './ru/notFound.json';
+import offers from './ru/offers.json';
 import profile from './ru/profile.json';
 import shell from './ru/shell.json';
 import status from './ru/status.json';
@@ -12,7 +14,9 @@ export const ruDictionaries = {
   "auth": auth,
   "errors": errors,
   "home": home,
+  "invitations": invitations,
   "notFound": notFound,
+  "offers": offers,
   "profile": profile,
   "shell": shell,
   "status": status,

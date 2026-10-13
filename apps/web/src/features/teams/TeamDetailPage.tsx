@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { useMe } from '@/features/auth/session';
 import type { CatalogEntry } from '@/features/profile/api';
 import { useRoles } from '@/features/profile/useProfileQueries';
+import { TeamActions } from '@/features/offers/TeamActions';
 import { ApiError } from '@/lib/api/errors';
 import { t } from '@/i18n';
 import type { Member, Team } from './api';
@@ -129,6 +130,7 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
       <Summary team={data} typeName={typeName} />
       <MembersSection members={data.members} />
       <SeatsSection team={data} roles={roles.data ?? []} canManage={canManage} />
+      <TeamActions team={data} meId={me.data?.id} roles={roles.data ?? []} isLead={canManage} />
       <TeamEvents teamId={data.id} members={data.members} />
     </div>
   );
