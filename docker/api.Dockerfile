@@ -2,7 +2,7 @@
 # Image of apps/api; the same image runs the api, the worker and the one-shot migrate job (command differs).
 # Build context: repository root.
 
-FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS base
+FROM node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS base
 ENV PNPM_HOME=/pnpm \
     npm_config_store_dir=/pnpm/store \
     CI=true
@@ -27,7 +27,7 @@ RUN pnpm --filter api run build \
  && pnpm --filter api deploy --prod --legacy /out
 
 # 3. Runtime: no sources, no dev dependencies, non-root user.
-FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS runtime
+FROM node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
