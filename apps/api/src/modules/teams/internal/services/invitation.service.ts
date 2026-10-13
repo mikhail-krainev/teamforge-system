@@ -124,7 +124,8 @@ export class InvitationService {
     if (seat === undefined) throw new DomainError('NOT_FOUND', 404);
     if (seat.status !== 'open') throw new DomainError('SEAT_NOT_OPEN', 409);
     const now = this.clock.now();
-    await this.invitations.expireOverdue(teamId, now);
+    // No UPDATE of invitation rows here: lock #3 (invitation) must not be taken under #4 (team).
+    // countActive filters `expires_at > now`; the hourly invitation-cleanup job expires the rows.
     if ((await this.invitations.countActive(teamId, now)) >= MAX_ACTIVE_INVITATIONS) {
       throw new DomainError('INVITATION_LIMIT', 409);
     }

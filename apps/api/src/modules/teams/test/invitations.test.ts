@@ -182,6 +182,27 @@ describeInfra('S3 teams: invitations (FR-TEAM-08, -09)', ['db', 'redis'], () => 
       expect(second.json<Created>().token).toBe(first.json<Created>().token);
       expect(await activeInvitations(world, t.id)).toBe(1);
     });
+
+    it('S3CR-02: the plain token is never stored in idempotency_key; replay still returns it', async () => {
+      const t = await team(world, { openSeats: 1 });
+      const seat = t.openSeats[0];
+      if (!seat) throw new Error('no seat');
+      const key = randomUUID();
+      const first = await world
+        .as(t.lead)
+        .post(`/v1/teams/${t.id}/invitations`, { seatId: seat.id }, { idempotencyKey: key });
+      const token = first.json<Created>().token;
+      const rows = await world.sql<{ response_body: unknown; response_provisional: boolean }[]>`
+        SELECT response_body, response_provisional FROM platform.idempotency_key WHERE key = ${key}`;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.response_provisional).toBe(false);
+      expect(JSON.stringify(rows[0]?.response_body)).not.toContain(token);
+      const replay = await world
+        .as(t.lead)
+        .post(`/v1/teams/${t.id}/invitations`, { seatId: seat.id }, { idempotencyKey: key });
+      expectReplayed(replay);
+      expect(replay.json<Created>()).toEqual(first.json<Created>());
+    });
   });
 
   describe('listInvitations and revokeInvitation', () => {

@@ -48,20 +48,6 @@ export class InvitationRepository {
     await this.tx.tx.update(invitation).set({ status }).where(eq(invitation.id, invitationId));
   }
 
-  /** Retires the overdue `active` rows of a team so they stop counting against C-13. */
-  async expireOverdue(teamId: string, now: Date): Promise<void> {
-    await this.tx.tx
-      .update(invitation)
-      .set({ status: 'expired' })
-      .where(
-        and(
-          eq(invitation.teamId, teamId),
-          eq(invitation.status, 'active'),
-          lte(invitation.expiresAt, now),
-        ),
-      );
-  }
-
   async countActive(teamId: string, now: Date): Promise<number> {
     const rows = await this.tx.tx
       .select({ count: sql<number>`count(*)::int` })
