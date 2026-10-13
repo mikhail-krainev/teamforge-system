@@ -28,22 +28,31 @@ export class OutboxService implements OnModuleInit {
   }
 
   async publish(event: NewOutboxEvent): Promise<string> {
+    const [id] = await this.publishMany([event]);
+    return id as string;
+  }
+
+  /** Writes several events with one INSERT (no query per event); returns the ids in input order. */
+  async publishMany(events: NewOutboxEvent[]): Promise<string[]> {
     if (!this.txHost.isTransactionActive()) {
       throw new InvariantError('Outbox events must be written inside a transaction');
     }
     assertAttemptAlive(this.cls);
-    const id = uuidv7();
-    await this.txHost.tx.insert(outboxEvent).values({
-      id,
+    if (events.length === 0) return [];
+    const requestId = this.cls.isActive() ? (this.cls.get('requestId') ?? null) : null;
+    const createdAt = this.clock.now();
+    const rows = events.map((event) => ({
+      id: uuidv7(),
       module: event.module,
       type: event.type,
       aggregateId: event.aggregateId,
       payload: event.payload,
-      requestId: this.cls.isActive() ? (this.cls.get('requestId') ?? null) : null,
-      createdAt: this.clock.now(),
-    });
+      requestId,
+      createdAt,
+    }));
+    await this.txHost.tx.insert(outboxEvent).values(rows);
     this.cls.set('outboxDirty', true);
-    return id;
+    return rows.map((row) => row.id);
   }
 
   /** Wakes the relay right after commit; polling every 250 ms is the fallback if this fails. */

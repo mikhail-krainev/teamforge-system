@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { DB, type Database } from '../../../../platform/db/db.module.js';
 import type {
+  PlaybookId,
   PlaybooksApi,
   ProductTypeCode,
   ProductTypeView,
@@ -29,7 +30,17 @@ export class PlaybooksFacade implements PlaybooksApi {
     const query = this.db
       .select({ code: productType.code, name: productType.name, active: productType.active })
       .from(productType);
-    const filtered = options.activeOnly === true ? query.where(eq(productType.active, true)) : query;
+    const filtered =
+      options.activeOnly === true ? query.where(eq(productType.active, true)) : query;
     return filtered.orderBy(asc(productType.code));
+  }
+
+  async getVersions(ids: PlaybookId[]): Promise<Map<PlaybookId, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.db
+      .select({ id: playbook.id, version: playbook.version })
+      .from(playbook)
+      .where(inArray(playbook.id, [...new Set(ids)]));
+    return new Map(rows.map((row) => [row.id, row.version]));
   }
 }

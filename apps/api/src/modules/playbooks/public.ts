@@ -29,6 +29,8 @@ export interface PlaybooksApi {
   getLatestPublished(productType: ProductTypeCode): Promise<PublishedPlaybookRef | null>;
   /** Product types ordered by code; `activeOnly` hides the inactive ones. */
   listProductTypes(options?: { activeOnly?: boolean }): Promise<ProductTypeView[]>;
+  /** Versions of the given playbooks in one query; unknown ids are absent from the result. */
+  getVersions(ids: PlaybookId[]): Promise<Map<PlaybookId, string>>;
 }
 
 /** Injection token of the PlaybooksApi implementation. */

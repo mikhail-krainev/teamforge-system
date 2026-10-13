@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { CatalogController } from './internal/catalog/catalog.controller.js';
 import { CatalogRepository } from './internal/catalog/catalog.repository.js';
 import { CatalogService } from './internal/catalog/catalog.service.js';
@@ -21,6 +21,7 @@ import { ResumeService } from './internal/resume/resume.service.js';
 import { PROFILES_API } from './public.js';
 
 /** Profiles: catalogs (S2-08), profile (S2-09), resume and its isolated parsing (S2-10). */
+@Global()
 @Module({
   controllers: [CatalogController, ProfileController, ResumeController],
   providers: [
