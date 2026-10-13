@@ -5,10 +5,12 @@ import { expectNoSeriousA11yViolations } from './axe';
 import { githubDouble, githubIdentity, routeGithubDoubleToLoopback } from './github';
 import {
   CANCEL_LINK_PATH,
+  DELETION_SUBJECT,
   mailAfter,
-  mailbox,
+  mailSnapshot,
   onWebOrigin,
   SIGN_IN_LINK_PATH,
+  SIGN_IN_SUBJECT,
   tokenLink,
 } from './mail';
 import {
@@ -41,11 +43,11 @@ export async function signInPageIsAccessible(): Promise<void> {
 
 export async function requestMagicLink(): Promise<void> {
   const { page } = sessions().ivan;
-  const before = await mailbox.countTo(world.ivanEmail);
+  const seen = await mailSnapshot(world.ivanEmail);
   await signInUi.email(page).fill(world.ivanEmail);
   await signInUi.requestLink(page).click();
   await expect(signInUi.sent(page)).toBeVisible();
-  const mail = await mailAfter(world.ivanEmail, before);
+  const mail = await mailAfter(world.ivanEmail, seen, SIGN_IN_SUBJECT);
   world.signInLink = tokenLink(mail, SIGN_IN_LINK_PATH).link;
   const url = new URL(world.signInLink);
   expect(url.hash).toMatch(/^#token=.{16,}/);
@@ -159,12 +161,12 @@ export async function settingsPageIsAccessible(): Promise<void> {
 
 export async function requestDeletion(): Promise<void> {
   const { page, context } = sessions().ivan;
-  const before = await mailbox.countTo(world.ivanEmail);
+  const seen = await mailSnapshot(world.ivanEmail);
   await settingsUi.openDeletion(page).click();
   await settingsUi.deletionCheck(page).check();
   await settingsUi.deletionConfirm(page).click();
   await expect(settingsUi.deletionRequested(page)).toBeVisible();
-  const mail = await mailAfter(world.ivanEmail, before);
+  const mail = await mailAfter(world.ivanEmail, seen, DELETION_SUBJECT);
   world.cancelLink = tokenLink(mail, CANCEL_LINK_PATH).link;
   // S2CR-02: the worker revokes the sessions when it handles the "request created" event.
   await expect

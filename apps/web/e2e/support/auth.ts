@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type BrowserContext, type Page } from '@playwright/test';
 import { apiGet, apiPost, type Me } from './api';
-import { mailAfter, mailbox, SIGN_IN_LINK_PATH, tokenLink } from './mail';
+import { mailAfter, mailSnapshot, SIGN_IN_LINK_PATH, SIGN_IN_SUBJECT, tokenLink } from './mail';
 
 export interface E2eUser {
   /** Address the magic link is requested for; unique per run (see `uniqueEmail`). */
@@ -29,10 +29,10 @@ export async function requestMagicLinkToken(
   email: string,
   callbackURL = '/profile',
 ): Promise<string> {
-  const before = await mailbox.countTo(email);
+  const seen = await mailSnapshot(email);
   const sent = await apiPost(context.request, '/auth/sign-in/magic-link', { email, callbackURL });
   expect(sent.status, `magic link request for ${email}: ${sent.text}`).toBe(200);
-  const message = await mailAfter(email, before);
+  const message = await mailAfter(email, seen, SIGN_IN_SUBJECT);
   return tokenLink(message, SIGN_IN_LINK_PATH).token;
 }
 

@@ -34,16 +34,37 @@ export function tokenLink(message: MailMessage, path: RegExp): { link: string; t
   );
 }
 
+/** Subjects of the mails the scenarios wait for (apps/api: magic-link-mail.ts, deletion-mail.ts). */
+export const SIGN_IN_SUBJECT = 'Вход в Teamforge';
+export const DELETION_SUBJECT = 'Запрос на удаление учётной записи Teamforge';
+
+/** Ids of the mails to `address` that exist now; take it before the action that triggers a mail. */
+export async function mailSnapshot(address: string): Promise<ReadonlySet<string>> {
+  return new Set((await mailbox.allTo(address)).map((m) => m.id));
+}
+
 /**
- * Waits for one more message to `address` than there were when `before` was taken. Use it as
- * `const before = await mailbox.countTo(a); ...trigger the mail...; await mailAfter(a, before)`.
+ * Waits (polling) for a mail to `address` that is not in `seen` and has the given subject. The mail
+ * is chosen by purpose, never as "the newest": some mails are sent asynchronously by outbox consumers
+ * (deletion notice, S2CR-02), and mails created within the same second have no stable order.
  */
-export function mailAfter(
+export async function mailAfter(
   address: string,
-  before: number,
+  seen: ReadonlySet<string>,
+  subject: string,
   timeoutMs = 30_000,
 ): Promise<MailMessage> {
-  return mailbox.latestTo(address, { minCount: before + 1, timeoutMs });
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const found = (await mailbox.allTo(address)).find(
+      (m) => !seen.has(m.id) && m.subject === subject,
+    );
+    if (found) return found;
+    if (Date.now() > deadline) {
+      throw new Error(`mail "${subject}" to ${address}: timed out after ${timeoutMs} ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
 
 /** The magic-link mail path (docs/architecture.md 13.8) and the deletion-cancel mail path (13.9). */
