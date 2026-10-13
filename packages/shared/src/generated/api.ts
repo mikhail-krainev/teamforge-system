@@ -696,7 +696,7 @@ export interface paths {
         post?: never;
         /**
          * Закрыть открытое место (тимлид)
-         * @description Только место в статусе open (иначе 409 SEAT_NOT_OPEN).
+         * @description Только место в статусе open (иначе 409 INVALID_STATE).
          */
         delete: operations["closeSeat"];
         options?: never;

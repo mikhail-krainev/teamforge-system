@@ -2600,7 +2600,7 @@
           "teams"
         ],
         "summary": "Закрыть открытое место (тимлид)",
-        "description": "Только место в статусе open (иначе 409 SEAT_NOT_OPEN).",
+        "description": "Только место в статусе open (иначе 409 INVALID_STATE).",
         "parameters": [
           {
             "$ref": "#/components/parameters/TeamId"
