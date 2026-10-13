@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { InvitationController } from './internal/controllers/invitation.controller.js';
 import { OfferController } from './internal/controllers/offer.controller.js';
 import { SeatController } from './internal/controllers/seat.controller.js';
 import { TeamController } from './internal/controllers/team.controller.js';
+import { DEPARTURE_CONTROLLERS, DEPARTURE_PROVIDERS } from './internal/departure.providers.js';
 import { TeamOperations } from './internal/authz/team-operations.js';
 import { StubDeficitPort, StubTeamLifecyclePort } from './internal/ports/stub-ports.js';
 import { InvitationCleanup } from './internal/jobs/invitation-cleanup.js';
@@ -36,13 +37,15 @@ import { DEFICIT_PORT, TEAM_LIFECYCLE_PORT, TEAMS_API } from './public.js';
 
 /**
  * Teams: schema, facade and authorization policies (S3-02), teams and seats (S3-03), joining and
- * offers (S3-04), invitations (S3-05). The other services and controllers arrive in S3-05..S3-10. The ports are bound to stubs here; matching (slice 4) and workspace (slice 5)
+ * offers (S3-04), invitations (S3-05), leaving and the lead decision (S3-06). The other services and controllers arrive in S3-05..S3-10. The ports are bound to stubs here; matching (slice 4) and workspace (slice 5)
  * replace the bindings.
  */
+@Global()
 @Module({
-  controllers: [TeamController, SeatController, OfferController, InvitationController, ...START_CONTROLLERS],
+  controllers: [TeamController, SeatController, OfferController, InvitationController, ...START_CONTROLLERS, ...DEPARTURE_CONTROLLERS],
   providers: [
     ...START_PROVIDERS,
+    ...DEPARTURE_PROVIDERS,
     TeamAccessRepository,
     TeamRepository,
     TeamListRepository,

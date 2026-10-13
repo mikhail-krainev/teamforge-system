@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
  *   POST /login/oauth/access_token   code -> `ghu_` token (+ refresh token); also grant_type=refresh_token
  *   GET  /user, /user/emails         the identity behind the token
  *   GET  /user/installations         installations of the App visible to the user (configurable)
+ *   GET  /users/{login}              public lookup without a token (teams: invitation by login); 404 for logins nobody signed in with or registered by `addUser`
  * The application is pointed at it with `githubEnv(server)`.
  */
 export interface GithubIdentity {
@@ -83,6 +84,8 @@ export interface GithubServer {
   /** The next token exchange fails with this GitHub error (HTTP 200 with an `error` field, as GitHub does). */
   failNextTokenExchange(error: TokenFailure): void;
   setInstallations(installations: { id: number; account: { login: string } }[]): void;
+  /** Makes `GET /users/{login}` know this account (identities that signed in are known already). */
+  addUser(identity: GithubIdentity): void;
   close(): Promise<void>;
 }
 
@@ -119,6 +122,8 @@ interface State {
   refresh: Map<string, GithubIdentity>;
   failures: TokenFailure[];
   installations: { id: number; account: { login: string } }[];
+  /** Accounts the public lookup knows, by lower-cased login. */
+  users: Map<string, GithubIdentity>;
   server: GithubServer;
 }
 
@@ -146,6 +151,7 @@ function authorize(state: State, url: URL, res: ServerResponse): void {
 }
 
 function issueTokens(state: State, identity: GithubIdentity): Record<string, unknown> {
+  state.users.set(identity.login.toLowerCase(), identity);
   const access = token('ghu');
   const refresh = token('ghr');
   state.tokens.set(access, identity);
@@ -208,6 +214,19 @@ function api(state: State, path: string, req: IncomingMessage, res: ServerRespon
   sendJson(res, 404, { message: 'Not Found' });
 }
 
+/** `GET /users/{login}`: public, no token (as GitHub answers anonymous callers). */
+function publicUser(state: State, path: string, res: ServerResponse): void {
+  const login = decodeURIComponent(path.slice('/users/'.length));
+  const identity = state.users.get(login.toLowerCase());
+  if (!identity) return sendJson(res, 404, { message: 'Not Found' });
+  sendJson(res, 200, {
+    id: identity.id,
+    login: identity.login,
+    type: 'User',
+    created_at: identity.createdAt,
+  });
+}
+
 async function handle(state: State, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', state.server.baseUrl);
   const body = req.method === 'POST' ? await readBody(req) : {};
@@ -222,6 +241,9 @@ async function handle(state: State, req: IncomingMessage, res: ServerResponse): 
   }
   if (req.method === 'POST' && url.pathname === '/login/oauth/access_token') {
     return exchange(state, body, res);
+  }
+  if (req.method === 'GET' && url.pathname.startsWith('/users/')) {
+    return publicUser(state, url.pathname, res);
   }
   if (req.method === 'GET' && url.pathname.startsWith('/user')) {
     return api(state, url.pathname, req, res);
@@ -249,6 +271,7 @@ function createDouble(state: State, server: Server, baseUrl: string): GithubServ
     },
     failNextTokenExchange: (error) => void state.failures.push(error),
     setInstallations: (installations) => void (state.installations = installations),
+    addUser: (identity) => void state.users.set(identity.login.toLowerCase(), identity),
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections();
@@ -268,6 +291,7 @@ export async function startGithubServer(options: GithubServerOptions = {}): Prom
     refresh: new Map(),
     failures: [],
     installations: [],
+    users: new Map(),
     server: undefined as unknown as GithubServer,
   };
   const server: Server = createServer((req, res) => {

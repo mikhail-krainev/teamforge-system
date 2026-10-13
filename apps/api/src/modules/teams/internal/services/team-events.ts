@@ -12,6 +12,8 @@ export type JournalType =
   | 'seat_desired_changed'
   | 'seat_closed'
   | 'member_joined'
+  | 'member_left'
+  | 'departure_decided'
   | 'offer_created'
   | 'invitation_created'
   | 'invitation_revoked';

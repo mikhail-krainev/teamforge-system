@@ -40,7 +40,7 @@ describeInfra('S3 teams: invitations (FR-TEAM-08, -09)', ['db', 'redis'], () => 
   const clock = new FakeClock(Date.now());
 
   beforeAll(async () => {
-    world = await startWorld({ clock });
+    world = await startWorld({ clock, github: true });
   });
 
   afterAll(async () => {
@@ -110,7 +110,7 @@ describeInfra('S3 teams: invitations (FR-TEAM-08, -09)', ['db', 'redis'], () => 
         seatId: seat.id,
         inviteeGithubLogin: 'no-such-login-xyz',
       });
-      // Resolving a login needs GET /users/{login} on the GitHub double; unknown logins must give 422.
+      // The login is resolved through GET /users/{login} on the GitHub double (github: true), never api.github.com.
       expect(response.statusCode, response.body).toBe(422);
     });
 

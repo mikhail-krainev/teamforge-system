@@ -10,10 +10,13 @@ const TEAM = 'team-1';
 const LEAD = 'lead';
 const MEMBER = 'member';
 const OUTSIDER = 'outsider';
+const FORMER = 'former';
 
 const access: TeamAccess = {
   getTeamLead: (id) => Promise.resolve(id === TEAM ? { leadUserId: LEAD } : undefined),
   isActiveMember: (id, user) => Promise.resolve(id === TEAM && [LEAD, MEMBER].includes(user)),
+  wasEverMember: (id, user) =>
+    Promise.resolve(id === TEAM && [LEAD, MEMBER, FORMER].includes(user)),
   getOfferParties: (id) =>
     Promise.resolve(
       id === 'offer-1' ? { teamId: TEAM, userId: 'invited', leadUserId: LEAD } : undefined,
@@ -28,9 +31,13 @@ const access: TeamAccess = {
 
 const policies = teamActorPolicies(access);
 
-function ctx(userId: string | undefined, params: Record<string, string>): ActorContext {
+function ctx(
+  userId: string | undefined,
+  params: Record<string, string>,
+  operationId = 'op',
+): ActorContext {
   return {
-    operationId: 'op',
+    operationId,
     request: { params } as unknown as FastifyRequest,
     authz: { actor: 'x' },
     userId,
@@ -69,6 +76,14 @@ describe('team actor policies (architecture 13.14)', () => {
     expect(await outcome('team-member', ctx(MEMBER, { teamId: TEAM }))).toBe('allowed');
     expect(await outcome('team-member', ctx(OUTSIDER, { teamId: TEAM }))).toBe('404 NOT_FOUND');
     expect(await outcome('team-member', ctx(MEMBER, { teamId: 'other' }))).toBe('404 NOT_FOUND');
+  });
+
+  it('team-member: only leaveTeam lets a former member through (replay of a finished leave)', async () => {
+    expect(await outcome('team-member', ctx(FORMER, { teamId: TEAM }))).toBe('404 NOT_FOUND');
+    expect(await outcome('team-member', ctx(FORMER, { teamId: TEAM }, 'leaveTeam'))).toBe('allowed');
+    expect(await outcome('team-member', ctx(OUTSIDER, { teamId: TEAM }, 'leaveTeam'))).toBe(
+      '404 NOT_FOUND',
+    );
   });
 
   it('team-lead: the lead passes, a member gets 403 NOT_TEAM_LEAD, an outsider 404', async () => {

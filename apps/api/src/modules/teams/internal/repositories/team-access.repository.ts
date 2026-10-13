@@ -37,6 +37,15 @@ export class TeamAccessRepository implements TeamAccess {
     return rows.length > 0;
   }
 
+  async wasEverMember(teamId: string, userId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: membership.id })
+      .from(membership)
+      .where(and(eq(membership.teamId, teamId), eq(membership.userId, userId)))
+      .limit(1);
+    return rows.length > 0;
+  }
+
   async getOfferParties(
     offerId: string,
   ): Promise<{ teamId: string; userId: string; leadUserId: string | null } | undefined> {

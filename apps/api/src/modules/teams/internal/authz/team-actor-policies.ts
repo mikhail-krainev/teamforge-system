@@ -6,6 +6,8 @@ export interface TeamAccess {
   /** `undefined` when the team does not exist. */
   getTeamLead(teamId: string): Promise<{ leadUserId: string | null } | undefined>;
   isActiveMember(teamId: string, userId: string): Promise<boolean>;
+  /** Active or former member (`left`, `removed`): the replay of a leave must still reach the interceptor. */
+  wasEverMember(teamId: string, userId: string): Promise<boolean>;
   /** The offer with the current lead of its team; `undefined` when it does not exist. */
   getOfferParties(
     offerId: string,
@@ -35,13 +37,23 @@ function sessionUser(ctx: ActorContext): string {
   return ctx.userId;
 }
 
-/** `team-member`: an active member of `teamId`; anyone else gets 404. */
+/**
+ * `team-member`: an active member of `teamId`; anyone else gets 404. `leaveTeam` also lets a former
+ * member through: the guard runs before the idempotency interceptor, and a retry of a finished
+ * leave with the same key must replay its 204; a new key finds no active membership (404 in the
+ * service).
+ */
 export function teamMemberPolicy(access: TeamAccess): ActorPolicy {
   return {
     requiresSession: true,
     async check(ctx) {
       const teamId = param(ctx, 'teamId');
-      if (!(await access.isActiveMember(teamId, sessionUser(ctx)))) throw notFound();
+      const userId = sessionUser(ctx);
+      const allowed =
+        ctx.operationId === 'leaveTeam'
+          ? await access.wasEverMember(teamId, userId)
+          : await access.isActiveMember(teamId, userId);
+      if (!allowed) throw notFound();
     },
   };
 }

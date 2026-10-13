@@ -51,4 +51,40 @@ export class JoinRepository {
       .set({ memberCount: sql`${team.memberCount} + 1`, updatedAt: now })
       .where(eq(team.id, teamId));
   }
+
+  /** Seats currently held through a membership; the caller holds the team lock. */
+  activeAssignments(
+    membershipId: string,
+  ): Promise<{ id: string; seatId: string; roleCode: string }[]> {
+    return this.tx.tx
+      .select({
+        id: seatAssignment.id,
+        seatId: seatAssignment.seatId,
+        roleCode: seatAssignment.roleCode,
+      })
+      .from(seatAssignment)
+      .where(and(eq(seatAssignment.membershipId, membershipId), isNull(seatAssignment.endedAt)));
+  }
+
+  async endAssignments(membershipId: string, at: Date): Promise<void> {
+    await this.tx.tx
+      .update(seatAssignment)
+      .set({ endedAt: at })
+      .where(and(eq(seatAssignment.membershipId, membershipId), isNull(seatAssignment.endedAt)));
+  }
+
+  async markLeft(membershipId: string, at: Date, reason: string): Promise<void> {
+    await this.tx.tx
+      .update(membership)
+      .set({ status: 'left', leftAt: at, leftReason: reason })
+      .where(eq(membership.id, membershipId));
+  }
+
+  /** C-02 counter; the caller holds the team lock. */
+  async removeMember(teamId: string, now: Date): Promise<void> {
+    await this.tx.tx
+      .update(team)
+      .set({ memberCount: sql`${team.memberCount} - 1`, updatedAt: now })
+      .where(eq(team.id, teamId));
+  }
 }
