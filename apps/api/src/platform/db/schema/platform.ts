@@ -1,25 +1,19 @@
 import { sql } from 'drizzle-orm';
 import {
-  customType,
   index,
   jsonb,
   pgSchema,
   primaryKey,
   smallint,
   text,
-  timestamp,
   uuid,
   integer,
   check,
+  boolean,
 } from 'drizzle-orm/pg-core';
+import { bytea, tstz } from './columns.js';
 
 export const platformSchema = pgSchema('platform');
-
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType: () => 'bytea',
-});
-
-const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
 /** Idempotency keys (architecture 5.1, 12.4). Scope is the pair (user_id, key). */
 export const idempotencyKey = platformSchema.table(
@@ -34,6 +28,8 @@ export const idempotencyKey = platformSchema.table(
     lockToken: uuid('lock_token').notNull(),
     responseStatus: integer('response_status'),
     responseBody: jsonb('response_body'),
+    /** True while response_body is the raw transaction result, not yet the final HTTP body. */
+    responseProvisional: boolean('response_provisional').notNull().default(false),
     createdAt: tstz('created_at').notNull(),
     expiresAt: tstz('expires_at').notNull(),
   },

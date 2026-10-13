@@ -1,4 +1,5 @@
-import 'nestjs-cls';
+import type { ClsService } from 'nestjs-cls';
+import { InvariantError } from '../errors/domain-error.js';
 
 /** Idempotency state of the current request, set by IdempotencyInterceptor. */
 export interface IdempotencyContext {
@@ -11,14 +12,14 @@ export interface IdempotencyContext {
   completedInTx: boolean;
   /** True once the transaction that completed the key has committed (set by TxRunner). */
   committed: boolean;
-  /** JSON of the response body stored by the transaction (replaced by the final HTTP body). */
-  storedBody?: string;
 }
 
 declare module 'nestjs-cls' {
   interface ClsStore {
     requestId?: string;
     userId?: string;
+    /** Creation time (epoch ms) of the session behind `userId`, when the authenticator knows it. */
+    sessionCreatedAt?: number;
     operationId?: string;
     idempotency?: IdempotencyContext;
     /** Highest lock level taken in the active transaction attempt (architecture 12.1). */
@@ -35,4 +36,11 @@ declare module 'fastify' {
     /** Filled by OperationContextInterceptor for the request log line. */
     tf?: { operationId?: string; userId?: string };
   }
+}
+
+/** The signed-in user of the request, set by AuthzGuard; operations that need a session call this. */
+export function requireUserId(cls: ClsService): string {
+  const id = cls.get('userId');
+  if (id === undefined) throw new InvariantError('Operation without a signed-in user');
+  return id;
 }

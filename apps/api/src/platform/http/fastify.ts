@@ -3,6 +3,8 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { Logger } from 'nestjs-pino';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
+import { registerMultipart } from './multipart.js';
+import { registerMultipartGate } from './multipart-gate.js';
 import { resolveRequestId } from './request-id.js';
 import { buildTrustProxy } from './trust-proxy.js';
 
@@ -46,8 +48,19 @@ export function securityHeaders(production: boolean): Record<string, string> {
 export function configureHttpApp(app: NestFastifyApplication): void {
   app.setGlobalPrefix(API_PREFIX);
   app.useLogger(app.get(Logger));
-  const headers = securityHeaders(app.get<AppConfig>(APP_CONFIG).NODE_ENV === 'production');
+  const config = app.get<AppConfig>(APP_CONFIG);
+  if (config.NODE_ENV === 'production' && config.TRUSTED_PROXY_CIDRS.length < 2) {
+    // Caddy and web must both be listed (architecture 13.6), or every client shares one limit key.
+    app
+      .get(Logger)
+      .warn(
+        'TRUSTED_PROXY_CIDRS lists fewer than two proxies: per-IP limits may be shared by all clients',
+      );
+  }
+  const headers = securityHeaders(config.NODE_ENV === 'production');
   const fastify = app.getHttpAdapter().getInstance();
+  registerMultipart(fastify);
+  registerMultipartGate(app, API_PREFIX);
   fastify.addHook('onRequest', (request, reply, done) => {
     void reply.header('X-Request-Id', request.id);
     done();

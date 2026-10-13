@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { githubComposeEnv } from './github';
 
 /** Repository root: compose files and `.env` live there. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -18,7 +19,9 @@ export const E2E_ENV: Record<string, string> = {
   WEB_PORT,
   API_PORT,
   WEB_URL: E2E_WEB_URL,
-  BETTER_AUTH_URL: `http://localhost:${API_PORT}`,
+  // The browser reaches the api only through the web origin (it proxies /api): OAuth callbacks and
+  // relative redirects (callbackURL '/profile') must resolve there, not on the api port.
+  BETTER_AUTH_URL: E2E_WEB_URL,
   POSTGRES_HOST_PORT: '15432',
   PGBOUNCER_HOST_PORT: '16432',
   REDIS_HOST_PORT: '16379',
@@ -28,6 +31,10 @@ export const E2E_ENV: Record<string, string> = {
   // Own subnet and web address: the dev stack keeps 172.29.250.0/24, and api trusts only its web (/32).
   TF_NET_SUBNET: '172.29.251.0/24',
   TF_WEB_IP: '172.29.251.10',
+  // Production refuses GITHUB_*_BASE_URL, so api and worker run as development here.
+  APP_NODE_ENV: 'development',
+  // GitHub sign-in goes to the double the spec starts on the host (support/github.ts).
+  ...githubComposeEnv(),
 };
 
 /** Runs `docker compose -p e2e <args>` from the repository root and returns its output. */

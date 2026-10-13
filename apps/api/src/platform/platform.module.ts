@@ -1,5 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ClsPluginTransactional } from '@nestjs-cls/transactional';
 import { TransactionalAdapterDrizzleOrm } from '@nestjs-cls/transactional-adapter-drizzle-orm';
 import { ClsModule } from 'nestjs-cls';
@@ -10,10 +10,12 @@ import { ConfigModule } from './config/config.module.js';
 import { DB, DbModule } from './db/db.module.js';
 import { ProblemFilter } from './errors/problem.filter.js';
 import { HealthModule } from './health/health.module.js';
+import { OriginGuard } from './http/origin.guard.js';
 import { OperationContextInterceptor } from './http/operation-context.interceptor.js';
 import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { LoggingModule, type LoggingOptions } from './logging/logging.module.js';
+import { MailModule } from './mail/mail.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
 import { QueuesModule } from './queues/queues.module.js';
 import { RateLimitModule } from './ratelimit/ratelimit.module.js';
@@ -66,6 +68,7 @@ export class PlatformModule {
       RateLimitModule,
       IdempotencyModule,
       OutboxModule,
+      MailModule,
     ];
     return {
       module: PlatformModule,
@@ -73,6 +76,7 @@ export class PlatformModule {
       providers: options.http
         ? [
             { provide: APP_FILTER, useClass: ProblemFilter },
+            { provide: APP_GUARD, useClass: OriginGuard },
             { provide: APP_INTERCEPTOR, useClass: OperationContextInterceptor },
             { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
           ]

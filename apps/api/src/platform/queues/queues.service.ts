@@ -5,7 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
 import { InvariantError } from '../errors/domain-error.js';
-import { REDIS_BULL } from '../redis/redis.module.js';
+import { REDIS_BULL, REDIS_RESUME_BULL } from '../redis/redis.module.js';
 import { assertValidJobId } from './job-id.js';
 import { defaultJobOptions, QUEUE_DEFINITIONS, type QueueName } from './queue-definitions.js';
 
@@ -26,6 +26,7 @@ export class QueuesService implements OnApplicationShutdown {
 
   constructor(
     @Inject(REDIS_BULL) private readonly connection: Redis,
+    @Inject(REDIS_RESUME_BULL) private readonly resumeConnection: Redis | null,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(ClsService) private readonly cls: ClsService,
   ) {}
@@ -37,17 +38,22 @@ export class QueuesService implements OnApplicationShutdown {
   getQueue(name: QueueName): Queue {
     const existing = this.queues.get(name);
     if (existing) return existing;
-    if (QUEUE_DEFINITIONS[name].redis !== 'main') {
-      throw new InvariantError(`Queue ${name} lives in redis-resume, which is not wired yet`);
-    }
     const queue = new Queue(name, {
-      connection: this.connection,
+      connection: this.connectionFor(name),
       prefix: this.config.QUEUE_PREFIX,
       defaultJobOptions: defaultJobOptions(name),
     });
     queue.on('error', () => undefined);
     this.queues.set(name, queue);
     return queue;
+  }
+
+  private connectionFor(name: QueueName): Redis {
+    if (QUEUE_DEFINITIONS[name].redis === 'main') return this.connection;
+    if (this.resumeConnection === null) {
+      throw new InvariantError(`Queue ${name} needs REDIS_RESUME_URL (redis-resume)`);
+    }
+    return this.resumeConnection;
   }
 
   /** Adds a job; the request id is propagated into the payload for log correlation. */

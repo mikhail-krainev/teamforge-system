@@ -34,7 +34,11 @@ function setup(outcomes: unknown[]) {
 }
 
 const apiError = (status: number, code?: string) =>
-  new ApiError({ status, body: undefined, problem: code ? ({ code, status } as never) : undefined });
+  new ApiError({
+    status,
+    body: undefined,
+    problem: code ? ({ code, status } as never) : undefined,
+  });
 
 describe('useIdempotentMutation', () => {
   it('resets the key after a 4xx response', async () => {
@@ -69,6 +73,59 @@ describe('useIdempotentMutation', () => {
     const { keys, press } = setup([new NetworkError(), 'ok']);
     await press('a');
     await press('b');
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+});
+
+describe('a second identical call while one is in flight', () => {
+  it('joins it: one request, one key', async () => {
+    const keys: string[] = [];
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const hook = renderHook(
+      () =>
+        useIdempotentMutation({
+          mutationFn: async (vars: { name: string }, key: string) => {
+            keys.push(key);
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            return vars.name;
+          },
+        }),
+      { wrapper },
+    );
+    await act(async () => {
+      await Promise.all([
+        hook.result.current.mutateAsync({ name: 'a' }),
+        hook.result.current.mutateAsync({ name: 'a' }),
+      ]);
+    });
+    expect(keys).toHaveLength(1);
+  });
+
+  it('does not join a call with different input', async () => {
+    const keys: string[] = [];
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const hook = renderHook(
+      () =>
+        useIdempotentMutation({
+          mutationFn: async (vars: { name: string }, key: string) => {
+            keys.push(key);
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            return vars.name;
+          },
+        }),
+      { wrapper },
+    );
+    await act(async () => {
+      await Promise.all([
+        hook.result.current.mutateAsync({ name: 'a' }),
+        hook.result.current.mutateAsync({ name: 'b' }),
+      ]);
+    });
+    expect(keys).toHaveLength(2);
     expect(keys[0]).not.toBe(keys[1]);
   });
 });

@@ -10,7 +10,18 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/main.ts', 'src/worker.ts'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/main.ts',
+        'src/worker.ts',
+        // Process entry points of the resume sandbox: bootstrap only (they start on import), covered
+        // by the docker e2e stack; their logic lives in run-child.ts, parsers.ts and protocol.ts.
+        'src/resume-worker/main.ts',
+        'src/resume-worker/child.ts',
+        // Barrel re-exports and type-only files hold no runtime logic.
+        'src/**/index.ts',
+        'src/**/*.types.ts',
+      ],
       reporter: ['text', 'text-summary', 'lcov'],
       // Plan: line coverage of 80% is checked in CI (docs/plan.md, "Правила тестов"). Measured with
       // all services present (pnpm run test:coverage): lines 91%, branches 84%.

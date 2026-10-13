@@ -8,6 +8,7 @@ import { Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
+import { sanitizeDatabaseError } from '../logging/serializers.js';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
 import { REDIS_BULL } from '../redis/redis.module.js';
@@ -74,7 +75,12 @@ export class QueueWorkers implements OnApplicationBootstrap, OnApplicationShutdo
   private runInContext(processor: JobProcessor, job: QueueJob): Promise<unknown> {
     return this.cls.run(async () => {
       this.cls.set('requestId', job.data.requestId);
-      return processor.process(job);
+      try {
+        return await processor.process(job);
+      } catch (error) {
+        // BullMQ stores the error message and stack in Redis (7 days): no SQL parameters there.
+        throw sanitizeDatabaseError(error) ?? error;
+      }
     });
   }
 

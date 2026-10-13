@@ -8,10 +8,11 @@
 - Фаза 3: `docs/architecture.md`, `docs/api/openapi.yaml` (114 операций, `x-authz` у каждой), `docs/adr/0001..0018`, `docs/security-review-phase3.md`. Ревью архитектуры и аудит безопасности пройдены, CRITICAL/HIGH/MEDIUM исправлены.
 - Фаза 4: `docs/plan.md` (7 срезов, 86 задач, покрытие всех FR и операций), `docs/todo.md` (чек-лист). Ревью пройдено, HIGH исправлены.
 - Срез 1 (каркас): монорепо pnpm, `packages/shared` из OpenAPI, api (NestJS 12 + Fastify ESM, Drizzle, транзакции и блокировки, идемпотентность, outbox, BullMQ, лимиты, AuthzRegistry с запретом по умолчанию, проверка тел по контракту), web (Next.js 16, i18n, клиент с Idempotency-Key, CSP с nonce), Docker Compose (PgBouncer, Redis ACL, SeaweedFS вместо MinIO, ADR-0019), CI (6 джоб зелёные), Playwright. Ревью кода и повторное ревью пройдены.
+- Срез 2 (авторизация и профиль), ветка `feat/auth-profile`: S2-01..S2-12, аудит безопасности и ревью кода исправлены (CRITICAL/HIGH нет), повторное ревью исправлений пройдено, R2-01 исправлена. На реальном стеке 2026-10-13: integration 814/814, concurrency 5 повторов зелёные, `docker compose up --build` с чистых томов, Playwright slice1+slice2 11/11, actionlint без замечаний. MEDIUM/LOW в `docs/backlog.md` (разделы "Срез 2, ревью кода" и "повторное ревью").
 
 ## Следующая фаза
 
-Срез 2: авторизация и профиль (`docs/plan.md`, S2-01..). Сначала два MEDIUM из backlog (идемпотентность, ПД в BullMQ).
+Срез 3 (команды и роли), ветка `feat/teams` от свежей main после слияния PR среза 2. Сначала проверить, что PR среза 2 слит.
 
 ## Принятые решения
 
@@ -33,6 +34,9 @@
 - Отзывы публикуются пакетом, только при отзывах от 2 и более авторов.
 - Локальное S3: SeaweedFS (образы MinIO недоступны), ADR-0019.
 - Роли БД: `tf_migrator` владелец схем, `tf_app` только DML.
+- Лишние поля в теле запроса отклоняются 400. Токены OAuth шифруются `BETTER_AUTH_SECRET`.
+- resume-worker: родитель root с cap_drop ALL + SETUID/SETGID, дочерний процесс uid 10002.
+- IP клиента: первый недоверенный адрес справа в XFF; исключение loopback из лимитов только флагом, запрещённым в production.
 - Исключение участника тимлидом только для автодобавленных и только в испытательный срок.
 
 ## Открытые вопросы

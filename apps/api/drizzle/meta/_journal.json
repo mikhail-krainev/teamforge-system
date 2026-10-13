@@ -8,6 +8,41 @@
       "when": 1791833262555,
       "tag": "0000_schemas",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791842168223,
+      "tag": "0001_idempotency_provisional",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791843141012,
+      "tag": "0002_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791844091559,
+      "tag": "0003_profiles_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791844100169,
+      "tag": "0004_seed_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791844215882,
+      "tag": "0005_stack_tag_prefix_idx",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,10 @@
 'use client';
 
-import { useMutation, type UseMutationOptions, type UseMutationResult } from '@tanstack/react-query';
+import {
+  useMutation,
+  type UseMutationOptions,
+  type UseMutationResult,
+} from '@tanstack/react-query';
 import { useRef } from 'react';
 import { ApiError, NetworkError } from './errors';
 import { newIdempotencyKey } from './uuid';
@@ -44,24 +48,36 @@ export function useIdempotentMutation<
   options: IdempotentOptions<TData, TError, TVariables, TContext>,
 ): UseMutationResult<TData, TError, TVariables, TContext> {
   const slot = useRef<{ key: string; fingerprint: string } | null>(null);
+  // The attempt in flight: a second identical call (a double click that lands before the button
+  // is disabled) joins it instead of sending the same request twice.
+  const running = useRef<{ fingerprint: string; promise: Promise<TData> } | null>(null);
   const { mutationFn, ...rest } = options;
+
+  async function attempt(variables: TVariables, print: string): Promise<TData> {
+    if (slot.current?.fingerprint !== print) {
+      slot.current = { key: newIdempotencyKey(), fingerprint: print };
+    }
+    const key = slot.current.key;
+    try {
+      const result = await mutationFn(variables, key);
+      slot.current = null;
+      return result;
+    } catch (error) {
+      if (!shouldKeepKey(error)) slot.current = null;
+      throw error;
+    }
+  }
 
   return useMutation<TData, TError, TVariables, TContext>({
     ...rest,
-    mutationFn: async (variables) => {
+    mutationFn: (variables) => {
       const print = fingerprint(variables);
-      if (slot.current?.fingerprint !== print) {
-        slot.current = { key: newIdempotencyKey(), fingerprint: print };
-      }
-      const key = slot.current.key;
-      try {
-        const result = await mutationFn(variables, key);
-        slot.current = null;
-        return result;
-      } catch (error) {
-        if (!shouldKeepKey(error)) slot.current = null;
-        throw error;
-      }
+      if (running.current?.fingerprint === print) return running.current.promise;
+      const promise = attempt(variables, print).finally(() => {
+        if (running.current?.promise === promise) running.current = null;
+      });
+      running.current = { fingerprint: print, promise };
+      return promise;
     },
   });
 }

@@ -51,7 +51,7 @@ const config = {
       from: { path: `${MODULES_DIR}([^/]+)/` },
       to: {
         path: `${MODULES_DIR}([^/]+)/(internal/|test/|[^/]+\\.module\\.ts$)`,
-        pathNot: `${MODULES_DIR}$1/`,
+        pathNot: `${MODULES_DIR}$2/`,
       },
     },
     ...edgeRules,

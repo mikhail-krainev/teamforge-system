@@ -28,5 +28,9 @@ export function validEnv(overrides: Record<string, string | undefined> = {}): No
     if (value === undefined) delete env[key];
     else env[key] = value;
   }
+  // The test stack talks to the API from the loopback; production refuses this flag (S2SEC-04).
+  if (env.NODE_ENV === 'test' && !('RATE_LIMIT_EXEMPT_LOOPBACK' in overrides)) {
+    env.RATE_LIMIT_EXEMPT_LOOPBACK = 'true';
+  }
   return env;
 }

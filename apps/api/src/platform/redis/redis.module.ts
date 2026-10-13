@@ -8,6 +8,11 @@ import { verifyRedisAcl } from './redis-acl.js';
 export const REDIS = Symbol('REDIS');
 /** Connection for BullMQ: blocking commands require maxRetriesPerRequest = null. */
 export const REDIS_BULL = Symbol('REDIS_BULL');
+/**
+ * BullMQ connection to the isolated `redis-resume` instance (architecture 13.15), or null when
+ * REDIS_RESUME_URL is not set. Only the worker process puts jobs there.
+ */
+export const REDIS_RESUME_BULL = Symbol('REDIS_RESUME_BULL');
 
 export function createRedisClient(url: string, options: { forBull: boolean }): Redis {
   const client = new Redis(url, {
@@ -26,10 +31,15 @@ class RedisLifecycle implements OnApplicationShutdown {
   constructor(
     @Inject(REDIS) private readonly commands: Redis,
     @Inject(REDIS_BULL) private readonly bull: Redis,
+    @Inject(REDIS_RESUME_BULL) private readonly resume: Redis | null,
   ) {}
 
   async onApplicationShutdown(): Promise<void> {
-    await Promise.allSettled([this.commands.quit(), this.bull.quit()]);
+    await Promise.allSettled([
+      this.commands.quit(),
+      this.bull.quit(),
+      ...(this.resume === null ? [] : [this.resume.quit()]),
+    ]);
   }
 }
 
@@ -51,8 +61,16 @@ class RedisLifecycle implements OnApplicationShutdown {
       useFactory: (config: AppConfig): Redis =>
         createRedisClient(config.REDIS_URL, { forBull: true }),
     },
+    {
+      provide: REDIS_RESUME_BULL,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig): Redis | null =>
+        config.REDIS_RESUME_URL === undefined
+          ? null
+          : createRedisClient(config.REDIS_RESUME_URL, { forBull: true }),
+    },
     RedisLifecycle,
   ],
-  exports: [REDIS, REDIS_BULL],
+  exports: [REDIS, REDIS_BULL, REDIS_RESUME_BULL],
 })
 export class RedisModule {}

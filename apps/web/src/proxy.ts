@@ -1,11 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { buildCsp, generateNonce } from '@/lib/security/csp';
+import { decideUxRedirect, hasSessionCookie } from '@/lib/security/ux-redirect';
 
 /**
  * Next.js 16 `proxy` (formerly middleware): attaches the nonce-based CSP to every page request.
  * It is NOT an access check (rights are checked only by the API, architecture 13.10 / SEC-14).
  */
 export function proxy(request: NextRequest): NextResponse {
+  const redirect = decideUxRedirect(
+    request.nextUrl.pathname,
+    request.nextUrl.search,
+    hasSessionCookie((name) => request.cookies.has(name)),
+  );
+  if (redirect) {
+    const url = request.nextUrl.clone();
+    url.pathname = redirect.pathname;
+    url.search = redirect.search;
+    return NextResponse.redirect(url);
+  }
   const nonce = generateNonce();
   const csp = buildCsp(nonce, { development: process.env.NODE_ENV === 'development' });
   const requestHeaders = new Headers(request.headers);

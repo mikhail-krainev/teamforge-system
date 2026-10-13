@@ -8,8 +8,8 @@ import { AuthzRegistry } from './authz.registry.js';
 /**
  * Checks path, query and JSON body of every request against the schema of its operation
  * (architecture 13.3, ADR-0007). Runs after AuthzGuard, so callers without the right to use an
- * operation learn nothing about its schema. Unknown fields are removed and query/path values are
- * coerced IN PLACE; the idempotency hash is computed later, from the cleaned body.
+ * operation learn nothing about its schema. Unknown body fields are refused with 400 (nothing is removed silently); query/path values are
+ * coerced IN PLACE.
  */
 @Injectable()
 export class ValidationGuard implements CanActivate {

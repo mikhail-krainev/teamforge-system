@@ -22,3 +22,6 @@ apps/*/test
 **/*.test.ts
 **/*.test.tsx
 docker-compose*.yml
+# Playwright scenarios import apps/api/test (excluded above), so the web image build must not see them
+apps/web/e2e
+apps/web/playwright.config.ts

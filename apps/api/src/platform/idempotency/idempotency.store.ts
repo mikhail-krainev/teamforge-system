@@ -19,6 +19,8 @@ export interface AcquireInput {
 export interface ResponseRecord {
   status: number;
   body: unknown;
+  /** True when body is the raw result of the business transaction, not the final HTTP body. */
+  provisional?: boolean;
 }
 
 /**
@@ -94,6 +96,7 @@ export class IdempotencyStore {
         status: 'completed',
         responseStatus: response.status,
         responseBody: response.body ?? null,
+        responseProvisional: response.provisional ?? false,
       })
       .where(
         and(
@@ -109,7 +112,8 @@ export class IdempotencyStore {
 
   /**
    * Replaces the stored response of a key that this request completed (same fencing token):
-   * the final HTTP body instead of the provisional transaction result.
+   * the final HTTP body instead of the provisional transaction result. Clears the provisional mark
+   * in the same statement, so a replay sees either the raw result with the mark or the final body.
    */
   async overwriteResponse(
     ref: { userId: string; key: string; lockToken: string },
@@ -117,7 +121,11 @@ export class IdempotencyStore {
   ): Promise<boolean> {
     const rows = await this.db
       .update(idempotencyKey)
-      .set({ responseStatus: response.status, responseBody: response.body ?? null })
+      .set({
+        responseStatus: response.status,
+        responseBody: response.body ?? null,
+        responseProvisional: false,
+      })
       .where(
         and(
           eq(idempotencyKey.userId, ref.userId),

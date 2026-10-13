@@ -38,3 +38,10 @@ export function twoTeams(): { a: UserFixture; b: UserFixture; teamA: string; tea
     teamB: uuidFor('team:b'),
   };
 }
+
+// Slice 2 (auth and profiles): callers, profile and resume builders, the operation table.
+// The test world with the database, the application and the doubles is `./world.js` (imported
+// directly: it depends on this file for `user()`).
+export * from './clients.js';
+export * from './operations.js';
+export * from './profiles.js';

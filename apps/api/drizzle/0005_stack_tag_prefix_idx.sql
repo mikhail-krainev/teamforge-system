@@ -1,0 +1,1 @@
+CREATE INDEX "stack_tag_code_prefix_idx" ON "profiles"."stack_tag" USING btree ("code" text_pattern_ops);
