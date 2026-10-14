@@ -54,13 +54,17 @@ export class OfferRepository {
     await this.tx.tx.update(seatOffer).set({ status, decidedAt }).where(eq(seatOffer.id, offerId));
   }
 
-  /** An overdue pending row keeps its slot in `seat_offer_pending_uq`; free it before a new one. */
-  async expireStale(seatId: string, userId: string, now: Date): Promise<void> {
+  /**
+   * An overdue pending row keeps its slot in `seat_offer_pending_uq`; free it before a new one.
+   * Touches offer rows (lock #3): call it before lock #4 (team) is taken, never under it.
+   */
+  async expireStale(teamId: string, seatId: string, userId: string, now: Date): Promise<void> {
     await this.tx.tx
       .update(seatOffer)
       .set({ status: 'expired', decidedAt: now })
       .where(
         and(
+          eq(seatOffer.teamId, teamId),
           eq(seatOffer.seatId, seatId),
           eq(seatOffer.userId, userId),
           eq(seatOffer.status, 'pending'),

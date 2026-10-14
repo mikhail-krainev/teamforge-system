@@ -50,7 +50,12 @@ export class OffersService {
     @Inject(TeamLeadLock) private readonly leadLock: TeamLeadLock,
   ) {}
 
-  /** The addressee is checked before BEGIN (reference read); the 30-per-team limit under lock #4. */
+  /**
+   * The addressee is checked before BEGIN (reference read); the 30-per-team limit under lock #4.
+   * An operation is exactly one transaction (S1R-02), so the overdue offer of the same (seat, user)
+   * is retired first in it, at lock level #3 and before lock #4 is taken: the order of
+   * acceptSeatOffer is #3 -> #4 and the two cannot deadlock (S3CR-01).
+   */
   async createOffer(leadId: string, teamId: string, body: OfferBody): Promise<OfferDto> {
     const identity = await this.auth.getIdentity(body.userId);
     if (identity === null) throw new DomainError('NOT_FOUND', 404);
@@ -63,10 +68,12 @@ export class OffersService {
     teamId: string,
     body: OfferBody,
   ): Promise<OfferDto> {
+    // Scoped to the team of the path (the policy `team-lead` has authorized the caller for it).
+    const now = this.clock.now();
+    await this.offers.expireStale(teamId, body.seatId, body.userId, now);
     const team = await this.leadLock.lock(teamId, leadId);
     if (!JOINABLE_STATUSES.includes(team.status)) throw new DomainError('INVALID_STATE', 409);
     const roleCode = await this.openSeatRole(teamId, body.seatId);
-    const now = this.clock.now();
     await this.assertNoDuplicate(body.seatId, body.userId, now);
     if ((await this.offers.countPendingOffers(teamId, now)) >= MAX_PENDING_OFFERS_PER_TEAM) {
       throw new DomainError('OFFER_LIMIT', 409);
@@ -98,6 +105,8 @@ export class OffersService {
       throw new DomainError('ALREADY_MEMBER', 409);
     }
     const now = this.clock.now();
+    // Lock #1 only (no team lock) is held here, so retiring the row (#3) follows the lock order.
+    await this.offers.expireStale(teamId, body.seatId, userId, now);
     await this.assertNoDuplicate(body.seatId, userId, now);
     if ((await this.offers.countPendingRequests(userId, now)) >= MAX_PENDING_REQUESTS_PER_USER) {
       throw new DomainError('OFFER_LIMIT', 409);
@@ -116,9 +125,8 @@ export class OffersService {
     return seat.roleCode;
   }
 
-  /** One pending offer or request per (seat, user); an overdue one is retired first. */
+  /** One pending offer or request per (seat, user); an overdue one does not count. */
   private async assertNoDuplicate(seatId: string, userId: string, now: Date): Promise<void> {
-    await this.offers.expireStale(seatId, userId, now);
     if (await this.offers.hasPending(seatId, userId, now)) {
       throw new DomainError('INVALID_STATE', 409);
     }

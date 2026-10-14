@@ -156,6 +156,45 @@ describeInfra(
       expect(await activeInvitations(world, t.id)).toBe(20);
     });
 
+    it('12.3 (S3CR-01): accepting an expired offer against creating a new offer for the same seat and user -> no deadlock, one live offer', async () => {
+      const t = await team(world, { openSeats: 1 });
+      const seat = t.openSeats[0];
+      if (!seat) throw new Error('no seat');
+      const candidate = await githubUser(world, 'race-expired-offer');
+      const old = expectOk<{ id: string }>(
+        'createSeatOffer',
+        await world
+          .as(t.lead)
+          .post(`/v1/teams/${t.id}/seat-offers`, { seatId: seat.id, userId: candidate.id }),
+        201,
+      );
+      clock.advance(8 * DAY);
+      const fired = await fireAll(N, (i, key) =>
+        i % 2 === 0
+          ? world
+              .as(candidate)
+              .post(`/v1/seat-offers/${old.id}/acceptance`, undefined, { idempotencyKey: key })
+          : world
+              .as(t.lead)
+              .post(
+                `/v1/teams/${t.id}/seat-offers`,
+                { seatId: seat.id, userId: candidate.id },
+                { idempotencyKey: key },
+              ),
+      );
+      const accepts = fired.filter((f) => f.index % 2 === 0);
+      const creates = fired.filter((f) => f.index % 2 === 1);
+      expect(accepts.every((f) => f.status === 409 && f.code === 'INVALID_STATE')).toBe(true);
+      expect(creates.filter((f) => f.status === 201)).toHaveLength(1);
+      expect(creates.filter((f) => f.status !== 201).every((f) => f.status === 409)).toBe(true);
+      expect(codesAt(creates, 409)).toEqual(['INVALID_STATE']);
+      const rows = await world.sql<{ id: string; status: string }[]>`
+        SELECT id, status FROM teams.seat_offer WHERE seat_id = ${seat.id} AND user_id = ${candidate.id}`;
+      expect(rows.find((r) => r.id === old.id)?.status).toBe('expired');
+      expect(rows.filter((r) => r.status === 'pending')).toHaveLength(1);
+      expect(await seatStatus(world, seat.id)).toBe('open');
+    });
+
     it('12.3 (C-14): the lead decision against the default timer -> one final decision, never two', async () => {
       const t = await team(world, { members: 3, openSeats: 0, status: 'active' });
       const leaver = t.members[0];
