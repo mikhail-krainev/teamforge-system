@@ -116,14 +116,14 @@ describe('HttpGithubLoginResolver (SEC-18)', () => {
     expect(await resolver.resolve('OctoCat', 'u2')).toEqual({ id: 583231, login: 'octocat' });
     expect(calls).toEqual(['octocat']);
     expect(limiter.hits.get('github-login:user:u2')).toBeUndefined();
-    expect(redis.ttls.get('gh_state:login:octocat')).toBe(3600);
+    expect(redis.ttls.get('gh_state:cache:login:octocat')).toBe(3600);
   });
 
   it('S3SEC-02: an unknown login is cached briefly, a GitHub failure is not cached', async () => {
     expect(await resolver.resolve('nobody', 'u1')).toBeNull();
     expect(await resolver.resolve('nobody', 'u1')).toBeNull();
     expect(calls).toEqual(['nobody']);
-    expect(redis.ttls.get('gh_state:login:nobody')).toBe(300);
+    expect(redis.ttls.get('gh_state:cache:login:nobody')).toBe(300);
     await resolver.resolve('limited', 'u1').catch(() => undefined);
     await resolver.resolve('limited', 'u1').catch(() => undefined);
     expect(calls.filter((c) => c === 'limited')).toHaveLength(2);

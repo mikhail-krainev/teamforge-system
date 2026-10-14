@@ -33,6 +33,9 @@ export function eligibleMembers(members: MemberRow[], now: Date): MemberRow[] {
   return settled.length > 0 ? settled : members;
 }
 
+/** Statuses of a team that can open a leader vote (architecture 8.1; `suspended` is the open point). */
+const VOTABLE_STATUSES: readonly string[] = ['forming', 'active', 'suspended'];
+
 /**
  * Opening of the leader vote (architecture 8.1, FR-TEAM-14). Always runs inside the transaction of
  * the trigger with the team locked (#4); `leader_vote_open_uq` is the last line of defence for CC-4.
@@ -62,11 +65,25 @@ export class VoteOpenService implements LeaderVoteOpenPort {
   async openFor(team: TeamRow, trigger: VoteTrigger, now: Date): Promise<OpenedVote | undefined> {
     if ((await this.votes.findOpen(team.id)) !== undefined) {
       // A vote is already running (CC-4); a leaving lead only stops being the lead.
-      if (trigger !== 'lead_inactive') await this.teams.update(team.id, { leadUserId: null });
+      if (trigger !== 'lead_inactive') {
+        await this.teams.update(team.id, {
+          leadUserId: null,
+          updatedAt: now,
+          version: team.version + 1,
+        });
+      }
       return undefined;
     }
-    if (team.status !== 'forming' && team.status !== 'active') {
-      if (trigger !== 'lead_inactive') await this.teams.update(team.id, { leadUserId: null });
+    // A suspended team keeps its place in the vote (it comes back to `suspended` when the vote
+    // closes, `status_before_vote`); any other status cannot lose its lead to a vote.
+    if (!VOTABLE_STATUSES.includes(team.status)) {
+      if (trigger !== 'lead_inactive') {
+        await this.teams.update(team.id, {
+          leadUserId: null,
+          updatedAt: now,
+          version: team.version + 1,
+        });
+      }
       return undefined;
     }
     const members = await this.votes.activeMembers(team.id);

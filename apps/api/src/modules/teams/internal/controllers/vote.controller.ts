@@ -29,9 +29,7 @@ export class VoteController {
     @Param('teamId') teamId: string,
     @Query() query: VotesQuery,
   ): Promise<Ok<'listLeaderVotes'>> {
-    const userId = requireUserId(this.cls);
-    await this.leadReturn.leadReturned(teamId, userId);
-    return this.query.list(userId, teamId, query);
+    return this.query.list(requireUserId(this.cls), teamId, query);
   }
 
   @Get('leader-vote-requests')
@@ -88,6 +86,16 @@ export class VoteController {
     @Body() body: BodyOf<'castBallot'>,
   ): Promise<Ok<'castBallot'>> {
     return this.ballots.cast(requireUserId(this.cls), teamId, voteId, body);
+  }
+
+  @Post('leader-votes/:voteId/lead-return')
+  @HttpCode(200)
+  @Authz('returnAsLead')
+  returnAsLead(
+    @Param('teamId') teamId: string,
+    @Param('voteId') voteId: string,
+  ): Promise<Ok<'returnAsLead'>> {
+    return this.leadReturn.returnAsLead(requireUserId(this.cls), teamId, voteId);
   }
 
   @Post('leader-votes/:voteId/offer-responses')

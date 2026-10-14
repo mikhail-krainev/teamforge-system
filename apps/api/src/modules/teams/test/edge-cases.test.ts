@@ -5,6 +5,7 @@ import {
   expectOk,
   githubUser,
   leaderVote,
+  passDeadline,
   team,
   type DepartureDto,
   type InvitationDto,
@@ -14,6 +15,7 @@ import {
 import {
   activeMembershipsOf,
   activeMemberships,
+  eventCount,
   openVotes,
   seatStatus,
   teamRow,
@@ -132,7 +134,7 @@ describeInfra('S3 teams: edge cases (S3-14)', ['db', 'redis'], () => {
       );
     });
 
-    it('FR-TEAM-16: a ballot for a candidate who withdrew meanwhile -> 404; the earlier ballot of another voter stays', async () => {
+    it('FR-TEAM-16: a ballot for a candidate who withdrew meanwhile -> 409 INVALID_STATE; the earlier ballot of another voter stays', async () => {
       const f = await leaderVote(world, { phase: 'voting' });
       const [b, c, d] = [eligibleAt(f, 0), eligibleAt(f, 1), eligibleAt(f, 2)];
       const url = `${voteBase(f)}/ballots`;
@@ -146,8 +148,8 @@ describeInfra('S3 teams: edge cases (S3-14)', ['db', 'redis'], () => {
       expectProblem(
         'castBallot',
         await world.as(d).post(url, { candidateUserId: b.id }),
-        404,
-        'NOT_FOUND',
+        409,
+        'INVALID_STATE',
       );
       expect((await currentVote(world, d, f.team.id)).ballotsCast).toBe(1);
     });
@@ -190,6 +192,20 @@ describeInfra('S3 teams: edge cases (S3-14)', ['db', 'redis'], () => {
   });
 
   describe('leaving: the last member and candidates (FR-TEAM-11, -14, -20)', () => {
+    it('FR-TEAM-14: the lead of a suspended team leaves: the team is not left silently without a lead, a vote opens and gives the team back to `suspended` afterwards', async () => {
+      const t = await team(world, { members: 3, openSeats: 0, status: 'active' });
+      await world.sql`UPDATE teams.team SET status = 'suspended', suspended_at = now() WHERE id = ${t.id}`;
+      const before = await teamRow(world, t.id);
+      expectOk('leaveTeam', await world.as(t.lead).delete(`/v1/teams/${t.id}/members/me`), 204);
+      expect(await openVotes(world, t.id)).toBe(1);
+      const after = await teamRow(world, t.id);
+      expect(after).toMatchObject({ status: 'voting', lead_user_id: null });
+      expect(after.version).toBeGreaterThan(before.version);
+      const [{ status_before_vote }] = await world.sql<{ status_before_vote: string }[]>`
+        SELECT status_before_vote FROM teams.team WHERE id = ${t.id}`;
+      expect(status_before_vote).toBe('suspended');
+    });
+
     it('FR-TEAM-14: the last member leaves: the team is archived, off the catalog and nothing can join it any more', async () => {
       const t = await team(world, { members: 1, openSeats: 2 });
       const [seatA, seatB] = t.openSeats;
@@ -337,19 +353,28 @@ describeInfra('S3 teams: edge cases (S3-14)', ['db', 'redis'], () => {
       );
     });
 
-    it('FR-TEAM-16: a candidate leaves during the voting: his ballots still count, but a win cannot make him the lead -> offering', async () => {
+    it('FR-TEAM-16, R-14: a candidate who leaves is withdrawn at once (journal), the ballots for him are refused (409 INVALID_STATE), the ones cast stay stored; with nobody left on the ballot the vote goes to offering', async () => {
       const f = await leaderVote(world, { phase: 'voting', members: 5 });
       const [b, c, d, e] = [eligibleAt(f, 0), eligibleAt(f, 1), eligibleAt(f, 2), eligibleAt(f, 3)];
-      await world.as(b).delete(`/v1/teams/${f.team.id}/members/me`);
       const url = `${voteBase(f)}/ballots`;
-      // eligible = 4: three ballots are a majority (> 2)
       expectOk('castBallot', await world.as(c).post(url, { candidateUserId: b.id }), 201);
-      expectOk('castBallot', await world.as(d).post(url, { candidateUserId: b.id }), 201);
-      expectOk('castBallot', await world.as(e).post(url, { candidateUserId: b.id }), 201);
-      const vote = await currentVote(world, c, f.team.id);
-      expect(vote.status).toBe('offering');
-      expect(vote.pendingOffer).toMatchObject({ kind: 'senior_offer' });
-      expect(vote.pendingOffer?.userId).not.toBe(b.id);
+      await world.as(b).delete(`/v1/teams/${f.team.id}/members/me`);
+      const after = await currentVote(world, c, f.team.id);
+      expect(after.candidates.find((x) => x.userId === b.id)?.withdrawn).toBe(true);
+      expect(await eventCount(world, f.team.id, 'candidacy_withdrawn')).toBe(1);
+      expectProblem(
+        'castBallot',
+        await world.as(d).post(url, { candidateUserId: b.id }),
+        409,
+        'INVALID_STATE',
+      );
+      expect((await currentVote(world, d, f.team.id)).ballotsCast).toBe(1);
+      // nobody is on the ballot, so no number of ballots can make him the lead
+      expect(after.status).toBe('voting');
+      const next = await passDeadline(world, e, f.team.id, 72 * 3_600_000);
+      expect(next.status).toBe('offering');
+      expect(next.pendingOffer).toMatchObject({ kind: 'senior_offer' });
+      expect(next.pendingOffer?.userId).not.toBe(b.id);
       expect(await teamRow(world, f.team.id)).toMatchObject({
         status: 'voting',
         lead_user_id: null,

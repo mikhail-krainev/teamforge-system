@@ -257,9 +257,9 @@ export class LeaderVoteRepository {
     await this.tx.tx.delete(voteRequest).where(eq(voteRequest.teamId, teamId));
   }
 
-  /** A candidate of this vote who has not been withdrawn yet (for departures of members). */
-  async withdrawCandidateIfAny(voteId: string, userId: string, at: Date): Promise<void> {
-    await this.tx.tx
+  /** A candidate of this vote who has not been withdrawn yet (for departures of members); `true` when one was. */
+  async withdrawCandidateIfAny(voteId: string, userId: string, at: Date): Promise<boolean> {
+    const rows = await this.tx.tx
       .update(voteCandidate)
       .set({ withdrawnAt: at })
       .where(
@@ -268,6 +268,8 @@ export class LeaderVoteRepository {
           eq(voteCandidate.userId, userId),
           isNull(voteCandidate.withdrawnAt),
         ),
-      );
+      )
+      .returning({ userId: voteCandidate.userId });
+    return rows.length > 0;
   }
 }

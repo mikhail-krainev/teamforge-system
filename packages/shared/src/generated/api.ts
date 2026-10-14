@@ -1019,7 +1019,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Голосования команды (текущее первым) */
+        /**
+         * Голосования команды (текущее первым)
+         * @description Только чтение: ничего не меняет (возврат тимлида отменяет голосование через returnAsLead).
+         */
         get: operations["listLeaderVotes"];
         put?: never;
         post?: never;
@@ -1118,7 +1121,7 @@ export interface paths {
         put?: never;
         /**
          * Проголосовать
-         * @description CC-4: один голос на человека в раунде (409 ALREADY_VOTED), 403 NOT_ELIGIBLE, 409 VOTE_PHASE. Может досрочно закрыть голосование.
+         * @description CC-4: один голос на человека в раунде (409 ALREADY_VOTED), 403 NOT_ELIGIBLE, 409 VOTE_PHASE. Кандидат снят (withdrawCandidacy) или вышел из команды - 409 INVALID_STATE; не кандидат - 404. Может досрочно закрыть голосование.
          */
         post: operations["castBallot"];
         delete?: never;
@@ -1138,6 +1141,26 @@ export interface paths {
         put?: never;
         /** Ответ на предложение стать тимлидом (победитель или старший участник) */
         post: operations["respondLeaderOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/teams/{teamId}/leader-votes/{voteId}/lead-return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Я вернулся: отменить голосование, открытое из-за моей неактивности
+         * @description Блокировки: команда -> голосование. Отменяет голосование (status=cancelled, outcome=cancelled_lead_returned), восстанавливает статус команды и обновляет lead_last_active_at. 409 INVALID_STATE, если голосование открыто не из-за неактивности (trigger != lead_inactive), уже закрыто или отменено, или в нём уже подан хотя бы один голос. Чтение голосований (listLeaderVotes) ничего не отменяет.
+         */
+        post: operations["returnAsLead"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5381,6 +5404,39 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+            429: components["responses"]["TooManyRequests"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    returnAsLead: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Ключ идемпотентности (UUID, генерируется клиентом один раз на намерение пользователя и переиспользуется при повторах). Хранится 24 ч (C-50) в области (пользователь, ключ). Тот же ключ с другим телом - 422 IDEMPOTENCY_KEY_REUSED; запрос ещё выполняется - 409 IDEMPOTENCY_IN_PROGRESS; повтор завершённого - сохранённый ответ с заголовком Idempotent-Replayed: true. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                teamId: components["parameters"]["TeamId"];
+                voteId: components["parameters"]["VoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderVote"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyRequests"];
             503: components["responses"]["ServiceUnavailable"];
         };

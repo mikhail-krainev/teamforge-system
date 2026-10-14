@@ -31,6 +31,7 @@ const VOTE_OPS = new Set<Slice3Operation>([
   'consentCandidacy',
   'withdrawCandidacy',
   'castBallot',
+  'returnAsLead',
   'respondLeaderOffer',
 ]);
 
@@ -207,7 +208,9 @@ describeInfra('S3 teams: authorization matrix from x-authz (IDOR, SEC-03)', ['db
         voteId: vote.voteId,
         userId: b.members[0]?.id ?? '',
       });
-      const response = await send(world.as(b.members[0] ?? b.lead), request);
+      // a lead operation is reached by the lead of team `b` only; a member would stop at 403
+      const caller = operationId === 'returnAsLead' ? b.lead : (b.members[0] ?? b.lead);
+      const response = await send(world.as(caller), request);
       expectProblem(operationId, response, 404, 'NOT_FOUND');
       const open = await countOf(world.sql<{ n: number }[]>`
         SELECT count(*)::int AS n FROM teams.vote_ballot WHERE vote_id = ${vote.voteId}`);
@@ -252,8 +255,9 @@ describeInfra('S3 teams: authorization matrix from x-authz (IDOR, SEC-03)', ['db
   });
 
   describe('(в) a role below the required one gets 403 with a code', () => {
-    const LEAD_OPS = OPERATIONS.filter((id) =>
-      idorMatrix(id).cases.some((c) => c.kind === 'low-role'),
+    // the vote operations run on the vote team, whose roster is not the one of team `a`
+    const LEAD_OPS = OPERATIONS.filter(
+      (id) => !VOTE_OPS.has(id) && idorMatrix(id).cases.some((c) => c.kind === 'low-role'),
     );
 
     it.each(LEAD_OPS)(
@@ -270,6 +274,19 @@ describeInfra('S3 teams: authorization matrix from x-authz (IDOR, SEC-03)', ['db
         expectProblem(operationId, response, 403, 'NOT_TEAM_LEAD');
       },
     );
+  });
+
+  describe('(в) returnAsLead: a member of the vote team who is not its lead', () => {
+    it('FR-TEAM-14: -> 403 NOT_TEAM_LEAD', async () => {
+      const lowRole = idorMatrix('returnAsLead').cases.find((c) => c.kind === 'low-role');
+      expect(lowRole, 'returnAsLead is a team-lead operation').toBeDefined();
+      const response = await send(
+        world.as(voteCaller),
+        requestForTeams('returnAsLead', contextOf('returnAsLead')),
+      );
+      if (lowRole) expectIdorResult(lowRole, response);
+      expectProblem('returnAsLead', response, 403, 'NOT_TEAM_LEAD');
+    });
   });
 
   describe('named cases of the plan', () => {
