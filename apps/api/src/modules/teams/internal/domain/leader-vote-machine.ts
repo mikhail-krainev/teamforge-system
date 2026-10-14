@@ -61,7 +61,9 @@ export type VoteEvent =
   /** The senior member declined or let the offer expire. */
   | { type: 'senior_declined'; membersLeft: number }
   /** The lead acted again (trigger `lead_inactive`); only before the first ballot. */
-  | { type: 'lead_returned'; ballotsCast: number };
+  | { type: 'lead_returned'; ballotsCast: number }
+  /** The last member left: nobody is left to lead or to vote, the team is archived (FR-TEAM-14). */
+  | { type: 'team_emptied' };
 
 export interface VoteTransition extends VoteState {
   /** Set when the vote reaches `closed` or `cancelled`. */
@@ -93,6 +95,9 @@ function next(state: VoteState, status: VoteStatus, extra: Extra = {}): VoteTran
 
 /** The next state, or `undefined` when the event is not allowed in the current phase. */
 export function transition(state: VoteState, event: VoteEvent): VoteTransition | undefined {
+  if (event.type === 'team_emptied') {
+    return isOpenStatus(state.status) ? next(state, 'closed', { outcome: 'archived' }) : undefined;
+  }
   switch (state.status) {
     case 'nominating':
       return fromNominating(state, event);

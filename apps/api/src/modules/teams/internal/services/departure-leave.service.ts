@@ -10,6 +10,10 @@ import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import { departureDueAt } from '../domain/departure-rules.js';
+import {
+  LEADER_VOTE_LEAVE_PORT,
+  type LeaderVoteLeavePort,
+} from '../ports/leader-vote-leave.port.js';
 import { LEADER_VOTE_OPEN_PORT, type LeaderVoteOpenPort } from '../ports/leader-vote-open.port.js';
 import { DepartureRepository } from '../repositories/departure.repository.js';
 import { JoinRepository } from '../repositories/join.repository.js';
@@ -23,6 +27,8 @@ interface RawTeam {
   id: string;
   status: string;
   lead_user_id: string | null;
+  /** C-02 counter as it was before this leave. */
+  member_count: number;
 }
 
 interface RawSeat {
@@ -41,7 +47,7 @@ interface Left {
 }
 
 /**
- * leaveTeam (FR-TEAM-11, -12, -14). Lock order: #1 user -> #4 team -> #5 seats -> #6 membership.
+ * leaveTeam (FR-TEAM-11, -12, -14). Lock order: #1 user -> #4 team -> #5 seats -> #6 membership -> #7 vote (taken by `LeaderVoteLeavePort`).
  * The seats of the leaver open again in the same transaction; a leaving member opens a `departure`
  * for the lead (default after 7 days, C-14); a leaving lead opens the leader vote through
  * `LeaderVoteOpenPort` (S3-07) and leaves no departure, because there is nobody to decide it.
@@ -57,6 +63,7 @@ export class DepartureLeaveService {
     @Inject(PinoLogger) private readonly logger: PinoLogger,
     @Inject(AUTH_API) private readonly auth: AuthApi,
     @Inject(LEADER_VOTE_OPEN_PORT) private readonly voteOpen: LeaderVoteOpenPort,
+    @Inject(LEADER_VOTE_LEAVE_PORT) private readonly voteLeave: LeaderVoteLeavePort,
     @Inject(JoinRepository) private readonly joins: JoinRepository,
     @Inject(SeatRepository) private readonly seats: SeatRepository,
     @Inject(DepartureRepository) private readonly departures: DepartureRepository,
@@ -93,10 +100,19 @@ export class DepartureLeaveService {
       });
     }
     const isLead = team.lead_user_id === userId;
-    const left = isLead
-      ? { departureId: null, dueAt: departureDueAt(now) }
-      : await this.openDecision({ teamId, userId, membershipId: member.id, seatIds }, now);
-    if (isLead) {
+    const { archived } = await this.voteLeave.afterLeave({
+      teamId,
+      userId,
+      remaining: team.member_count - 1,
+      wasLead: isLead,
+      at: now,
+    });
+    // An archived team has nobody to decide a departure, and a leaving lead leaves none anyway.
+    const left =
+      isLead || archived
+        ? { departureId: null, dueAt: departureDueAt(now) }
+        : await this.openDecision({ teamId, userId, membershipId: member.id, seatIds }, now);
+    if (isLead && !archived) {
       await this.voteOpen.open({ teamId, leaderUserId: userId, trigger: 'lead_left', at: now });
     }
     await this.record(teamId, userId, held, now);

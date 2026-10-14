@@ -5,7 +5,6 @@ import {
   expectOk,
   githubUser,
   leaderVote,
-  passDeadline,
   team,
   type DepartureDto,
   type InvitationDto,
@@ -22,7 +21,7 @@ import {
 import type { UserFixture } from '../../../../test/fixtures/index.js';
 import type { World } from '../../../../test/fixtures/world.js';
 import { FakeClock } from '../../../../test/helpers/clock.js';
-import { describeInfra, waitFor } from '../../../../test/helpers/infra.js';
+import { describeInfra } from '../../../../test/helpers/infra.js';
 import { startWorld } from './support.js';
 
 /**
@@ -288,69 +287,54 @@ describeInfra('S3 teams: edge cases (S3-14)', ['db', 'redis'], () => {
       expect(departures.items).toHaveLength(1);
     });
 
-    it('FR-TEAM-20 (known limitation): the winner who is asked to confirm leaves the team: the offer stays pending until its 24 hours pass', async () => {
+    it('FR-TEAM-20: the winner who is asked to confirm leaves the team: the offer counts as declined at once, the vote moves on without the 24 hours', async () => {
       const f = await leaderVote(world, { phase: 'confirming' });
       const [b, c] = [eligibleAt(f, 0), eligibleAt(f, 1)];
       expect(f.vote.pendingOffer).toMatchObject({ userId: b.id, kind: 'winner_confirmation' });
       expect((await world.as(b).delete(`/v1/teams/${f.team.id}/members/me`)).statusCode).toBe(204);
-      // Actual behavior: nothing re-asks on leaving; the vote is not advanced and waits for the deadline.
-      const waiting = await currentVote(world, c, f.team.id);
-      expect(waiting.status).toBe('confirming');
-      expect(waiting.pendingOffer).toMatchObject({ userId: b.id, kind: 'winner_confirmation' });
-      // The leaver cannot accept the lead role without being a member.
+      // Nothing waits for the deadline: the vote went on to the senior member, who is not b.
+      const next = await currentVote(world, c, f.team.id);
+      expect(next.status).toBe('offering');
+      expect(next.pendingOffer).toMatchObject({ kind: 'senior_offer' });
+      expect(next.pendingOffer?.userId).not.toBe(b.id);
+      // The team is still leaderless and voting meanwhile.
+      expect(await teamRow(world, f.team.id)).toMatchObject({
+        status: 'voting',
+        lead_user_id: null,
+      });
+    });
+
+    it('FR-TEAM-20: the winner who has left cannot answer any more: the offer is not his -> 403 NOT_ELIGIBLE, the vote stays where it moved', async () => {
+      const f = await leaderVote(world, { phase: 'confirming' });
+      const [b, c] = [eligibleAt(f, 0), eligibleAt(f, 1)];
+      await world.as(b).delete(`/v1/teams/${f.team.id}/members/me`);
       expectProblem(
         'respondLeaderOffer',
         await world.as(b).post(`${voteBase(f)}/offer-responses`, { accept: true }),
         403,
         'NOT_ELIGIBLE',
       );
-      expect((await currentVote(world, c, f.team.id)).status).toBe('confirming');
-      // The team is still leaderless and voting meanwhile.
-      expect(await teamRow(world, f.team.id)).toMatchObject({
-        status: 'voting',
-        lead_user_id: null,
-      });
-      // After the 24 hours the offer lapses and the vote moves on to the senior member, who is not b.
-      const next = await passDeadline(world, c, f.team.id, 25 * 3_600_000);
-      expect(next.status).toBe('offering');
-      expect(next.pendingOffer).toMatchObject({ kind: 'senior_offer' });
-      expect(next.pendingOffer?.userId).not.toBe(b.id);
-    });
-
-    it('FR-TEAM-20: the winner who has left can still decline: the vote moves on at once, without the 24 hours', async () => {
-      const f = await leaderVote(world, { phase: 'confirming' });
-      const [b, c] = [eligibleAt(f, 0), eligibleAt(f, 1)];
-      await world.as(b).delete(`/v1/teams/${f.team.id}/members/me`);
-      const declined = await world.as(b).post(`${voteBase(f)}/offer-responses`, { accept: false });
-      expect(declined.statusCode, declined.body).toBe(200);
       const next = await currentVote(world, c, f.team.id);
       expect(next.status).toBe('offering');
       expect(next.pendingOffer?.userId).not.toBe(b.id);
     });
 
-    it('FR-TEAM-20 (known limitation): the senior member asked to lead leaves: the offer hangs until the deadline, then goes to the next one', async () => {
+    it('FR-TEAM-20: the senior member asked to lead leaves: the offer counts as declined at once and goes to the next one', async () => {
       const f = await leaderVote(world, { phase: 'offering' });
       const senior = eligibleAt(f, 0);
       const viewer = eligibleAt(f, 1);
       expect(f.vote.pendingOffer).toMatchObject({ userId: senior.id, kind: 'senior_offer' });
       await world.as(senior).delete(`/v1/teams/${f.team.id}/members/me`);
-      const waiting = await currentVote(world, viewer, f.team.id);
-      expect(waiting.status).toBe('offering');
-      expect(waiting.pendingOffer?.userId).toBe(senior.id);
+      const next = await currentVote(world, viewer, f.team.id);
+      expect(next.status).toBe('offering');
+      expect(next.pendingOffer).toMatchObject({ kind: 'senior_offer' });
+      expect(next.pendingOffer?.userId).not.toBe(senior.id);
       expectProblem(
         'respondLeaderOffer',
         await world.as(senior).post(`${voteBase(f)}/offer-responses`, { accept: true }),
         403,
         'NOT_ELIGIBLE',
       );
-      clock.advance(25 * 3_600_000);
-      await world.runMaintenance('vote-deadline-scan');
-      const next = await waitFor(async () => {
-        const now = await currentVote(world, viewer, f.team.id);
-        return now.pendingOffer?.userId !== senior.id ? now : false;
-      }, 20_000);
-      expect(next.status).toBe('offering');
-      expect(next.pendingOffer).toMatchObject({ kind: 'senior_offer' });
     });
 
     it('FR-TEAM-16: a candidate leaves during the voting: his ballots still count, but a win cannot make him the lead -> offering', async () => {

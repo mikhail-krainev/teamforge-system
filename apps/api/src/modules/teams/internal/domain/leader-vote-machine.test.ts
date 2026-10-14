@@ -44,7 +44,21 @@ interface Row {
 
 const cancelled: Expected = { status: 'cancelled', outcome: 'cancelled_lead_returned' };
 
+const emptied: Expected = { status: 'closed', outcome: 'archived' };
+
 const TABLE: Row[] = [
+  ...(['nominating', 'voting', 'runoff', 'confirming', 'offering'] as const).map((status): Row => ({
+    name: `${status} -> closed (the last member left, archived)`,
+    from: s(status),
+    event: { type: 'team_emptied' },
+    to: emptied,
+  })),
+  ...(['closed', 'cancelled'] as const).map((status): Row => ({
+    name: `${status} ignores an emptied team`,
+    from: s(status),
+    event: { type: 'team_emptied' },
+    to: undefined,
+  })),
   {
     name: 'nominating -> voting',
     from: s('nominating'),

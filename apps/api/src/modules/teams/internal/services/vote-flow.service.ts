@@ -142,6 +142,17 @@ export class VoteFlowService {
     await this.land(vote, next, now, { candidates });
   }
 
+  /**
+   * The last member left (FR-TEAM-14): the vote ends with the team, so a pending offer is
+   * withdrawn and the vote closes as `archived`. The caller archives the team.
+   */
+  async closeEmptied(vote: LeaderVoteRow, offer: VoteOfferRow | undefined, now: Date) {
+    if (offer !== undefined) {
+      await this.votes.updateOffer(offer.id, { status: 'expired', answeredAt: now });
+    }
+    await this.persist(vote, this.must(this.stateOf(vote), { type: 'team_emptied' }), now, {});
+  }
+
   private async nominationOver(vote: LeaderVoteRow, now: Date): Promise<void> {
     const confirmed = (await this.votes.candidatesOf(vote.id)).filter(onBallot).length;
     const event: VoteEvent = { type: 'nomination_deadline', confirmedCandidates: confirmed };
