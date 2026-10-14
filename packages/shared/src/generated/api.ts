@@ -2879,6 +2879,8 @@ export interface components {
             id: string;
             type: string;
             payload: Record<string, never>;
+            /** @description Name of the person the notification is about (who joined, left or became the lead), resolved at read time from the profile (SEC-11: the row keeps ids only); a deleted user is shown as "Удалённый пользователь". Absent when the type has no such person. */
+            actorDisplayName?: string;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -47,6 +48,30 @@ describe('FR-TEAM-11: leaving the team', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Да, выйти' }));
     expect(await screen.findByText(/Вы вышли из команды/)).toBeTruthy();
     expect(calls).toBe(1);
+  });
+
+  it('keeps the confirmation when the refreshed roster no longer lists the user', async () => {
+    server.use(http.delete(LEAVE, () => new HttpResponse(null, { status: 204 })));
+    const team = sampleTeam();
+    const view = renderWithClient(
+      <TeamActions team={team} meId={LEAD_ID} roles={roles} isLead={true} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Выйти из команды' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Да, выйти' }));
+    expect(await screen.findByText(/Вы вышли из команды/)).toBeTruthy();
+    // The realtime event refetches the team: the leaver is gone from the roster.
+    const members = team.members.map((m) => (m.userId === LEAD_ID ? { ...m, status: 'left' } : m));
+    view.rerender(
+      <QueryClientProvider client={view.client}>
+        <TeamActions
+          team={{ ...team, members } as typeof team}
+          meId={LEAD_ID}
+          roles={roles}
+          isLead={false}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText(/Вы вышли из команды/)).toBeTruthy();
   });
 
   it('cancel keeps the member in the team', () => {

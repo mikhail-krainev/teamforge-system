@@ -48,6 +48,9 @@ export const teamPageUi = {
   startConfirm: (p: Page): Locator => p.getByRole('button', { name: /да, начать/i }),
   leave: (p: Page): Locator => p.getByRole('button', { name: /выйти из команды/i }),
   leaveConfirm: (p: Page): Locator => p.getByRole('button', { name: /да, выйти/i }),
+  /** After leaving the team page stays and shows a confirmation with a link to the catalog (no redirect). */
+  left: (p: Page): Locator => p.getByText(/вы вышли из команды/i),
+  toTeams: (p: Page): Locator => p.getByRole('link', { name: /к списку команд/i }),
 };
 
 export const invitationUi = {

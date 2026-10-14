@@ -206,6 +206,9 @@ export async function aLeavesAndTheVoteOpens(): Promise<void> {
   await a.session.page.goto(ROUTES.team(world.teamId));
   await teamPageUi.leave(a.session.page).click();
   await teamPageUi.leaveConfirm(a.session.page).click();
+  // The page stays and confirms (it must survive the roster refetch), then A goes to the catalog.
+  await expect(teamPageUi.left(a.session.page)).toBeVisible();
+  await teamPageUi.toTeams(a.session.page).click();
   await a.session.page.waitForURL((url) => !url.pathname.startsWith(`/teams/${world.teamId}`), {
     timeout: 30_000,
   });
@@ -221,6 +224,8 @@ export async function bNominatesHimself(): Promise<void> {
   const { page } = person('b').session;
   await voteUi.nominateSelf(page).click();
   await voteUi.consent(page).click();
+  // The click only starts the request: the button disappears once the candidacy is confirmed.
+  await expect(voteUi.consent(page)).toBeHidden();
   const votes = await get<{
     items: { status: string; candidates: { userId: string; confirmed: boolean }[] }[];
   }>(person('b'), `/v1/teams/${world.teamId}/leader-votes`);
@@ -244,7 +249,13 @@ export async function bAndCVoteForB(): Promise<void> {
   await expect(voteUi.voted(b.session.page)).toBeVisible();
   await c.session.page.goto(ROUTES.vote(world.teamId));
   await voteUi.voteFor(c.session.page, b.name).click();
-  await expect(voteUi.voted(c.session.page)).toBeVisible();
+  // C casts the deciding vote: the ballot closes at once and the page may jump straight from
+  // "your vote is counted" to the confirmation phase, so either screen proves that the vote was taken.
+  await expect(
+    voteUi.voted(c.session.page).or(
+      voteUi.phase(c.session.page).filter({ hasText: voteUi.phaseText.confirming }),
+    ),
+  ).toBeVisible();
   // 2 of 3 is more than N/2: the vote closes early and asks the winner to confirm (FR-TEAM-17).
   await expect(voteUi.phase(b.session.page)).toContainText(voteUi.phaseText.confirming, {
     timeout: 20_000,

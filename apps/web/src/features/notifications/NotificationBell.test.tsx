@@ -108,6 +108,19 @@ describe('notification bell', () => {
     expect(items[1]!.textContent).toContain('Новое уведомление');
   });
 
+  it('names the person from actorDisplayName and falls back to plain text without it', async () => {
+    serve([
+      note({ type: 'member_joined', actorDisplayName: 'Борис Второв' }),
+      note({ type: 'member_joined' }),
+    ]);
+    renderWithClient(<NotificationBell />);
+    fireEvent.click(await bell());
+    const menu = await screen.findByRole('menu');
+    const items = within(menu).getAllByRole('menuitem');
+    expect(items[0]!.textContent).toContain('В команду вступил участник Борис Второв');
+    expect(items[1]!.textContent).toContain('В команду вступил новый участник');
+  });
+
   it('pages through the list by cursor', async () => {
     serve([note(), note(), note()]);
     renderWithClient(<NotificationBell />);

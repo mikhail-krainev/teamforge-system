@@ -9,6 +9,7 @@ interface NotificationDto {
   id: string;
   type: string;
   payload: Record<string, unknown>;
+  actorDisplayName?: string;
   createdAt: string;
   readAt: string | null;
 }
@@ -65,6 +66,21 @@ describeInfra('S3 workspace: notifications (FR-WORK-19)', ['db', 'redis'], () =>
     const { candidate } = await offerToCandidate('notify-mail');
     const message = await world.mail.latestTo(candidate.email, { minCount: 1 });
     expect(message.subject.length).toBeGreaterThan(0);
+  });
+
+  it('FR-WORK-19, SEC-11: the name of the new member is resolved at read time, never stored in the row', async () => {
+    const t = await team(world, { members: 2, openSeats: 1 });
+    const member = t.members[0];
+    if (!member) throw new Error('no member');
+    const joined = await waitFor(async () => {
+      const items = await list(t.lead);
+      return items.find((n) => n.type === 'member_joined' && n.payload['userId'] === member.id);
+    }, 20_000);
+    // The fixture user has no profile, so the read-time lookup yields the deleted-user placeholder.
+    expect(joined.actorDisplayName).toBe('Удалённый пользователь');
+    expect(JSON.stringify(joined.payload)).not.toContain(member.displayName);
+    const offer = await offerToCandidate('notify-no-actor');
+    expect(offer.notification.actorDisplayName).toBeUndefined();
   });
 
   it('FR-WORK-19: the lead is notified of a new join request', async () => {

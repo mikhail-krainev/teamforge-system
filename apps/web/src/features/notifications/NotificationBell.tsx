@@ -28,9 +28,15 @@ export function notificationHref(item: Pick<Notification, 'type' | 'payload'>): 
   return /vote|leader/.test(item.type) ? `/teams/${teamId}/vote` : `/teams/${teamId}`;
 }
 
-function notificationText(type: string): string {
-  const key = `notifications.types.${type.replace(/[^a-z0-9_]/gi, '_')}`;
-  return hasMessage(key) ? t(key) : t('notifications.generic');
+/**
+ * Text of a notification. The person's name arrives as `actorDisplayName` (resolved by the api at
+ * read time, SEC-11); types with a "_actor" template use it, others fall back to the plain text.
+ */
+function notificationText(item: Pick<Notification, 'type' | 'actorDisplayName'>): string {
+  const base = `notifications.types.${item.type.replace(/[^a-z0-9_]/gi, '_')}`;
+  const named = `${base}_actor`;
+  if (item.actorDisplayName && hasMessage(named)) return t(named, { name: item.actorDisplayName });
+  return hasMessage(base) ? t(base) : t('notifications.generic');
 }
 
 function BellIcon() {
@@ -57,7 +63,7 @@ function ItemBody({ item, unread }: { item: Notification; unread: boolean }) {
   return (
     <>
       <span className={unread ? 'bell-item-text bell-item-unread' : 'bell-item-text'}>
-        {notificationText(item.type)}
+        {notificationText(item)}
       </span>
       <span className="muted bell-item-meta">
         {unread ? `${t('notifications.unreadMark')} · ` : ''}

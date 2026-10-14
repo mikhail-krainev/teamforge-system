@@ -27,6 +27,10 @@
     "vote_closed": "Голосование за тимлида завершено",
     "leader_offer": "Вам предложена роль тимлида",
     "auto_added": "Вас добавили в команду автоматически",
+    "invitation_accepted_actor": "Приглашение принято: {name}",
+    "member_joined_actor": "В команду вступил участник {name}",
+    "member_left_actor": "Участник {name} покинул команду",
+    "lead_changed_actor": "Новый тимлид команды: {name}",
     "team_started": "Команда начала работу над проектом"
   }
 }

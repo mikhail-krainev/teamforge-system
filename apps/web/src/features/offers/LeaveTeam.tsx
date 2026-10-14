@@ -42,24 +42,34 @@ function LeaveConfirm({ pending, onConfirm, onCancel }: ConfirmProps) {
   );
 }
 
-/** Leave the team after an explicit confirmation; an inconclusive failure is retried with the same key. */
-export function LeaveTeam({ teamId }: { teamId: string }) {
+/** The confirmation shown after leaving, with a way out of the team page. */
+export function LeftNotice() {
+  return (
+    <Alert tone="success">
+      {t('offers.leave.done')} <Link href="/teams">{t('offers.leave.toTeams')}</Link>
+    </Alert>
+  );
+}
+
+/**
+ * Leave the team after an explicit confirmation; an inconclusive failure is retried with the same key.
+ * `onLeft` lets the parent keep the confirmation: once the roster refetch (realtime event) shows the
+ * user is no longer a member, this component is unmounted and its own success state would be lost.
+ */
+export function LeaveTeam({ teamId, onLeft }: { teamId: string; onLeft?: () => void }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const leave = useIdempotentMutation({
     mutationFn: (_: void, key) => leaveTeam(teamId, key),
     onSuccess: async () => {
       setConfirming(false);
+      onLeft?.();
       // The detail query is left alone: after leaving, a refetch may be refused and would hide the message.
       await queryClient.invalidateQueries({ queryKey: ['teams', 'list'] });
     },
   });
   if (leave.isSuccess) {
-    return (
-      <Alert tone="success">
-        {t('offers.leave.done')} <Link href="/teams">{t('offers.leave.toTeams')}</Link>
-      </Alert>
-    );
+    return <LeftNotice />;
   }
   const ask = () => {
     leave.reset();
