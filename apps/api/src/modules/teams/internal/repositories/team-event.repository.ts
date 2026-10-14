@@ -19,6 +19,22 @@ export class TeamEventRepository {
     if (rows.length > 0) await this.tx.tx.insert(teamEvent).values(rows);
   }
 
+  /** Who held the lead when the vote opened (`vote_opened` is written before the lead is cleared). */
+  async leadAtOpening(teamId: string, voteId: string): Promise<string | null> {
+    const rows = await this.tx.tx
+      .select({ actor: teamEvent.actorUserId })
+      .from(teamEvent)
+      .where(
+        and(
+          eq(teamEvent.teamId, teamId),
+          eq(teamEvent.type, 'vote_opened'),
+          sql`${teamEvent.payload}->>'voteId' = ${voteId}`,
+        ),
+      )
+      .limit(1);
+    return rows[0]?.actor ?? null;
+  }
+
   /** Newest first, keyset `(at, id)`; served by `team_event_team_idx`. */
   list(teamId: string, after: EventCursor | undefined, limit: number): Promise<TeamEventRow[]> {
     return this.tx.tx

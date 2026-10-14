@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { ACTIVE_PROJECT_STATUSES } from '../domain/team-rules.js';
 import { membership, seatAssignment, team } from '../schema/teams.js';
@@ -28,6 +28,23 @@ export class TeamRepository {
 
   async update(teamId: string, set: Partial<typeof team.$inferInsert>): Promise<void> {
     await this.tx.tx.update(team).set(set).where(eq(team.id, teamId));
+  }
+
+  /** Teams suspended for want of a lead (FR-TEAM-20) since `cutoff` or earlier, the oldest first. */
+  async suspendedSince(reason: string, cutoff: Date, limit: number): Promise<string[]> {
+    const rows = await this.tx.tx
+      .select({ id: team.id })
+      .from(team)
+      .where(
+        and(
+          eq(team.status, 'suspended'),
+          eq(team.statusReason, reason),
+          lte(team.suspendedAt, cutoff),
+        ),
+      )
+      .orderBy(team.suspendedAt)
+      .limit(limit);
+    return rows.map((r) => r.id);
   }
 
   /** C-04 counter: open + filled seats; the caller holds the team lock. */

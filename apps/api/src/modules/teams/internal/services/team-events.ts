@@ -19,6 +19,7 @@ export type JournalType =
   | 'invitation_revoked'
   | 'vote_opened'
   | 'vote_cancelled'
+  | 'vote_tie_break'
   | 'lead_changed'
   | 'candidate_nominated'
   | 'candidacy_confirmed'

@@ -9,6 +9,7 @@ import {
   openingCase,
   type VoteTrigger,
 } from '../domain/leader-vote-machine.js';
+import { VoteTimers } from '../jobs/vote-deadline.js';
 import type { LeaderVoteOpenInput, LeaderVoteOpenPort } from '../ports/leader-vote-open.port.js';
 import { LeaderVoteRepository, type MemberRow } from '../repositories/leader-vote.repository.js';
 import { TeamEventRepository } from '../repositories/team-event.repository.js';
@@ -44,6 +45,7 @@ export class VoteOpenService implements LeaderVoteOpenPort {
     @Inject(TeamRepository) private readonly teams: TeamRepository,
     @Inject(LeaderVoteRepository) private readonly votes: LeaderVoteRepository,
     @Inject(TeamEventRepository) private readonly events: TeamEventRepository,
+    @Inject(VoteTimers) private readonly timers: VoteTimers,
   ) {}
 
   /** Port entry: the lead has just left (or deleted the account) and is already off the roster. */
@@ -168,6 +170,7 @@ export class VoteOpenService implements LeaderVoteOpenPort {
     now: Date,
   ): Promise<OpenedVote> {
     const voteId = uuidv7();
+    const nominationEnds = new Date(now.getTime() + NOMINATION_MS);
     await this.votes.insertVote({
       id: voteId,
       teamId: team.id,
@@ -175,7 +178,7 @@ export class VoteOpenService implements LeaderVoteOpenPort {
       status: 'nominating',
       round: 1,
       openedAt: now,
-      phaseDeadline: new Date(now.getTime() + NOMINATION_MS),
+      phaseDeadline: nominationEnds,
       votingDeadline: new Date(now.getTime() + VOTING_MS),
       eligibleCount: eligible.length,
     });
@@ -197,15 +200,25 @@ export class VoteOpenService implements LeaderVoteOpenPort {
       },
     ]);
     await this.outbox.publishMany([
-      teamsEvent('team_status_changed', team.id, {
-        teamId: team.id,
-        from: team.status,
-        to: 'voting',
-        reason: 'leader_vote',
-      }),
+      this.statusChanged(team, 'voting'),
       this.voteUpdated(team.id, voteId, 'nominating', 1),
     ]);
+    await this.timers.scheduleDeadline({
+      id: voteId,
+      status: 'nominating',
+      round: 1,
+      phaseDeadline: nominationEnds,
+    });
     return { voteId, status: 'nominating' };
+  }
+
+  private statusChanged(team: TeamRow, to: string) {
+    return teamsEvent('team_status_changed', team.id, {
+      teamId: team.id,
+      from: team.status,
+      to,
+      reason: 'leader_vote',
+    });
   }
 
   voteUpdated(teamId: string, voteId: string, status: string, round: number) {

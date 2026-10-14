@@ -11,6 +11,7 @@ import {
 } from '../repositories/leader-vote.repository.js';
 import { TeamEventRepository } from '../repositories/team-event.repository.js';
 import { type LeaderVoteDto } from './vote-dto.js';
+import { VoteFlowService } from './vote-flow.service.js';
 import { VoteQueryService } from './vote-query.service.js';
 import { journalRow, teamsEvent } from './team-events.js';
 
@@ -20,8 +21,8 @@ interface RawVote {
   status: string;
 }
 
-/** Phases in which a candidacy can be withdrawn here; `confirming` belongs to the offer flow (S3-08). */
-const WITHDRAW_PHASES = ['nominating', 'voting', 'runoff'];
+/** Phases in which a candidacy can be withdrawn; in `confirming` it counts as declining the offer. */
+const WITHDRAW_PHASES = ['nominating', 'voting', 'runoff', 'confirming'];
 
 /**
  * nominateCandidate, consentCandidacy, withdrawCandidacy (FR-TEAM-15, -16).
@@ -37,6 +38,7 @@ export class VoteNominateService {
     @Inject(LeaderVoteRepository) private readonly votes: LeaderVoteRepository,
     @Inject(TeamEventRepository) private readonly events: TeamEventRepository,
     @Inject(VoteQueryService) private readonly query: VoteQueryService,
+    @Inject(VoteFlowService) private readonly flow: VoteFlowService,
   ) {}
 
   async nominate(
@@ -97,8 +99,22 @@ export class VoteNominateService {
       const now = this.clock.now();
       await this.votes.updateCandidate(voteId, userId, { withdrawnAt: now });
       await this.record(vote, 'candidacy_withdrawn', userId, { candidateUserId: userId }, now);
+      if (vote.status === 'confirming') await this.declinePendingOffer(teamId, voteId, userId, now);
     });
     return this.query.get(userId, teamId, voteId);
+  }
+
+  /** Withdrawing the winner who is being asked equals declining: the next one by votes is asked (8.2). */
+  private async declinePendingOffer(
+    teamId: string,
+    voteId: string,
+    userId: string,
+    now: Date,
+  ): Promise<void> {
+    const offer = await this.votes.pendingOffer(voteId);
+    const row = await this.votes.find(teamId, voteId);
+    if (offer?.userId !== userId || row === undefined) return;
+    await this.flow.answer(row, offer, 'declined', now);
   }
 
   /** #4 team, then #7 vote; a vote of another team is "not found". */

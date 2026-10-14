@@ -102,6 +102,7 @@ describeInfra(
           'orphan-objects',
           'outbox-cleanup',
           'resume-stuck-scan',
+          'vote-deadline-scan',
         ]);
       } finally {
         await worker.close();
