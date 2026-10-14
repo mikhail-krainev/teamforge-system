@@ -85,7 +85,7 @@ export class InvitationService {
     teamId: string,
     body: CreateBody,
   ): Promise<{ invitation: InvitationDto; token: string }> {
-    const addressee = await this.addressee(body);
+    const addressee = await this.addressee(leadId, teamId, body);
     const token = newInvitationToken();
     const invitation = await this.tx.run(() =>
       this.createInTx(leadId, teamId, body.seatId, addressee, token),
@@ -93,12 +93,15 @@ export class InvitationService {
     return { invitation, token };
   }
 
-  private async addressee(body: CreateBody): Promise<Addressee> {
+  private async addressee(leadId: string, teamId: string, body: CreateBody): Promise<Addressee> {
     if (body.inviteeGithubLogin !== undefined && body.inviteeEmail !== undefined) {
       throw invalid('/inviteeEmail', 'one_addressee', 'Give either a GitHub login or an e-mail');
     }
     if (body.inviteeGithubLogin !== undefined) {
-      const found = await this.github.resolve(body.inviteeGithubLogin);
+      // The limit C-13 is read first (outside any transaction): a full team never spends a GitHub
+      // call. The authoritative count is still taken under lock #4 in createInTx (S3SEC-02).
+      await this.assertBelowInvitationLimit(teamId);
+      const found = await this.github.resolve(body.inviteeGithubLogin, leadId);
       if (found === null) {
         throw invalid('/inviteeGithubLogin', 'unknown_login', 'GitHub does not know this login');
       }
@@ -108,6 +111,12 @@ export class InvitationService {
       return { github: null, emailHmac: this.auth.hmacOfEmail(body.inviteeEmail) };
     }
     return { github: null, emailHmac: null };
+  }
+
+  private async assertBelowInvitationLimit(teamId: string): Promise<void> {
+    if ((await this.invitations.countActive(teamId, this.clock.now())) >= MAX_ACTIVE_INVITATIONS) {
+      throw new DomainError('INVITATION_LIMIT', 409);
+    }
   }
 
   /** Lock #4; the limit C-13 is counted under it, so 20 parallel requests cannot all pass. */

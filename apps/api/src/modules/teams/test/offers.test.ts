@@ -393,6 +393,30 @@ describeInfra(
       });
     });
 
+    describe('journal of offers', () => {
+      it('S3SEC-05: members do not see the candidate of an offer_created event, the lead does', async () => {
+        const t = await team(world, { members: 2, openSeats: 1 });
+        const seat = t.openSeats[0];
+        const member = t.members[0];
+        if (!seat || !member) throw new Error('no seat or member');
+        const candidate = await githubUser(world, 'journal-candidate');
+        expectOk('createSeatOffer', await offerOn(t.lead, t.id, seat.id, candidate.id), 201);
+        type Item = { type: string; actorUserId: string | null; payload: Record<string, unknown> };
+        const journal = async (who: Parameters<World['as']>[0]) =>
+          expectOk<{ items: Item[] }>(
+            'listTeamEvents',
+            await world.as(who).get(`/v1/teams/${t.id}/events`),
+            200,
+          ).items.filter((e) => e.type === 'offer_created' && e.payload['seatId'] === seat.id);
+        const seenByMember = await journal(member);
+        expect(seenByMember).toHaveLength(1);
+        expect(JSON.stringify(seenByMember)).not.toContain(candidate.id);
+        expect(seenByMember[0]?.payload).toMatchObject({ seatId: seat.id });
+        const seenByLead = await journal(t.lead);
+        expect(seenByLead[0]?.payload).toMatchObject({ userId: candidate.id });
+      });
+    });
+
     describe('acceptSeatOffer', () => {
       it('FR-TEAM-04, FR-TEAM-25, FR-TEAM-30: the addressee joins: 200 JoinResult, seat filled, one assignment, member count +1', async () => {
         const t = await team(world, { openSeats: 1 });
@@ -690,6 +714,31 @@ describeInfra(
     });
 
     describe('rejectSeatOffer', () => {
+      it('S3CR-06: rejecting an offer past the 7 days -> 409 INVALID_STATE and the row stays pending until the sweeper', async () => {
+        const t = await team(world, { openSeats: 1 });
+        const seat = t.openSeats[0];
+        if (!seat) throw new Error('no seat');
+        const candidate = await githubUser(world, 'reject-stale');
+        const offer = expectOk<OfferDto>(
+          'createSeatOffer',
+          await offerOn(t.lead, t.id, seat.id, candidate.id),
+          201,
+        );
+        clock.advance(8 * DAY);
+        expectProblem(
+          'rejectSeatOffer',
+          await world.as(candidate).post(`/v1/seat-offers/${offer.id}/rejection`),
+          409,
+          'INVALID_STATE',
+        );
+        expectProblem(
+          'rejectSeatOffer',
+          await world.as(t.lead).post(`/v1/seat-offers/${offer.id}/rejection`),
+          409,
+          'INVALID_STATE',
+        );
+      });
+
       it('FR-TEAM-30: the addressee rejects -> rejected; the creator withdraws -> cancelled', async () => {
         const t = await team(world, { openSeats: 2 });
         const [s1, s2] = t.openSeats;

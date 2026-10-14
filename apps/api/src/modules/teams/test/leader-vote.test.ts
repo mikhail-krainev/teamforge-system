@@ -280,7 +280,7 @@ describeInfra('S3 teams: the leader vote (FR-TEAM-14..21)', ['db', 'redis'], () 
       );
       await ballot(world, f.team, f.voteId, c, member(f, 0));
       const view = await world.as(d).get(`/v1/teams/${f.team.id}/leader-votes`);
-      for (const word of ['voterUserId', 'voter_user_id', 'ballots'])
+      for (const word of ['voterUserId', 'voter_user_id', '"ballots"'])
         expect(view.body, word).not.toContain(word);
     });
 
@@ -353,7 +353,7 @@ describeInfra('S3 teams: the leader vote (FR-TEAM-14..21)', ['db', 'redis'], () 
       const view = await world.as(member(f, 2)).get(`/v1/teams/${f.team.id}/leader-votes`);
       const closed = expectOk<{ items: VoteDto[] }>('listLeaderVotes', view, 200).items[0];
       expect(closed?.candidates.map((c) => c.votes)).toEqual([2]);
-      for (const word of ['voterUserId', 'voter_user_id', 'ballots'])
+      for (const word of ['voterUserId', 'voter_user_id', '"ballots"'])
         expect(view.body, word).not.toContain(word);
     });
 

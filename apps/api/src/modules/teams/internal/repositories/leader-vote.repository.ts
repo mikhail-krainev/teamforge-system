@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { membership } from '../schema/teams.js';
 import {
@@ -22,6 +22,7 @@ export interface VoteCursor {
 }
 
 export interface MemberRow {
+  membershipId: string;
   userId: string;
   joinedAt: Date;
   trialUntil: Date | null;
@@ -44,6 +45,21 @@ export class LeaderVoteRepository {
       .update(leaderVote)
       .set({ ...set, version: sql`${leaderVote.version} + 1` })
       .where(eq(leaderVote.id, id));
+  }
+
+  async findById(voteId: string): Promise<LeaderVoteRow | undefined> {
+    const rows = await this.tx.tx.select().from(leaderVote).where(eq(leaderVote.id, voteId));
+    return rows[0];
+  }
+
+  /** Open votes whose phase is over, the oldest first (`leader_vote_deadline_idx`). */
+  dueVotes(now: Date, limit: number): Promise<LeaderVoteRow[]> {
+    return this.tx.tx
+      .select()
+      .from(leaderVote)
+      .where(and(notInArray(leaderVote.status, CLOSED), lte(leaderVote.phaseDeadline, now)))
+      .orderBy(asc(leaderVote.phaseDeadline))
+      .limit(limit);
   }
 
   async find(teamId: string, voteId: string): Promise<LeaderVoteRow | undefined> {
@@ -83,6 +99,7 @@ export class LeaderVoteRepository {
   activeMembers(teamId: string): Promise<MemberRow[]> {
     return this.tx.tx
       .select({
+        membershipId: membership.id,
         userId: membership.userId,
         joinedAt: membership.joinedAt,
         trialUntil: membership.trialUntil,
@@ -130,6 +147,35 @@ export class LeaderVoteRepository {
       .from(voteCandidate)
       .where(eq(voteCandidate.voteId, voteId))
       .orderBy(voteCandidate.consentAt, voteCandidate.userId);
+  }
+
+  async insertBallot(row: typeof voteBallot.$inferInsert): Promise<void> {
+    await this.tx.tx.insert(voteBallot).values(row);
+  }
+
+  /** The candidates that stay on the runoff ballot (FR-TEAM-19). */
+  async markRunoff(voteId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    await this.tx.tx
+      .update(voteCandidate)
+      .set({ inRunoff: true })
+      .where(and(eq(voteCandidate.voteId, voteId), inArray(voteCandidate.userId, userIds)));
+  }
+
+  async insertOffer(row: typeof voteOffer.$inferInsert): Promise<void> {
+    await this.tx.tx.insert(voteOffer).values(row);
+  }
+
+  offersOf(voteId: string): Promise<VoteOfferRow[]> {
+    return this.tx.tx
+      .select()
+      .from(voteOffer)
+      .where(eq(voteOffer.voteId, voteId))
+      .orderBy(voteOffer.ordinal);
+  }
+
+  async updateOffer(id: string, set: Partial<typeof voteOffer.$inferInsert>): Promise<void> {
+    await this.tx.tx.update(voteOffer).set(set).where(eq(voteOffer.id, id));
   }
 
   async ballotsCast(voteId: string, round: number): Promise<number> {

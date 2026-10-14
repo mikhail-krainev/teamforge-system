@@ -3,11 +3,13 @@ import { type JobProcessor, ProcessorRegistry } from '../../../../platform/queue
 import type { QueueJob } from '../../../../platform/queues/queues.service.js';
 import { DEPARTURE_DEFAULT_JOB } from '../services/departure-leave.service.js';
 import { DepartureService } from '../services/departure.service.js';
+import { VoteDeadlineService } from '../services/vote-deadline.service.js';
+import { SUSPENSION_EXPIRE_JOB, VOTE_DEADLINE_JOB, parseVoteDeadline } from './vote-deadline.js';
 
 /**
  * Processor of the `timers` queue for the jobs of teams. `departure-default` (C-14): a decision the
- * lead did not take in 7 days becomes "replace" (the seats stay open). The vote timers of S3-08
- * join the `handlers` table here, because one queue has one worker.
+ * lead did not take in 7 days becomes "replace" (the seats stay open). `vote-deadline` and
+ * `suspension-expire` (S3-08) share the `handlers` table, because one queue has one worker.
  */
 @Injectable()
 export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
@@ -17,8 +19,14 @@ export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
   constructor(
     @Inject(ProcessorRegistry) private readonly registry: ProcessorRegistry,
     @Inject(DepartureService) private readonly departures: DepartureService,
+    @Inject(VoteDeadlineService) private readonly voteDeadlines: VoteDeadlineService,
   ) {
     this.handlers.set(DEPARTURE_DEFAULT_JOB, (job) => this.departureDefault(job));
+    this.handlers.set(VOTE_DEADLINE_JOB, (job) => {
+      const phase = parseVoteDeadline(job.data);
+      return this.voteDeadlines.process(phase.voteId, phase);
+    });
+    this.handlers.set(SUSPENSION_EXPIRE_JOB, (job) => this.suspensionExpire(job));
   }
 
   onModuleInit(): void {
@@ -35,5 +43,11 @@ export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
     const { departureId } = job.data as { departureId?: unknown };
     if (typeof departureId !== 'string') throw new Error('departure-default needs a departureId');
     return this.departures.applyDefault(departureId);
+  }
+
+  private suspensionExpire(job: QueueJob): Promise<boolean> {
+    const { teamId } = job.data as { teamId?: unknown };
+    if (typeof teamId !== 'string') throw new Error('suspension-expire needs a teamId');
+    return this.voteDeadlines.expireSuspension(teamId);
   }
 }

@@ -16,8 +16,9 @@ import {
   TeamListRepository,
 } from '../repositories/team-list.repository.js';
 import { TeamEventRepository } from '../repositories/team-event.repository.js';
-import type { TeamRow } from '../repositories/team.repository.js';
+import { TeamRepository, type TeamRow } from '../repositories/team.repository.js';
 import type { TeamDto, TeamEventDto, TeamSummaryDto } from './team-dto.js';
+import type { TeamEventRow } from '../repositories/team-event.repository.js';
 import { TeamViewService } from './team-view.service.js';
 
 export interface CatalogQuery {
@@ -82,6 +83,7 @@ export class TeamQueryService {
     @Inject(Clock) private readonly clock: Clock,
     @Inject(TeamListRepository) private readonly lists: TeamListRepository,
     @Inject(TeamEventRepository) private readonly events: TeamEventRepository,
+    @Inject(TeamRepository) private readonly teams: TeamRepository,
     @Inject(TeamViewService) private readonly view: TeamViewService,
   ) {}
 
@@ -170,22 +172,46 @@ export class TeamQueryService {
     };
   }
 
-  /** FR-TEAM-03, FR-TEAM-21: the journal of the team, newest first. */
-  async listEvents(teamId: string, query: EventsQuery): Promise<Page<TeamEventDto>> {
+  /**
+   * FR-TEAM-03, FR-TEAM-21: the journal of the team, newest first. The offers are visible to the
+   * lead only (listSeatOffers), so members do not see the candidate in `offer_created` (S3SEC-05).
+   */
+  async listEvents(
+    teamId: string,
+    viewerId: string,
+    query: EventsQuery,
+  ): Promise<Page<TeamEventDto>> {
+    const isLead = (await this.teams.find(teamId))?.leadUserId === viewerId;
     const limit = clampLimit(query.limit);
     const after =
       query.cursor === undefined ? undefined : keysetOf(decodeCursor(query.cursor, { teamId }));
     const rows = await this.events.list(teamId, after, limit + 1);
     const page = buildPage(rows, limit, (row) => [row.at.toISOString(), row.id], { teamId });
     return {
-      items: page.items.map((row) => ({
-        id: row.id,
-        type: row.type,
-        actorUserId: row.actorUserId,
-        payload: row.payload as TeamEventDto['payload'],
-        at: row.at.toISOString(),
-      })),
+      items: page.items.map((row) => eventDto(isLead ? row : withoutCandidate(row))),
       nextCursor: page.nextCursor,
     };
   }
+}
+
+function eventDto(row: TeamEventRow): TeamEventDto {
+  return {
+    id: row.id,
+    type: row.type,
+    actorUserId: row.actorUserId,
+    payload: row.payload as TeamEventDto['payload'],
+    at: row.at.toISOString(),
+  };
+}
+
+/** `offer_created` without the candidate: not in the payload, and not as the actor of a join request. */
+function withoutCandidate(row: TeamEventRow): TeamEventRow {
+  if (row.type !== 'offer_created') return row;
+  const { userId, ...payload } = row.payload as Record<string, unknown>;
+  const byCandidate = payload['direction'] === 'user_to_lead';
+  return {
+    ...row,
+    payload,
+    actorUserId: byCandidate || row.actorUserId === userId ? null : row.actorUserId,
+  };
 }

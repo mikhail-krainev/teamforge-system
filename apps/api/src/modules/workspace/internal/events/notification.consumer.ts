@@ -3,10 +3,13 @@ import { uuidv7 } from 'uuidv7';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
 import { Clock } from '../../../../platform/clock/clock.js';
-import { MailService } from '../../../../platform/mail/mail.service.js';
+import { SecretBox } from '../../../../platform/crypto/secret-box.js';
+import { SEND_MAIL_JOB } from '../../../../platform/mail/mail.service.js';
 import { EventConsumers } from '../../../../platform/outbox/event-consumers.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import type { EventConsumer, OutboxEventData } from '../../../../platform/outbox/outbox.types.js';
+import { jobId } from '../../../../platform/queues/job-id.js';
+import { QueuesService } from '../../../../platform/queues/queues.service.js';
 import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
 import { WORKSPACE_MODULE } from '../../public.js';
@@ -45,7 +48,8 @@ export class NotificationConsumer implements EventConsumer, OnModuleInit {
     @Inject(EventConsumers) private readonly consumers: EventConsumers,
     @Inject(NotificationRepository) private readonly notifications: NotificationRepository,
     @Inject(OutboxService) private readonly outbox: OutboxService,
-    @Inject(MailService) private readonly mail: MailService,
+    @Inject(QueuesService) private readonly queues: QueuesService,
+    @Inject(SecretBox) private readonly box: SecretBox,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
     @Inject(AUTH_API) private readonly auth: AuthApi,
     @Inject(Clock) private readonly clock: Clock,
@@ -116,6 +120,14 @@ export class NotificationConsumer implements EventConsumer, OnModuleInit {
         ? `${this.config.APP_ORIGIN}/teams/${teamId}`
         : `${this.config.APP_ORIGIN}/`;
     const message = notificationMail(draft.type, to, link);
-    if (message !== null) await this.mail.enqueue(message);
+    if (message === null) return;
+    // The job id is deterministic (S3CR-03): the inbox transaction can run again after the job was
+    // queued, and a second `add` with the same id is a no-op, so the user gets one mail.
+    await this.queues.add(
+      'notifications',
+      SEND_MAIL_JOB,
+      { sealed: this.box.seal(JSON.stringify(message)) },
+      { jobId: jobId('mail', draft.userId, draft.dedupeKey.replaceAll(':', '-')) },
+    );
   }
 }

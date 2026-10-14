@@ -91,6 +91,7 @@ export interface VoteDto {
   status: 'nominating' | 'voting' | 'runoff' | 'confirming' | 'offering' | 'closed' | 'cancelled';
   round: number;
   phaseDeadline: string | null;
+  extended: boolean;
   eligibleCount: number;
   quorum: number;
   candidates: VoteCandidateDto[];
@@ -362,7 +363,11 @@ export async function passDeadline(
   await world.runMaintenance('vote-deadline-scan');
   return waitFor(async () => {
     const now = await currentVote(world, viewer, teamId);
-    return now.status !== before.status || now.round !== before.round ? now : false;
+    return now.status !== before.status ||
+      now.round !== before.round ||
+      now.extended !== before.extended
+      ? now
+      : false;
   }, 20_000);
 }
 

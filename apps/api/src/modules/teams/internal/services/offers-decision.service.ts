@@ -120,8 +120,11 @@ export class OffersDecisionService {
     );
     const parties = partiesOf(offer, callerId, team?.lead_user_id ?? null);
     if (!parties.responder && !parties.creator) throw notFound();
-    if (offer.status !== 'pending') throw new DomainError('INVALID_STATE', 409);
     const now = this.clock.now();
+    // An overdue offer is no longer waiting for an answer, same as in accept (S3CR-06).
+    if (offer.status !== 'pending' || offer.expiresAt <= now) {
+      throw new DomainError('INVALID_STATE', 409);
+    }
     const status = parties.responder ? 'rejected' : 'cancelled';
     await this.offers.setStatus(offer.id, status, now);
     const [seat] = await this.seats.listByTeam(offer.teamId, [offer.seatId]);

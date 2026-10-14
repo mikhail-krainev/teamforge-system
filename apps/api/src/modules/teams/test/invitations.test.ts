@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { githubIdentity } from '../../../../test/fakes/github-server.js';
 import { expectProblem, expectReplayed } from '../../../../test/fixtures/assertions.js';
 import {
   DAY,
@@ -112,6 +113,55 @@ describeInfra('S3 teams: invitations (FR-TEAM-08, -09)', ['db', 'redis'], () => 
       });
       // The login is resolved through GET /users/{login} on the GitHub double (github: true), never api.github.com.
       expect(response.statusCode, response.body).toBe(422);
+    });
+
+    describe('lookup of a GitHub login (S3SEC-02)', () => {
+      const lookups = () =>
+        (world.github?.requests ?? []).filter((r) => r.path.startsWith('/users/')).length;
+      const known = (): string => {
+        const identity = githubIdentity(`inv-${randomUUID().slice(0, 12)}`);
+        world.github?.addUser(identity);
+        return identity.login;
+      };
+
+      it('the second invitation of the same login is resolved from the cache, without a GitHub call', async () => {
+        const t = await team(world, { openSeats: 1 });
+        const login = known();
+        const before = lookups();
+        const first = await invite(t, { inviteeGithubLogin: login });
+        const second = await invite(t, { inviteeGithubLogin: login.toUpperCase() });
+        expect(first.invitation.id).not.toBe(second.invitation.id);
+        expect(lookups() - before).toBe(1);
+      });
+
+      it('over the per-lead limit (10 per hour) -> 429 and GitHub is not asked', async () => {
+        const t = await team(world, { openSeats: 1 });
+        for (let i = 0; i < 10; i += 1) await invite(t, { inviteeGithubLogin: known() });
+        const before = lookups();
+        const seat = t.openSeats[0];
+        if (!seat) throw new Error('no seat');
+        const response = await world.as(t.lead).post(`/v1/teams/${t.id}/invitations`, {
+          seatId: seat.id,
+          inviteeGithubLogin: known(),
+        });
+        expect(response.statusCode, response.body).toBe(429);
+        expect(response.headers['retry-after']).toBeDefined();
+        expect(lookups()).toBe(before);
+      });
+
+      it('a team at the limit C-13 gets 409 before any GitHub call', async () => {
+        const t = await team(world, { openSeats: 1 });
+        for (let i = 0; i < 20; i += 1) await invite(t);
+        const before = lookups();
+        const seat = t.openSeats[0];
+        if (!seat) throw new Error('no seat');
+        const response = await world.as(t.lead).post(`/v1/teams/${t.id}/invitations`, {
+          seatId: seat.id,
+          inviteeGithubLogin: known(),
+        });
+        expectProblem('createInvitation', response, 409, 'INVITATION_LIMIT');
+        expect(lookups()).toBe(before);
+      });
     });
 
     it('FR-TEAM-08: a seat that is not open -> 409 SEAT_NOT_OPEN', async () => {

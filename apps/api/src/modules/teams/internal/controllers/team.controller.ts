@@ -62,6 +62,6 @@ export class TeamController {
     @Param('teamId') teamId: string,
     @Query() query: EventsQuery,
   ): Promise<Ok<'listTeamEvents'>> {
-    return this.queries.listEvents(teamId, query);
+    return this.queries.listEvents(teamId, requireUserId(this.cls), query);
   }
 }
