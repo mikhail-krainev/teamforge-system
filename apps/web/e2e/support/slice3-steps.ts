@@ -252,9 +252,9 @@ export async function bAndCVoteForB(): Promise<void> {
   // C casts the deciding vote: the ballot closes at once and the page may jump straight from
   // "your vote is counted" to the confirmation phase, so either screen proves that the vote was taken.
   await expect(
-    voteUi.voted(c.session.page).or(
-      voteUi.phase(c.session.page).filter({ hasText: voteUi.phaseText.confirming }),
-    ),
+    voteUi
+      .voted(c.session.page)
+      .or(voteUi.phase(c.session.page).filter({ hasText: voteUi.phaseText.confirming })),
   ).toBeVisible();
   // 2 of 3 is more than N/2: the vote closes early and asks the winner to confirm (FR-TEAM-17).
   await expect(voteUi.phase(b.session.page)).toContainText(voteUi.phaseText.confirming, {

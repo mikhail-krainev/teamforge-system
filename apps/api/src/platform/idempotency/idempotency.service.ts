@@ -105,7 +105,11 @@ export class IdempotencyService implements OnModuleInit {
   }
 
   private replayOf(row: KeyRow): BeginDecision {
-    return { kind: 'replay', status: row.responseStatus ?? 200, body: openResponse(this.box, row.responseBody) };
+    return {
+      kind: 'replay',
+      status: row.responseStatus ?? 200,
+      body: openResponse(this.box, row.responseBody),
+    };
   }
 
   /**

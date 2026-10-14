@@ -282,11 +282,9 @@ describeInfra('S3-14: edge cases under concurrency', ['db', 'redis'], () => {
     }
     expect(new Set(t.openSeats.map((s) => s.roleCode)).size).toBe(3);
     const fired = await fireAll(21, (i, key) =>
-      world
-        .as(user)
-        .post(`/v1/seat-offers/${offers[i % 3]?.id}/acceptance`, undefined, {
-          idempotencyKey: key,
-        }),
+      world.as(user).post(`/v1/seat-offers/${offers[i % 3]?.id}/acceptance`, undefined, {
+        idempotencyKey: key,
+      }),
     );
     noServerErrors(fired);
     expect(tally(fired)[200]).toBe(2);
@@ -327,11 +325,9 @@ describeInfra('S3-14: edge cases under concurrency', ['db', 'redis'], () => {
       await offerFor(b, seatB.id),
     ];
     const fired = await fireAll(N, (i, key) =>
-      world
-        .as(user)
-        .post(`/v1/seat-offers/${offers[i % 3]?.id}/acceptance`, undefined, {
-          idempotencyKey: key,
-        }),
+      world.as(user).post(`/v1/seat-offers/${offers[i % 3]?.id}/acceptance`, undefined, {
+        idempotencyKey: key,
+      }),
     );
     noServerErrors(fired);
     expect(await activeMembershipsOf(world, user.id)).toBeLessThanOrEqual(2);
@@ -399,11 +395,9 @@ describeInfra('S3-14: edge cases under concurrency', ['db', 'redis'], () => {
     const users = await manyGithubUsers(world, 'revoke-race', 10);
     const fired = await fireAll(N, (i, key) =>
       i < 10
-        ? world
-            .as(t.lead)
-            .delete(`/v1/teams/${t.id}/invitations/${created.invitation.id}`, {
-              idempotencyKey: key,
-            })
+        ? world.as(t.lead).delete(`/v1/teams/${t.id}/invitations/${created.invitation.id}`, {
+            idempotencyKey: key,
+          })
         : world
             .as(users[i - 10] ?? t.lead)
             .post('/v1/invitation-acceptances', { token: created.token }, { idempotencyKey: key }),

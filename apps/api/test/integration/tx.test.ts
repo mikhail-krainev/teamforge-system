@@ -169,7 +169,8 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   it('locks several seats in ascending id order and rejects locks outside a transaction', async () => {
     const [teamId] = await insertTeams(1);
     const seatIds: string[] = [];
-    for (let ordinal = 1; ordinal <= 4; ordinal += 1) seatIds.push(await insertSeat(teamId ?? '', ordinal));
+    for (let ordinal = 1; ordinal <= 4; ordinal += 1)
+      seatIds.push(await insertSeat(teamId ?? '', ordinal));
     const locked = await runner.run(() => locks.lockSeats([...seatIds].reverse()));
     expect(locked.map((row) => row.id)).toEqual([...seatIds].sort());
     await expect(locks.lockTeam(randomUUID())).rejects.toThrow(/outside a transaction/);
