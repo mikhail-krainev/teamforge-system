@@ -71,3 +71,15 @@ export async function apiPost<T = unknown>(
     await request.post(`/api${path}`, { data, headers: { ...ORIGIN_HEADERS, ...headers } }),
   );
 }
+
+/** `PUT /api/<path>` with a JSON body. */
+export async function apiPut<T = unknown>(
+  request: APIRequestContext,
+  path: string,
+  data: unknown,
+  headers: Record<string, string> = {},
+): Promise<ApiResult<T>> {
+  return result<T>(
+    await request.put(`/api${path}`, { data, headers: { ...ORIGIN_HEADERS, ...headers } }),
+  );
+}

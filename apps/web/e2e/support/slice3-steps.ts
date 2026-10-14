@@ -97,6 +97,7 @@ export async function bOpensTheLinkAndSeesThePreview(): Promise<void> {
 export async function bAcceptsTheInvitation(): Promise<void> {
   const b = person('b');
   await invitationUi.accept(b.session.page).click();
+  await invitationUi.toTeam(b.session.page).click();
   await b.session.page.waitForURL(new RegExp(`/teams/${world.teamId}$`), { timeout: 30_000 });
   const team = await teamAs(b);
   expect(team.members.map((m) => m.userId)).toContain(b.id);

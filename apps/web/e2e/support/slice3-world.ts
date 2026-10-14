@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { acceptConsentViaApi } from './auth';
-import { apiGet, apiPost, type ApiResult, type Me } from './api';
+import { apiGet, apiPost, apiPut, type ApiResult, type Me } from './api';
 import { githubDouble, githubIdentity, routeGithubDoubleToLoopback } from './github';
 import { signInUi } from './slice2-ui';
 import { compose, E2E_WEB_URL } from './stack';
@@ -16,7 +16,7 @@ export interface Session {
 }
 
 export interface Person {
-  /** Display name the team page shows (the GitHub double uses the label as the name). */
+  /** Display name the team page shows (saved to the profile by `signInWithGithub`). */
   name: string;
   id: string;
   login: string;
@@ -71,6 +71,24 @@ export async function signInWithGithub(session: Session, label: string): Promise
   await acceptConsentViaApi(session.context);
   const me = await apiGet<Me>(session.context.request, '/v1/me');
   expect(me.status, me.text).toBe(200);
+  // Names on the team page come from the profile (a person without one is shown as a deleted user).
+  const saved = await apiPut(
+    session.context.request,
+    '/v1/me/profile',
+    {
+      displayName: label,
+      timezone: 'Europe/Moscow',
+      hoursPerWeek: 10,
+      stack: [],
+      rolePrefs: [],
+      experience: [],
+      strengths: [],
+      weaknesses: [],
+      version: null,
+    },
+    { 'Idempotency-Key': randomUUID() },
+  );
+  expect(saved.status, saved.text).toBe(200);
   return { name: label, id: me.body.id, login: identity.login, session };
 }
 

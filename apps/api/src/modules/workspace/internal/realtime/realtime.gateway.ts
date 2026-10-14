@@ -2,20 +2,14 @@ import {
   Inject,
   Injectable,
   Optional,
+  type OnApplicationBootstrap,
   type OnApplicationShutdown,
-  type OnModuleInit,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import websocket from '@fastify/websocket';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { ClsService } from 'nestjs-cls';
-import {
-  WS_CLOSE_FORBIDDEN,
-  WS_CLOSE_UNAUTHENTICATED,
-  WS_LIMITS,
-  type ServerErrorMessage,
-} from 'shared/realtime';
 import {
   SESSION_AUTHENTICATOR,
   type SessionAuthenticator,
@@ -29,6 +23,12 @@ import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
 import { REALTIME_PREFIX } from '../events/realtime-relay.consumer.js';
 import { ChannelRegistry, type RealtimeConnection } from './channel-registry.js';
+import {
+  WS_CLOSE_FORBIDDEN,
+  WS_CLOSE_UNAUTHENTICATED,
+  WS_LIMITS,
+  type ServerErrorMessage,
+} from './protocol.js';
 
 /** The part of a `ws` socket this gateway uses (the `ws` types are not a dependency of the api). */
 interface SocketLike {
@@ -64,7 +64,7 @@ function errorMessage(code: string): string {
  * The worker has no HTTP server and so no gateway.
  */
 @Injectable()
-export class RealtimeGateway implements OnModuleInit, OnApplicationShutdown {
+export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly registry = new ChannelRegistry();
   private subscriber: Redis | undefined;
   private timer: NodeJS.Timeout | undefined;
@@ -82,9 +82,15 @@ export class RealtimeGateway implements OnModuleInit, OnApplicationShutdown {
     private readonly authenticator?: SessionAuthenticator,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  /**
+   * Bootstrap, not module init: awaiting `register` makes Fastify finalize the routes added so far,
+   * and Nest installs its error handler (the problem+json filter) only after the module init hooks.
+   * Registering earlier would leave every route with Fastify's default error handler.
+   */
+  async onApplicationBootstrap(): Promise<void> {
     const adapter = this.host?.httpAdapter;
-    if (adapter === undefined) return;
+    // A standalone application context (the worker) has no http adapter: `null` there, not undefined.
+    if (!adapter) return;
     const fastify = adapter.getInstance<FastifyInstance>();
     await fastify.register(websocket, { options: { maxPayload: MAX_MESSAGE_BYTES } });
     await fastify.register((scope, _options, done) => {
@@ -93,10 +99,12 @@ export class RealtimeGateway implements OnModuleInit, OnApplicationShutdown {
       });
       done();
     });
-    this.subscriber = this.redis.duplicate();
+    // Redis being down must not stop the api from starting (/health/ready reports it): the
+    // subscriber waits for the connection (no per-request retry limit) and subscribes then.
+    this.subscriber = this.redis.duplicate({ maxRetriesPerRequest: null });
     this.subscriber.on('error', () => undefined);
     this.subscriber.on('pmessage', (_pattern, channel, text) => this.relay(channel, text));
-    await this.subscriber.psubscribe(`${REALTIME_PREFIX}*`);
+    void this.subscriber.psubscribe(`${REALTIME_PREFIX}*`).catch(() => undefined);
     this.timer = setInterval(() => this.heartbeat(), WS_LIMITS.pingIntervalMs);
     this.timer.unref();
   }
@@ -104,7 +112,11 @@ export class RealtimeGateway implements OnModuleInit, OnApplicationShutdown {
   async onApplicationShutdown(): Promise<void> {
     if (this.timer !== undefined) clearInterval(this.timer);
     for (const connection of this.registry.all()) connection.close(CLOSE_GOING_AWAY);
-    await this.subscriber?.quit().catch(() => undefined);
+    const subscriber = this.subscriber;
+    if (subscriber === undefined) return;
+    // `quit` would wait for a connection that never comes when Redis is down.
+    if (subscriber.status === 'ready') await subscriber.quit().catch(() => undefined);
+    else subscriber.disconnect();
   }
 
   // ---- connection -------------------------------------------------------------------------

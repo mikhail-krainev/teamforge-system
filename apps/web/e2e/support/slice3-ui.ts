@@ -60,6 +60,8 @@ export const invitationUi = {
     p.getByRole('heading', { level: 1, name: /приглашение в команду/i }),
   team: (p: Page, teamName: string): Locator => p.getByText(teamName),
   accept: (p: Page): Locator => p.getByRole('button', { name: /принять приглашение/i }),
+  /** After joining the page shows a confirmation with a link to the team (no automatic redirect). */
+  toTeam: (p: Page): Locator => p.getByRole('link', { name: /перейти в команду/i }),
 };
 
 export const offerUi = {

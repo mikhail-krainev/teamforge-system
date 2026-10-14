@@ -90,7 +90,7 @@
     "timezone": "Часовой пояс",
     "hours": "Нагрузка",
     "memberCount": "Участников",
-    "members": "Состав",
+    "members": "Участники",
     "lead": "тимлид",
     "joined": "в команде с {date}",
     "trialUntil": "испытательный срок до {date}",
