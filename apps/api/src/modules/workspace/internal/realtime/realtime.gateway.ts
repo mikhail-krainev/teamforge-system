@@ -69,6 +69,8 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
   private subscriber: Redis | undefined;
   private timer: NodeJS.Timeout | undefined;
   private readonly seen = new WeakMap<RealtimeConnection, { at: number; checked: number }>();
+  /** Slots taken by handshakes that passed the limit check but are not in the registry yet (S3SEC-03). */
+  private readonly reserved = new Map<string, number>();
 
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -129,7 +131,10 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
     let chain: Promise<void> = this.cls
       .run(() => this.handshake(socket, request))
       .then((accepted) => {
-        if (accepted === undefined || closed) return;
+        if (accepted === undefined) return;
+        // The reservation turns into a registry entry (or is dropped) in one synchronous step.
+        this.release(accepted.userId);
+        if (closed) return;
         connection = accepted;
         this.registry.add(accepted);
         this.touch(accepted);
@@ -178,10 +183,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
       socket.close(WS_CLOSE_FORBIDDEN);
       return undefined;
     }
-    if (this.registry.connectionsOf(userId).length >= WS_LIMITS.maxConnectionsPerUser) {
+    // No `await` between the limit check and the reservation: parallel handshakes of one user
+    // cannot all pass the check and then all join the registry.
+    if (!this.reserve(userId)) {
       socket.close(CLOSE_TRY_AGAIN);
       return undefined;
     }
+    // Only what the session lookup reads is kept (cookie headers, client address), not the request.
+    const probe = { headers: request.headers, ip: request.ip } as unknown as FastifyRequest;
     return {
       userId,
       channels: new Set<string>(),
@@ -190,7 +199,24 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
       },
       close: (code) => socket.close(code),
       ping: () => socket.ping(),
+      isOpen: () => socket.readyState === SOCKET_OPEN,
+      verifySession: async () =>
+        (await this.cls.run(async () => this.authenticator?.authenticate(probe))) === userId,
     };
+  }
+
+  /** Takes a connection slot for `userId` synchronously; false when the user is at the limit. */
+  private reserve(userId: string): boolean {
+    const taken = this.registry.connectionsOf(userId).length + (this.reserved.get(userId) ?? 0);
+    if (taken >= WS_LIMITS.maxConnectionsPerUser) return false;
+    this.reserved.set(userId, (this.reserved.get(userId) ?? 0) + 1);
+    return true;
+  }
+
+  private release(userId: string): void {
+    const left = (this.reserved.get(userId) ?? 0) - 1;
+    if (left > 0) this.reserved.set(userId, left);
+    else this.reserved.delete(userId);
   }
 
   private originAllowed(origin: string): boolean {
@@ -230,6 +256,9 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
       connection.send(errorMessage('FORBIDDEN'));
       return;
     }
+    // The socket may have closed while membership was checked; its registry entry is gone then and
+    // a late subscribe would leave a dead connection in the channel map (S3SEC-03).
+    if (!connection.isOpen()) return;
     this.registry.subscribe(connection, channel);
   }
 
@@ -283,8 +312,10 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
       this.registry.revoke(channel, userId);
     }
     if (type === 'session.revoked' && channel.startsWith('user:')) {
+      // One session of the user may be gone (sign-out) while the others live: close only the
+      // sockets whose own session no longer holds (S3SEC-01).
       for (const connection of this.registry.connectionsOf(channel.slice('user:'.length))) {
-        connection.close(WS_CLOSE_UNAUTHENTICATED);
+        void this.checkSession(connection, true);
       }
     }
   }
@@ -307,8 +338,29 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
     }
   }
 
-  /** Long-lived sockets lose the team channels whose membership has ended meanwhile. */
+  /**
+   * Closes the socket with 4401 when its session is gone. A failed check leaves the socket open;
+   * with `retrySoon` the next heartbeat repeats it instead of waiting for the regular interval.
+   * Returns false when the socket was closed.
+   */
+  private async checkSession(connection: RealtimeConnection, retrySoon = false): Promise<boolean> {
+    try {
+      if (await connection.verifySession()) return true;
+    } catch {
+      const state = this.seen.get(connection);
+      if (retrySoon && state !== undefined) this.seen.set(connection, { ...state, checked: 0 });
+      return true;
+    }
+    connection.close(WS_CLOSE_UNAUTHENTICATED);
+    return false;
+  }
+
+  /**
+   * Long-lived sockets are judged again every few minutes: a session that ended without a signal
+   * closes the socket (4401), and team channels whose membership has ended are dropped.
+   */
   private async recheck(connection: RealtimeConnection): Promise<void> {
+    if (!(await this.checkSession(connection))) return;
     for (const channel of [...connection.channels]) {
       if (!channel.startsWith('team:')) continue;
       try {

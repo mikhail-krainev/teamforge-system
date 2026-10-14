@@ -5,6 +5,10 @@ export interface RealtimeConnection {
   send(text: string): void;
   close(code: number): void;
   ping(): void;
+  /** True while the socket is open; false once it is closing or closed. */
+  isOpen(): boolean;
+  /** Whether the session that opened the socket is still valid (S3SEC-01). Rejects on a failed check. */
+  verifySession(): Promise<boolean>;
 }
 
 /**

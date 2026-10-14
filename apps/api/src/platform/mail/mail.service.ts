@@ -5,6 +5,7 @@ import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
 import { InvariantError } from '../errors/domain-error.js';
 import { SecretBox } from '../crypto/secret-box.js';
+import { assertValidJobId } from '../queues/job-id.js';
 import { QueuesService } from '../queues/queues.service.js';
 
 export interface MailMessage {
@@ -12,6 +13,14 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+}
+
+export interface EnqueueMailOptions {
+  /**
+   * Deterministic BullMQ job id (see `jobId()`): queuing the same id again is a no-op, so a retried
+   * transaction sends one mail. Without it every call is a new message.
+   */
+  jobId?: string;
 }
 
 /** Name of the `notifications` job that sends one e-mail. */
@@ -32,13 +41,14 @@ export class MailService implements OnApplicationShutdown {
     @Inject(SecretBox) private readonly box: SecretBox,
   ) {}
 
-  /** Queues a message for the worker. A random job id: every message is sent. */
-  async enqueue(message: MailMessage): Promise<void> {
+  /** Queues a message for the worker. By default a random job id: every message is sent. */
+  async enqueue(message: MailMessage, options: EnqueueMailOptions = {}): Promise<void> {
+    if (options.jobId !== undefined) assertValidJobId(options.jobId);
     await this.queues.add(
       'notifications',
       SEND_MAIL_JOB,
       { sealed: this.box.seal(JSON.stringify(message)) },
-      { jobId: `mail_${randomUUID()}` },
+      { jobId: options.jobId ?? `mail_${randomUUID()}` },
     );
   }
 

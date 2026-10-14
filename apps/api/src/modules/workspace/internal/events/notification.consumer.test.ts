@@ -4,8 +4,6 @@ import type { OutboxEventData } from '../../../../platform/outbox/outbox.types.j
 import { NotificationConsumer } from './notification.consumer.js';
 
 interface QueuedJob {
-  queue: string;
-  name: string;
   jobId: string;
 }
 
@@ -20,15 +18,12 @@ function build() {
     } as never,
     { publishMany: () => Promise.resolve() } as never,
     {
-      add: (queue: string, name: string, _data: unknown, options: { jobId: string }) => {
+      enqueue: (_message: unknown, options: { jobId: string }) => {
         // Like BullMQ: a second add with an existing id is ignored.
-        if (!jobs.some((j) => j.jobId === options.jobId)) {
-          jobs.push({ queue, name, jobId: options.jobId });
-        }
+        if (!jobs.some((j) => j.jobId === options.jobId)) jobs.push({ jobId: options.jobId });
         return Promise.resolve();
       },
     } as never,
-    { seal: (text: string) => `sealed:${text.length}` } as never,
     {} as never,
     { getMailRecipient: () => Promise.resolve('a@example.test') } as never,
     { now: () => new Date('2026-10-14T10:00:00Z') } as never,
@@ -59,8 +54,6 @@ describe('NotificationConsumer mail (S3CR-03)', () => {
     await consumer.handle(offerEvent);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toEqual({
-      queue: 'notifications',
-      name: 'send-mail',
       jobId: `mail_0194a000-0000-7000-8000-000000000005_seat_offer-0194a000-0000-7000-8000-000000000002`,
     });
   });

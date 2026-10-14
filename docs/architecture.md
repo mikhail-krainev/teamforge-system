@@ -188,7 +188,7 @@ export interface AuthApi {
 }
 ```
 
-Публикует: `auth.user_registered`, `auth.github_linked {userId, githubUserId}`, `auth.user_deletion_requested {requestId, userId, reason}`, `auth.user_deleted {userId}`. Слушает: `*.deletion_step_done` (через `reportDeletionStep`).
+Публикует: `auth.user_registered`, `auth.github_linked {userId, githubUserId}`, `auth.user_deletion_requested {requestId, userId, reason}`, `auth.user_deleted {userId}`, `auth.session_revoked {userId, sessionId?, reason}` (sign-out и revoke-all; realtime закрывает сокеты отозванных сессий с 4401). Слушает: `*.deletion_step_done` (через `reportDeletionStep`).
 
 ### 3.2 profiles
 

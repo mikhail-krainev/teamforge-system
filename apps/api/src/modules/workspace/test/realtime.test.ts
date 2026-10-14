@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WS_CLOSE_UNAUTHENTICATED, type ServerMessage } from 'shared/realtime';
+import { WS_CLOSE_UNAUTHENTICATED, WS_LIMITS, type ServerMessage } from 'shared/realtime';
 import { expectOk, seatInput, team, type TeamFixture } from '../../../../test/fixtures/teams.js';
 import { World } from '../../../../test/fixtures/world.js';
 import { describeInfra, waitFor } from '../../../../test/helpers/infra.js';
@@ -80,6 +80,46 @@ describeInfra(
         expect(await Promise.race([p.closed, p.opened.then(() => p.closed)])).toBe(
           WS_CLOSE_UNAUTHENTICATED,
         );
+      });
+    });
+
+    describe('session end and connection limit', () => {
+      it('S3SEC-01: signing out closes the socket of that session with 4401 within seconds', async () => {
+        const { session } = await world.signedIn('ws-signout');
+        const headers = { cookie: session.cookieHeader(), origin: world.origin };
+        const p = probe(wsUrl, headers);
+        await p.opened;
+        const out = await session.post('/auth/sign-out', undefined, { idempotencyKey: null });
+        expect(out.statusCode).toBe(200);
+        const code = await Promise.race([
+          p.closed,
+          new Promise<number>((resolve) => setTimeout(() => resolve(-1), 15_000)),
+        ]);
+        expect(code).toBe(WS_CLOSE_UNAUTHENTICATED);
+      });
+
+      it('S3SEC-01: signing out one session leaves the sockets of another session of the same user open', async () => {
+        const first = await world.signedIn('ws-two-sessions');
+        const second = await world.signIn(first.user.email);
+        const a = probe(wsUrl, { cookie: first.session.cookieHeader(), origin: world.origin });
+        const b = probe(wsUrl, { cookie: second.cookieHeader(), origin: world.origin });
+        await Promise.all([a.opened, b.opened]);
+        const out = await first.session.post('/auth/sign-out', undefined, { idempotencyKey: null });
+        expect(out.statusCode).toBe(200);
+        expect(await Promise.race([a.closed, b.closed])).toBe(WS_CLOSE_UNAUTHENTICATED);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        expect(b.socket.readyState).toBe(WebSocket.OPEN);
+        b.socket.close();
+      });
+
+      it('S3SEC-03: parallel handshakes of one user never exceed the connection limit', async () => {
+        const { session } = await world.signedIn('ws-parallel');
+        const headers = { cookie: session.cookieHeader(), origin: world.origin };
+        const probes = Array.from({ length: 12 }, () => probe(wsUrl, headers));
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const open = probes.filter((p) => p.socket.readyState === WebSocket.OPEN);
+        expect(open.length).toBe(WS_LIMITS.maxConnectionsPerUser);
+        for (const p of probes) p.socket.close();
       });
     });
 

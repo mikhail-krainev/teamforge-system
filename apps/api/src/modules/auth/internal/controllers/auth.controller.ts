@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
@@ -7,6 +7,7 @@ import type { Auth } from '../better-auth/create-auth.js';
 import { AUTH } from '../better-auth/tokens.js';
 import { forwardToAuth, toWebHeaders } from '../better-auth/web-bridge.js';
 import { LoginRateLimitGuard } from '../magic-link/login-rate-limit.guard.js';
+import { SessionRevoker } from '../services/session-revoker.js';
 
 /** Library error codes meaning "this GitHub account belongs to someone else" (FR-AUTH-05). */
 const OWNED_BY_ANOTHER =
@@ -20,9 +21,12 @@ const OWNED_BY_ANOTHER =
  */
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     @Inject(AUTH) private readonly auth: Auth,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(SessionRevoker) private readonly sessions: SessionRevoker,
   ) {}
 
   private forward(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -54,8 +58,19 @@ export class AuthController {
   @Post('sign-out')
   @Authz('signOut')
   @NoIdempotency()
-  signOut(@Req() request: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
-    return this.forward(request, reply);
+  async signOut(@Req() request: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    // The session is read before the library deletes it, so the event can name it (S3SEC-01).
+    const ended = await this.auth.api
+      .getSession({ headers: toWebHeaders(request) })
+      .catch(() => null);
+    await this.forward(request, reply);
+    if (ended === null || reply.statusCode >= 300) return;
+    try {
+      await this.sessions.announceSignOut(ended.user.id, ended.session.id);
+    } catch (error) {
+      // The session is gone already; open sockets are closed by the gateway's periodic re-check.
+      this.logger.warn(`auth.session_revoked was not written: ${String(error)}`);
+    }
   }
 
   /** The session without its token (SEC-07): the cookie is the only holder of the secret. */
