@@ -126,7 +126,7 @@ describeInfra('S3-14: edge cases under concurrency', ['db', 'redis'], () => {
     expect(stored).toHaveLength(ballots.filter((x) => x.status === 201).length);
     // refusals of a ballot are the documented ones
     for (const x of ballots.filter((y) => y.status !== 201)) {
-      expect(['ALREADY_VOTED', 'NOT_FOUND', 'VOTE_PHASE']).toContain(x.code);
+      expect(['ALREADY_VOTED', 'INVALID_STATE', 'NOT_FOUND', 'VOTE_PHASE']).toContain(x.code);
     }
     // nobody confirmed anything: the team is still leaderless and the vote open
     expect(await openVotes(world, f.team.id)).toBe(1);

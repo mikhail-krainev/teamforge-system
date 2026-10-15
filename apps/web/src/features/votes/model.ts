@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import type { Team } from '@/features/teams/api';
 import type { LeaderVote } from './api';
 
 export const ACTIVE_STATUSES: readonly LeaderVote['status'][] = [
@@ -36,4 +37,21 @@ export function formatRemaining(ms: number): string | null {
 /** A candidate takes part in the ballot once confirmed and while not withdrawn. */
 export function isVotable(candidate: LeaderVote['candidates'][number]): boolean {
   return candidate.confirmed && !candidate.withdrawn;
+}
+
+/**
+ * The lead of record whose inactivity opened the vote can still call it off, until the first ballot
+ * (the server decides; this only decides whether to offer the button).
+ */
+export function canReturnAsLead(
+  vote: LeaderVote,
+  team: Pick<Team, 'leadUserId'>,
+  meId: string,
+): boolean {
+  return (
+    vote.trigger === 'lead_inactive' &&
+    isActive(vote) &&
+    vote.ballotsCast === 0 &&
+    team.leadUserId === meId
+  );
 }

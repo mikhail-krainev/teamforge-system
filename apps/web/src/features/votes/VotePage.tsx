@@ -11,10 +11,10 @@ import { t } from '@/i18n';
 import { ApiError } from '@/lib/api/errors';
 import type { LeaderVote } from './api';
 import { CandidateList } from './CandidateList';
-import { pickVote } from './model';
+import { canReturnAsLead, pickVote } from './model';
 import { PhaseBanner } from './PhaseBanner';
 import { useVoteRequests, useVotes } from './queries';
-import { useRequestVote } from './useVoteActions';
+import { useRequestVote, useReturnAsLead } from './useVoteActions';
 import { VoteActions } from './VoteActions';
 
 function Outcome({ vote, nameOf }: { vote: LeaderVote; nameOf: (id: string) => string }) {
@@ -63,6 +63,37 @@ function RequestVote({ teamId }: { teamId: string }) {
   );
 }
 
+/** Stays on screen after a refusal, so the reason is read even when the vote has moved on. */
+function LeadReturn({
+  teamId,
+  voteId,
+  offered,
+}: {
+  teamId: string;
+  voteId: string;
+  offered: boolean;
+}) {
+  const lead = useReturnAsLead(teamId, voteId);
+  if (!offered) return lead.isError ? <ActionErrorAlert error={lead.error} /> : null;
+  return (
+    <section className="card stack" aria-labelledby="vote-lead-return-heading">
+      <h2 id="vote-lead-return-heading">{t('votes.leadReturn.title')}</h2>
+      <p>{t('votes.leadReturn.hint')}</p>
+      {lead.isError ? <ActionErrorAlert error={lead.error} /> : null}
+      <div>
+        <button
+          type="button"
+          className="button"
+          disabled={lead.isPending}
+          onClick={() => lead.mutate()}
+        >
+          {lead.isPending ? t('votes.actions.working') : t('votes.actions.returnAsLead')}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function VoteView({ teamId, vote, team, meId }: Props & { vote: LeaderVote; team: Team }) {
   const nameOf = (userId: string) =>
     team.members.find((m) => m.userId === userId)?.displayName ?? t('votes.candidates.unknown');
@@ -70,6 +101,7 @@ function VoteView({ teamId, vote, team, meId }: Props & { vote: LeaderVote; team
   return (
     <>
       <PhaseBanner vote={vote} />
+      <LeadReturn teamId={teamId} voteId={vote.id} offered={canReturnAsLead(vote, team, meId)} />
       <Outcome vote={vote} nameOf={nameOf} />
       <CandidateList vote={vote} nameOf={nameOf} />
       <VoteActions teamId={teamId} vote={vote} meId={meId} members={members} nameOf={nameOf} />

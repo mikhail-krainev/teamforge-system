@@ -79,7 +79,7 @@
 - LOW (S1R-23): ошибка подписки на `outbox:kick` глотается, `onApplicationShutdown` relay не дожидается текущего прохода `tick`.
 - LOW (S1R-24): очистки (`idempotency-cleanup`, `outbox-cleanup`) - один `DELETE` без пакетов и `statement_timeout`; нет инструмента `events:replay` для строк `event_dead_letter` (срез 2).
 - LOW (S1R-25): пароль Redis в аргументах `redis-cli` виден в `ps` (использовать `REDISCLI_AUTH`); приложение работает под S3-идентификатором `Admin` (нужны Read/Write/List).
-- LOW (S1R-26): `.gitleaks.toml` исключает целиком `apps/api/test/`, `docker-compose.test.yml`, `.env.test`; заменить на `regexes` с конкретными тестовыми значениями.
+- LOW (S1R-26): `.gitleaks.toml` исключал целиком `apps/api/test/`; путь заменён точными `regexes` тестовых значений (срез 3). Остались исключения путей `docker-compose.test.yml` и `.env.test` (публичные одноразовые пароли тестового стека).
 - LOW (S1R-27): CI: `cancel-in-progress` отменяет и запуски на `main`; нет сканирования образов (trivy/grype) и `actionlint`/`zizmor`.
 - LOW (S1R-28): минимальная версия Next.js `15.2.3` в `check-deps.mjs` и `next-config.test.ts` учитывает только CVE-2025-29927; завести минимумы по линиям 15.x и 16.x.
 - LOW (S1R-29): `apps/api/test/boundaries.test.ts` создаёт нарушающие файлы в `src/modules/...`; при убитом процессе они ломают `lint`; использовать временный каталог вне `src`.

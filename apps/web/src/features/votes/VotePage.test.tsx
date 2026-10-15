@@ -32,11 +32,11 @@ const VOTES = `${API}/v1/teams/${TEAM_ID}/leader-votes`;
 const VOTE_URL = `${VOTES}/${VOTE_ID}`;
 
 /** Serves the vote the test holds in `state.vote`; actions replace it like the server would. */
-function serve(initial: LeaderVote | null, meId = ANNA_ID) {
+function serve(initial: LeaderVote | null, meId = ANNA_ID, team = voteTeam()) {
   const state = { vote: initial };
   server.use(
     http.get(`${API}/v1/me`, () => HttpResponse.json({ id: meId })),
-    http.get(`${API}/v1/teams/${TEAM_ID}`, () => HttpResponse.json(voteTeam())),
+    http.get(`${API}/v1/teams/${TEAM_ID}`, () => HttpResponse.json(team)),
     http.get(VOTES, () =>
       HttpResponse.json({ items: state.vote ? [state.vote] : [], nextCursor: null }),
     ),
@@ -331,5 +331,74 @@ describe('FR-TEAM-17: confirmation and offer', () => {
     const actions = await screen.findByRole('region', { name: 'Ваши действия' });
     expect(within(actions).queryByRole('button')).toBeNull();
     expect(within(actions).getByText(/Ждём ответа до/)).toBeTruthy();
+  });
+});
+
+describe('FR-TEAM-14: the inactive lead returns', () => {
+  const inactive = (overrides: Partial<LeaderVote> = {}) =>
+    sampleVote({ trigger: 'lead_inactive', ...overrides });
+  const leadTeam = () => voteTeam({ leadUserId: ANNA_ID });
+  const RETURN = 'Я вернулся, отменить голосование';
+
+  it('the lead of record sees the button, which posts returnAsLead with an idempotency key and shows the cancelled vote', async () => {
+    const state = serve(inactive(), ANNA_ID, leadTeam());
+    let key: string | null = null;
+    server.use(
+      http.post(`${VOTE_URL}/lead-return`, ({ request }) => {
+        key = request.headers.get('Idempotency-Key');
+        state.vote = inactive({
+          status: 'cancelled',
+          outcome: 'cancelled_lead_returned',
+          phaseDeadline: null,
+        });
+        return HttpResponse.json(state.vote);
+      }),
+    );
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: RETURN }));
+    await waitFor(async () =>
+      expect((await phase()).textContent).toContain('Голосование отменено'),
+    );
+    expect(screen.getByRole('region', { name: 'Голосование завершено' }).textContent).toContain(
+      'Прежний тимлид вернулся',
+    );
+    expect(key).toBeTruthy();
+    expect(screen.queryByRole('button', { name: RETURN })).toBeNull();
+  });
+
+  it('it is not offered to other members, for other triggers, after a ballot or once the vote is closed', async () => {
+    serve(inactive(), BOB_ID, leadTeam());
+    const { unmount } = open();
+    await phase();
+    expect(screen.queryByRole('button', { name: RETURN })).toBeNull();
+    unmount();
+
+    for (const vote of [
+      sampleVote({ trigger: 'lead_left' }),
+      inactive({ status: 'voting', ballotsCast: 1 }),
+      inactive({ status: 'closed', outcome: 'elected', phaseDeadline: null }),
+    ]) {
+      serve(vote, ANNA_ID, leadTeam());
+      const view = open();
+      await phase();
+      expect(screen.queryByRole('button', { name: RETURN })).toBeNull();
+      view.unmount();
+      cleanup();
+    }
+  });
+
+  it('INVALID_STATE (a ballot arrived meanwhile) is announced and the vote is re-read', async () => {
+    const state = serve(inactive(), ANNA_ID, leadTeam());
+    server.use(
+      http.post(`${VOTE_URL}/lead-return`, () => {
+        state.vote = inactive({ status: 'voting', ballotsCast: 1 });
+        return problem(409, 'INVALID_STATE');
+      }),
+    );
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: RETURN }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await waitFor(async () => expect((await phase()).textContent).toContain('Голосование идёт'));
+    await waitFor(() => expect(screen.queryByRole('button', { name: RETURN })).toBeNull());
   });
 });

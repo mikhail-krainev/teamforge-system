@@ -115,27 +115,68 @@ describeInfra('S3 teams: the leader vote (FR-TEAM-14..21)', ['db', 'redis'], () 
       expect((await currentVote(world, a, t.id)).trigger).toBe('lead_inactive');
     });
 
-    it('FR-TEAM-14: the lead returns (opens the votes) before the first ballot: the vote is cancelled, the team is restored', async () => {
-      const t = await team(world, { members: 3, openSeats: 0, status: 'active' });
+    /** A team whose lead is idle for 15 days and whose members asked for a vote (trigger lead_inactive). */
+    const inactiveLeadVote = async (members: number) => {
+      const t = await team(world, { members, openSeats: 0, status: 'active' });
       clock.advance(15 * DAY);
       for (const requester of t.members) {
         await world.as(requester).post(`/v1/teams/${t.id}/leader-vote-requests`);
       }
       expect(await teamRow(world, t.id)).toMatchObject({ status: 'voting' });
+      const vote = await currentVote(world, t.members[0] ?? t.lead, t.id);
+      return { t, vote, url: `/v1/teams/${t.id}/leader-votes/${vote.id}/lead-return` };
+    };
+
+    it('FR-TEAM-14: reading the votes is free of side effects: the lead who only looks does not cancel the vote', async () => {
+      const { t } = await inactiveLeadVote(3);
       const page = expectOk<{ items: VoteDto[] }>(
         'listLeaderVotes',
         await world.as(t.lead).get(`/v1/teams/${t.id}/leader-votes`),
         200,
       );
-      expect(page.items[0]).toMatchObject({
-        status: 'cancelled',
-        outcome: 'cancelled_lead_returned',
-      });
+      expect(page.items[0]).toMatchObject({ status: 'nominating', trigger: 'lead_inactive' });
+      expect(await teamRow(world, t.id)).toMatchObject({ status: 'voting' });
+      expect(await openVotes(world, t.id)).toBe(1);
+      expect(await eventCount(world, t.id, 'vote_cancelled')).toBe(0);
+    });
+
+    it('FR-TEAM-14: returnAsLead before the first ballot: the vote is cancelled, the team is restored, one journal entry', async () => {
+      const { t, url } = await inactiveLeadVote(3);
+      const vote = expectOk<VoteDto>('returnAsLead', await world.as(t.lead).post(url), 200);
+      expect(vote).toMatchObject({ status: 'cancelled', outcome: 'cancelled_lead_returned' });
       expect(await teamRow(world, t.id)).toMatchObject({
         status: 'active',
         lead_user_id: t.lead.id,
       });
       expect(await openVotes(world, t.id)).toBe(0);
+      expect(await eventCount(world, t.id, 'vote_cancelled')).toBe(1);
+      // a second call: the vote is no longer open
+      expectProblem('returnAsLead', await world.as(t.lead).post(url), 409, 'INVALID_STATE');
+    });
+
+    it('FR-TEAM-14: returnAsLead after a ballot has been cast -> 409 INVALID_STATE, the vote goes on', async () => {
+      const { t, vote, url } = await inactiveLeadVote(4);
+      const [b, c] = t.members;
+      if (!b || !c) throw new Error('members');
+      const candidates = `/v1/teams/${t.id}/leader-votes/${vote.id}/candidates`;
+      expectOk('nominateCandidate', await world.as(b).post(candidates, { userId: b.id }), 201);
+      expectOk('consentCandidacy', await world.as(b).post(`${candidates}/${b.id}/consent`), 200);
+      await passDeadline(world, c, t.id, DAY + 60_000);
+      await ballot(world, t, vote.id, c, b);
+      expectProblem('returnAsLead', await world.as(t.lead).post(url), 409, 'INVALID_STATE');
+      expect(await teamRow(world, t.id)).toMatchObject({ status: 'voting' });
+      expect(await openVotes(world, t.id)).toBe(1);
+    });
+
+    it('FR-TEAM-14: returnAsLead by a member who is not the lead -> 403 NOT_TEAM_LEAD; the vote stays open', async () => {
+      const { t, url } = await inactiveLeadVote(3);
+      expectProblem(
+        'returnAsLead',
+        await world.as(t.members[0] ?? t.lead).post(url),
+        403,
+        'NOT_TEAM_LEAD',
+      );
+      expect(await openVotes(world, t.id)).toBe(1);
     });
 
     it('FR-TEAM-14: a stranger cannot request or read the counter -> 404', async () => {

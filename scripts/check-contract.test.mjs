@@ -18,10 +18,10 @@ const find = (doc, id) => {
 const hasError = (doc, prefix, text) =>
   checkContract(doc).errors.some((e) => e.startsWith(prefix) && e.includes(text));
 
-test('real contract passes with 114 operations', () => {
+test('real contract passes with 115 operations', () => {
   const result = checkContract(load());
   assert.deepEqual(result.errors, []);
-  assert.equal(result.operations, 114);
+  assert.equal(result.operations, 115);
 });
 
 test('duplicate operationId fails', () => {
@@ -65,7 +65,7 @@ test('CLI exits 0 on the real contract and 1 on a broken file', () => {
   const script = path.join(root, 'scripts/check-contract.mjs');
   const ok = spawnSync(process.execPath, [script], { encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stderr);
-  assert.match(ok.stdout, /114 operations/);
+  assert.match(ok.stdout, /115 operations/);
   const broken = path.join(root, 'scripts/fixtures/broken.yaml');
   const bad = spawnSync(process.execPath, [script, broken], { encoding: 'utf8' });
   assert.equal(bad.status, 1);

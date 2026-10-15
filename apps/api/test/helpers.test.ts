@@ -12,8 +12,8 @@ const jsonResponse = (statusCode: number, body: unknown) => ({
 });
 
 describe('S1-10 test infrastructure: contract helper', () => {
-  it('knows all 114 operations of the contract', () => {
-    expect(allOperations()).toHaveLength(114);
+  it('knows all 115 operations of the contract', () => {
+    expect(allOperations()).toHaveLength(115);
     expect(() => findOperation('noSuchOperation')).toThrow(/Unknown operationId/);
   });
 

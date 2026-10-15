@@ -2,7 +2,7 @@ import { seatInput } from './teams.js';
 import type { OperationRequest } from './operations.js';
 
 /**
- * The 35 operations of slice 3 by module (docs/plan.md, "Покрытие операций по срезам"). Paths and
+ * The 36 operations of slice 3 by module (docs/plan.md, "Покрытие операций по срезам"). Paths and
  * bodies come from docs/api/openapi.yaml; nothing here is invented.
  */
 export const TEAMS_OPERATIONS = [
@@ -37,6 +37,7 @@ export const TEAMS_OPERATIONS = [
   'consentCandidacy',
   'withdrawCandidacy',
   'castBallot',
+  'returnAsLead',
   'respondLeaderOffer',
 ] as const;
 
@@ -162,6 +163,7 @@ const BUILDERS: Record<Slice3Operation, Builder> = {
     (c) => `/v1/teams/${c.teamId}/leader-votes/${c.voteId}/ballots`,
     (c) => ({ candidateUserId: c.userId }),
   ),
+  returnAsLead: post((c) => `/v1/teams/${c.teamId}/leader-votes/${c.voteId}/lead-return`),
   respondLeaderOffer: post(
     (c) => `/v1/teams/${c.teamId}/leader-votes/${c.voteId}/offer-responses`,
     () => ({ accept: true }),

@@ -7,7 +7,7 @@ import { JoinRepository } from '../repositories/join.repository.js';
 import { LeaderVoteRepository } from '../repositories/leader-vote.repository.js';
 import type { LeaderVoteDto } from './vote-dto.js';
 import { VoteFlowService, onBallot } from './vote-flow.service.js';
-import { VoteLock } from './vote-lock.js';
+import { VoteLock, refusalAfter } from './vote-lock.js';
 import { VoteQueryService } from './vote-query.service.js';
 
 /**
@@ -33,27 +33,33 @@ export class VoteBallotService {
     voteId: string,
     body: Body<'castBallot'>,
   ): Promise<LeaderVoteDto> {
-    await this.tx.run(async () => {
+    const refused = await this.tx.run(async (): Promise<DomainError | undefined> => {
       const now = this.clock.now();
       let vote = await this.lock.lock(teamId, voteId);
       // A phase whose time is over is closed before the ballot is looked at (CC-4 (c)).
-      if (await this.flow.processDue(vote, now)) vote = await this.lock.reload(teamId, voteId);
+      const moved = await this.flow.processDue(vote, now);
+      if (moved) vote = await this.lock.reload(teamId, voteId);
+      // After the phase moved, a refusal must not roll the move back: it is answered after the commit.
+      const refuse = refusalAfter(moved);
       if (vote.status !== 'voting' && vote.status !== 'runoff') {
-        throw new DomainError('VOTE_PHASE', 409);
+        return refuse(new DomainError('VOTE_PHASE', 409));
       }
-      await this.requireVoter(teamId, voteId, userId);
+      if (!(await this.isVoter(teamId, voteId, userId))) {
+        return refuse(new DomainError('NOT_ELIGIBLE', 403));
+      }
       const candidate = (await this.votes.candidatesOf(voteId)).find(
         (c) => c.userId === body.candidateUserId,
       );
+      if (candidate?.withdrawnAt) return refuse(new DomainError('INVALID_STATE', 409));
       if (
         candidate === undefined ||
         !onBallot(candidate) ||
         (vote.status === 'runoff' && !candidate.inRunoff)
       ) {
-        throw new DomainError('NOT_FOUND', 404);
+        return refuse(new DomainError('NOT_FOUND', 404));
       }
       if (await this.votes.hasBallot(voteId, vote.round, userId)) {
-        throw new DomainError('ALREADY_VOTED', 409);
+        return refuse(new DomainError('ALREADY_VOTED', 409));
       }
       await this.votes.insertBallot({
         voteId,
@@ -63,14 +69,16 @@ export class VoteBallotService {
         castAt: now,
       });
       await this.flow.afterBallot(vote, now);
+      return undefined;
     });
+    if (refused !== undefined) throw refused;
     return this.query.get(userId, teamId, voteId);
   }
 
   /** Right to vote: in the snapshot and still on the roster (a leaver keeps his ballot, not his right). */
-  private async requireVoter(teamId: string, voteId: string, userId: string): Promise<void> {
+  private async isVoter(teamId: string, voteId: string, userId: string): Promise<boolean> {
     const eligible = (await this.votes.eligibleOf(voteId)).some((e) => e.userId === userId);
     const active = (await this.joins.activeMembership(teamId, userId)) !== undefined;
-    if (!eligible || !active) throw new DomainError('NOT_ELIGIBLE', 403);
+    return eligible && active;
   }
 }

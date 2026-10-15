@@ -144,12 +144,12 @@ apps/api/src/modules/<m>/
 |---|---|---|
 | 1 | healthLive, healthReady | 2 |
 | 2 | getMe, getCurrentConsentText, acceptConsent, requestDeletion, cancelDeletionRequest, getMyGithubAccount, signInSocial, signInMagicLink, verifyMagicLink, linkGithub, signOut, getSession, getMyProfile, saveMyProfile, getPublicProfile, uploadResume, getMyResume, confirmResumeFields, deleteResume, listRoles, createRole, updateRole, listStackTags, createStackTag, updateStackTag | 25 |
-| 3 | listProductTypes, listTeams, createTeam, getTeam, updateTeam, listMyTeams, addSeats, updateSeat, closeSeat, startProject, listTeamEvents, createSeatOffer, listTeamSeatOffers, createJoinRequest, listMySeatOffers, acceptSeatOffer, rejectSeatOffer, createInvitation, listInvitations, revokeInvitation, previewInvitation, acceptInvitation, leaveTeam, listDepartures, decideDeparture, listLeaderVotes, getLeaderVoteRequests, requestLeaderVote, nominateCandidate, consentCandidacy, withdrawCandidacy, castBallot, respondLeaderOffer, listNotifications, markNotificationsRead | 35 |
+| 3 | listProductTypes, listTeams, createTeam, getTeam, updateTeam, listMyTeams, addSeats, updateSeat, closeSeat, startProject, listTeamEvents, createSeatOffer, listTeamSeatOffers, createJoinRequest, listMySeatOffers, acceptSeatOffer, rejectSeatOffer, createInvitation, listInvitations, revokeInvitation, previewInvitation, acceptInvitation, leaveTeam, listDepartures, decideDeparture, listLeaderVotes, getLeaderVoteRequests, requestLeaderVote, nominateCandidate, consentCandidacy, withdrawCandidacy, castBallot, returnAsLead, respondLeaderOffer, listNotifications, markNotificationsRead | 36 |
 | 4 | listSeatCandidates, listRecommendedTeams, getMySearchApplication, createSearchApplication, updateSearchApplication, cancelSearchApplication, getRoleDemand, excludeTrialMember, confirmTrial | 9 |
 | 5 | listPlaybooks, getPlaybook, getTemplate, adminListPlaybooks, uploadPlaybook, publishPlaybook, listStages, getStageChecklist, updateChecklistItem, assignChecklistItem, revertFallback, uploadArtifactFile, getArtifactDownloadUrl, deleteArtifactFile, submitReview, acceptReviewRisk, transitionStage, confirmParticipation | 18 |
 | 6 | createInstallationSession, githubSetupCallback, listAvailableRepositories, linkRepository, getRepository, unlinkRepository, receiveGithubWebhook, getTeamFeed, getContributionSummary, relabelContribution, requestCompletionCheck, getLatestCompletionCheck, completeProject, getCompletion | 14 |
 | 7 | listBadges, listUserAwards, getUserCounters, getTeamCredit, createDispute, listFraudCases, getFraudCase, decideFraudCase, listReceivedReviews, createPeerReview, listSentReviews | 11 |
-| | Итого | 114 |
+| | Итого | 115 |
 
 Решения по границам срезов (где порядок среза пересекается с зависимостями модулей):
 
@@ -211,7 +211,7 @@ apps/api/src/modules/<m>/
 - Критерии: пакет `packages/shared` с `generate` (redocly lint -> bundle -> openapi-typescript); экспорт `Schema<N>`, `Body<Op>`, `Ok<Op>`, `ErrorCode`; `packages/shared/src/realtime.ts` (типы сообщений WebSocket из architecture 9); `scripts/check-contract.mjs` (operationId, x-fr, x-authz, Idempotency-Key, chain) падает на искусственно сломанном контракте (тест скрипта); `oasdiff` обёртка `pnpm run contract:breaking`; сгенерированные файлы закоммичены.
 - Зависимости: S1-01.
 - Файлы: `packages/shared/**`, `scripts/check-contract.mjs`, `scripts/check-contract.test.mjs`.
-- Проверка: `pnpm --filter shared run generate && git diff --exit-code packages/shared`; `node scripts/check-contract.mjs` -> 114 операций, все с `x-authz`.
+- Проверка: `pnpm --filter shared run generate && git diff --exit-code packages/shared`; `node scripts/check-contract.mjs` -> 115 операций, все с `x-authz`.
 
 **S1-03 apps/api: загрузка приложения (B, M)**
 - Критерии: NestJS 12 + Fastify, ESM (`"type": "module"`, `nodenext`, импорты с `.js`), entry `main.ts` (api) и `worker.ts` (контекст приложения без HTTP); `platform/config.ts` (zod-схема всех переменных 13.11; при ошибке печатает список имён без значений и выходит с кодом 1; тест на отсутствие `BETTER_AUTH_SECRET`, `DATA_ENCRYPTION_KEY`, слабого значения); pino (`nestjs-pino`) с сериализаторами без `url/query/headers`, поле `request_id` из `X-Request-Id` или новый; `DomainError` и фильтр problem+json (RFC 9457, поля из 13.1, `requestId`); `healthLive`, `healthReady` (PostgreSQL, Redis, S3 `HeadBucket`, тайм-аут 1 с, 503); `Clock` (системные и фиксированные часы).

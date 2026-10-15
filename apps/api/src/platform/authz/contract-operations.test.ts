@@ -12,7 +12,7 @@ const operations = readContractOperations(doc);
 
 describe('contract operations (packages/shared/openapi.json)', () => {
   it('reads every operation with its x-authz', () => {
-    expect(operations.size).toBe(114);
+    expect(operations.size).toBe(115);
     expect([...operations.values()].filter((o) => o.authz === undefined)).toEqual([]);
     expect(operations.get('healthLive')).toMatchObject({
       method: 'get',

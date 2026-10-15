@@ -9,7 +9,6 @@ description = "Public throwaway credentials of the local test stack and test fix
 paths = [
   '''(^|/)\.env\.test$''',
   '''(^|/)docker-compose\.test\.yml$''',
-  '''(^|/)apps/api/test/''',
 ]
 
 [[allowlists]]
@@ -23,3 +22,12 @@ regexes = ['''cancel0123456789abcdef''']
 [[allowlists]]
 description = "Fake invitation token in web unit tests (alphabet sequence, false positive)"
 regexes = ['''abcdefghij0123456789ABCDEFGHIJ-_abcdefghijK''']
+
+[[allowlists]]
+description = "Fake keys and secrets of the API test helpers and integration tests (exact values; never real secrets)"
+regexes = [
+  '''^k3Jd9sLq0Zx7Vb2Nm5Ra8Tw1Yp4Hc6Ug$''',
+  '''^0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$''',
+  '''^0b9f3c1e-5d2a-4f6b-8a7c-1e2d3c4b5a69$''',
+  '''^wrong-secret-key-0123456789$''',
+]

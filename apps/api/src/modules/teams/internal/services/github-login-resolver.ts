@@ -35,7 +35,9 @@ const GLOBAL_LOOKUPS: RateLimitRule = { limit: 45, windowMs: HOUR_MS };
 const FOUND_TTL_S = 3600;
 const MISSING_TTL_S = 300;
 // `gh_state:` is the GitHub prefix the `api` Redis ACL user may write (docker/redis/users.acl.tpl).
-const CACHE_PREFIX = 'gh_state:login:';
+// It is shared with the OAuth state keys `gh_state:<random>`, so the cache keys carry `cache:` and
+// a ':' that no OAuth state may contain (architecture 7.2): the two can never name the same key.
+const CACHE_PREFIX = 'gh_state:cache:login:';
 
 function unavailable(): DomainError {
   return new DomainError('INTERNAL', 503, {

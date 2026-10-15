@@ -9,6 +9,7 @@ import {
   nominate,
   requestVote,
   respondOffer,
+  returnAsLead,
   voteRequestsKey,
   votesKey,
   withdraw,
@@ -59,6 +60,23 @@ export function useVoteActions(teamId: string, voteId: string) {
     busy: all.some((m) => m.isPending),
     error: all.find((m) => m.isError)?.error ?? null,
   };
+}
+
+/** The inactive lead cancels the vote that his silence opened; the vote and the team are re-read. */
+export function useReturnAsLead(teamId: string, voteId: string) {
+  const queryClient = useQueryClient();
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: votesKey(teamId) }),
+      queryClient.invalidateQueries({ queryKey: teamKey(teamId) }),
+      queryClient.invalidateQueries({ queryKey: teamEventsKey(teamId) }),
+    ]);
+  };
+  return useIdempotentMutation({
+    mutationFn: (_: void, key) => returnAsLead({ teamId, voteId }, key),
+    onSuccess: refresh,
+    onError: refresh,
+  });
 }
 
 export function useRequestVote(teamId: string) {

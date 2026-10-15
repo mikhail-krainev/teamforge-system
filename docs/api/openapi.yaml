@@ -2424,6 +2424,7 @@ paths:
       tags:
         - teams
       summary: "Голосования команды (текущее первым)"
+      description: "Только чтение: ничего не меняет (возврат тимлида отменяет голосование через returnAsLead)."
       parameters:
         - $ref: "#/components/parameters/TeamId"
         - $ref: "#/components/parameters/Cursor"
@@ -2660,7 +2661,7 @@ paths:
       tags:
         - teams
       summary: "Проголосовать"
-      description: "CC-4: один голос на человека в раунде (409 ALREADY_VOTED), 403 NOT_ELIGIBLE, 409 VOTE_PHASE. Может досрочно закрыть голосование."
+      description: "CC-4: один голос на человека в раунде (409 ALREADY_VOTED), 403 NOT_ELIGIBLE, 409 VOTE_PHASE. Кандидат снят (withdrawCandidacy) или вышел из команды - 409 INVALID_STATE; не кандидат - 404. Может досрочно закрыть голосование."
       parameters:
         - $ref: "#/components/parameters/TeamId"
         - $ref: "#/components/parameters/VoteId"
@@ -2747,6 +2748,47 @@ paths:
         - FR-TEAM-17
         - FR-TEAM-18
         - FR-TEAM-20
+  /v1/teams/{teamId}/leader-votes/{voteId}/lead-return:
+    post:
+      operationId: returnAsLead
+      x-authz:
+        actor: team-lead
+        chain:
+          - teamId
+          - voteId
+        rule: "текущий тимлид команды, чья неактивность открыла это голосование (trigger=lead_inactive)"
+      tags:
+        - teams
+      summary: "Я вернулся: отменить голосование, открытое из-за моей неактивности"
+      description: "Блокировки: команда -> голосование. Отменяет голосование (status=cancelled, outcome=cancelled_lead_returned), восстанавливает статус команды и обновляет lead_last_active_at. 409 INVALID_STATE, если голосование открыто не из-за неактивности (trigger != lead_inactive), уже закрыто или отменено, или в нём уже подан хотя бы один голос. Чтение голосований (listLeaderVotes) ничего не отменяет."
+      parameters:
+        - $ref: "#/components/parameters/TeamId"
+        - $ref: "#/components/parameters/VoteId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderVote"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-fr:
+        - FR-TEAM-14
+        - FR-TEAM-17
   /v1/teams/{teamId}/seats/{seatId}/candidates:
     get:
       operationId: listSeatCandidates

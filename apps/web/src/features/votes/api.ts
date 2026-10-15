@@ -112,3 +112,16 @@ export async function respondOffer(
   if (!data) throw new Error('Empty vote response');
   return data;
 }
+
+/** The lead whose inactivity opened the vote says he is back (FR-TEAM-14). */
+export async function returnAsLead(
+  { teamId, voteId }: VoteRef,
+  key: string,
+  client: Pick<Client, 'POST'> = apiClient,
+) {
+  const { data } = await client.POST('/v1/teams/{teamId}/leader-votes/{voteId}/lead-return', {
+    params: { path: { teamId, voteId }, header: { 'Idempotency-Key': key } },
+  });
+  if (!data) throw new Error('Empty vote response');
+  return data;
+}

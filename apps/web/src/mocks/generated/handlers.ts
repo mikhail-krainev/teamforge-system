@@ -263,6 +263,7 @@ export const generatedHandlers = [
           id: '00000000-0000-4000-8000-000000000000',
           type: 'string',
           payload: {},
+          actorDisplayName: 'string',
           createdAt: '2026-01-01T00:00:00.000Z',
           readAt: '2026-01-01T00:00:00.000Z',
         },
@@ -1416,6 +1417,41 @@ export const generatedHandlers = [
   ),
   // consentCandidacy
   http.post('*/api/v1/teams/:teamId/leader-votes/:voteId/candidates/:candidateUserId/consent', () =>
+    HttpResponse.json({
+      id: '00000000-0000-4000-8000-000000000000',
+      teamId: '00000000-0000-4000-8000-000000000000',
+      trigger: 'lead_left',
+      status: 'nominating',
+      round: 1,
+      openedAt: '2026-01-01T00:00:00.000Z',
+      phaseDeadline: '2026-01-01T00:00:00.000Z',
+      extended: false,
+      eligibleCount: 0,
+      quorum: 1,
+      candidates: [
+        {
+          userId: '00000000-0000-4000-8000-000000000000',
+          confirmed: false,
+          withdrawn: false,
+          votes: 0,
+        },
+      ],
+      ballotsCast: 0,
+      myBallotCast: false,
+      canVote: false,
+      canNominate: false,
+      pendingOffer: {
+        userId: '00000000-0000-4000-8000-000000000000',
+        kind: 'winner_confirmation',
+        expiresAt: '2026-01-01T00:00:00.000Z',
+      },
+      outcome: 'elected',
+      winnerUserId: '00000000-0000-4000-8000-000000000000',
+      randomTieBreak: false,
+    }),
+  ),
+  // returnAsLead
+  http.post('*/api/v1/teams/:teamId/leader-votes/:voteId/lead-return', () =>
     HttpResponse.json({
       id: '00000000-0000-4000-8000-000000000000',
       teamId: '00000000-0000-4000-8000-000000000000',
