@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { PLAYBOOKS_API, type PlaybooksApi } from '../../../playbooks/public.js';
 import { PROFILES_API, type ProfilesApi } from '../../../profiles/public.js';
+import { isInTrial } from '../domain/trial-rules.js';
 import { SeatRepository } from '../repositories/seat.repository.js';
 import { TeamRepository } from '../repositories/team.repository.js';
 import { type MemberDto, type SeatDto, type TeamDto, toSeatDto, toTeamDto } from './team-dto.js';
@@ -17,11 +19,13 @@ export class TeamViewService {
     @Inject(SeatRepository) private readonly seats: SeatRepository,
     @Inject(PROFILES_API) private readonly profiles: ProfilesApi,
     @Inject(PLAYBOOKS_API) private readonly playbooks: PlaybooksApi,
+    @Inject(Clock) private readonly clock: Clock,
   ) {}
 
   /**
    * The public card of a team. Private fields of members are not exposed: the trial end is shown
-   * only to members of the same team.
+   * only to members of the same team, and only while the trial runs: after the confirmation or the
+   * end of the trial the member shows `trialUntil: null`.
    */
   async team(teamId: string, viewerId: string): Promise<TeamDto> {
     const row = await this.teams.find(teamId);
@@ -33,6 +37,7 @@ export class TeamViewService {
       this.playbooks.getVersions([row.playbookId]),
     ]);
     const names = await this.profiles.getDisplayNames(memberRows.map((m) => m.userId));
+    const now = this.clock.now();
     const viewerIsMember = memberRows.some((m) => m.userId === viewerId);
     const members: MemberDto[] = memberRows.map((m) => ({
       userId: m.userId,
@@ -40,7 +45,8 @@ export class TeamViewService {
       status: m.status as MemberDto['status'],
       joinedVia: m.joinedVia as MemberDto['joinedVia'],
       joinedAt: m.joinedAt.toISOString(),
-      trialUntil: viewerIsMember ? (m.trialUntil?.toISOString() ?? null) : null,
+      trialUntil:
+        viewerIsMember && isInTrial(m, now) ? (m.trialUntil?.toISOString() ?? null) : null,
       roles: assignments.filter((a) => a.membershipId === m.id).map((a) => a.roleCode),
       isLead: m.userId === row.leadUserId,
     }));

@@ -3,13 +3,15 @@ import { type JobProcessor, ProcessorRegistry } from '../../../../platform/queue
 import type { QueueJob } from '../../../../platform/queues/queues.service.js';
 import { DEPARTURE_DEFAULT_JOB } from '../services/departure-leave.service.js';
 import { DepartureService } from '../services/departure.service.js';
+import { TrialService } from '../services/trial.service.js';
 import { VoteDeadlineService } from '../services/vote-deadline.service.js';
+import { TRIAL_EXPIRE_JOB, parseTrialExpire } from './trial-expire.js';
 import { SUSPENSION_EXPIRE_JOB, VOTE_DEADLINE_JOB, parseVoteDeadline } from './vote-deadline.js';
 
 /**
  * Processor of the `timers` queue for the jobs of teams. `departure-default` (C-14): a decision the
  * lead did not take in 7 days becomes "replace" (the seats stay open). `vote-deadline` and
- * `suspension-expire` (S3-08) share the `handlers` table, because one queue has one worker.
+ * `suspension-expire` (S3-08) and `trial-expire` (S4-06, FR-TEAM-24) share the `handlers` table, because one queue has one worker.
  */
 @Injectable()
 export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
@@ -20,6 +22,7 @@ export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
     @Inject(ProcessorRegistry) private readonly registry: ProcessorRegistry,
     @Inject(DepartureService) private readonly departures: DepartureService,
     @Inject(VoteDeadlineService) private readonly voteDeadlines: VoteDeadlineService,
+    @Inject(TrialService) private readonly trials: TrialService,
   ) {
     this.handlers.set(DEPARTURE_DEFAULT_JOB, (job) => this.departureDefault(job));
     this.handlers.set(VOTE_DEADLINE_JOB, (job) => {
@@ -27,6 +30,7 @@ export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
       return this.voteDeadlines.process(phase.voteId, phase);
     });
     this.handlers.set(SUSPENSION_EXPIRE_JOB, (job) => this.suspensionExpire(job));
+    this.handlers.set(TRIAL_EXPIRE_JOB, (job) => this.trials.expire(parseTrialExpire(job.data)));
   }
 
   onModuleInit(): void {

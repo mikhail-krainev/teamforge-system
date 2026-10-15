@@ -38,7 +38,10 @@ export class AutoAddRepository {
   constructor(@Inject(TxRunner) private readonly tx: TxRunner) {}
 
   /** Active applications in queue order (the longest waiting first), `limit` after `after`. */
-  activeApplications(after: QueuePosition | undefined, limit: number): Promise<QueuedApplication[]> {
+  activeApplications(
+    after: QueuePosition | undefined,
+    limit: number,
+  ): Promise<QueuedApplication[]> {
     return this.tx.tx
       .select({
         id: searchApplication.id,
@@ -120,8 +123,12 @@ export class AutoAddRepository {
     return rows.length > 0;
   }
 
+  /**
+   * One sample per application and moment (`wait_sample_application_uq`): an application that returns
+   * to the queue after an exclusion (FR-MATCH-08) and is added again at the same instant keeps one.
+   */
   async insertWaitSample(row: WaitSampleInsert): Promise<void> {
-    await this.tx.tx.insert(waitSample).values(row);
+    await this.tx.tx.insert(waitSample).values(row).onConflictDoNothing();
   }
 
   async insertLog(row: AutoAddLogInsert): Promise<void> {

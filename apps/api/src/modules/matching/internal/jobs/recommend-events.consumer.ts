@@ -10,6 +10,7 @@ export const RECOMPUTE_TRIGGERS = [
   'teams.seat_closed',
   'teams.member_joined',
   'teams.member_left',
+  'teams.member_excluded',
   'teams.team_status_changed',
   'matching.application_changed',
   'profiles.profile_updated',
@@ -63,6 +64,7 @@ export class RecommendEventsConsumer implements EventConsumer, OnModuleInit {
         if (seatId !== undefined) await this.matches.deleteBySeat(seatId);
         return pick(['team', teamId], ['user', userId]);
       case 'teams.member_left':
+      case 'teams.member_excluded':
         return pick(['team', teamId], ['user', userId]);
       case 'teams.team_status_changed':
         return pick(['team', teamId]);

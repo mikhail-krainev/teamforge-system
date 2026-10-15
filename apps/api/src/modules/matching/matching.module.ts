@@ -12,6 +12,7 @@ import { MatchingDeficitPort } from './internal/demand/deficit.port.js';
 import { ApplicationRepository } from './internal/repositories/application.repository.js';
 import { ApplicationService } from './internal/services/application.service.js';
 import { MatchingFacade } from './internal/services/matching-facade.service.js';
+import { RESTORE_PROVIDERS } from './internal/restore.providers.js';
 import { RECOMMEND_CONTROLLERS, RECOMMEND_PROVIDERS } from './internal/recommend.providers.js';
 import { MATCHING_API } from './public.js';
 
@@ -20,7 +21,7 @@ const AUTO_ADD_NOW = autoAddNowRoutes(process.env.NODE_ENV);
 
 /**
  * Matching: the search queue application (S4-02), the demand showcase and the `DeficitPort`
- * (S4-03), recommendations (S4-04), auto-add from the queue (S4-05).
+ * (S4-03), recommendations (S4-04), auto-add from the queue (S4-05), return of an excluded person (S4-06).
  *
  * Global because teams injects `DEFICIT_PORT` and may not import matching (architecture 2.2, Р-1):
  * this module is the one place where the port is bound.
@@ -36,6 +37,7 @@ const AUTO_ADD_NOW = autoAddNowRoutes(process.env.NODE_ENV);
   providers: [
     ...RECOMMEND_PROVIDERS,
     ...AUTO_ADD_PROVIDERS,
+    ...RESTORE_PROVIDERS,
     ...AUTO_ADD_NOW.providers,
     ApplicationRepository,
     ApplicationService,

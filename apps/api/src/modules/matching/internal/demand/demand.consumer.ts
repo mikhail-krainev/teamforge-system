@@ -8,6 +8,7 @@ const ROLE_EVENTS = ['teams.seat_opened', 'teams.seat_closed', 'teams.member_joi
 /** Events whose effect on the showcase is not tied to one role in the payload. */
 const GENERAL_EVENTS = [
   'teams.member_left',
+  'teams.member_excluded',
   'teams.team_status_changed',
   'matching.application_changed',
 ];

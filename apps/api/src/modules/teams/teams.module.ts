@@ -33,6 +33,7 @@ import { TeamQueryService } from './internal/services/team-query.service.js';
 import { TeamViewService } from './internal/services/team-view.service.js';
 import { TeamService } from './internal/services/team.service.js';
 import { TeamsFacade } from './internal/services/teams-facade.service.js';
+import { TRIAL_CONTROLLERS, TRIAL_PROVIDERS } from './internal/trial.providers.js';
 import { START_CONTROLLERS, START_PROVIDERS } from './internal/start.providers.js';
 import { TEAM_LIFECYCLE_PORT, TEAMS_API } from './public.js';
 
@@ -51,11 +52,13 @@ import { TEAM_LIFECYCLE_PORT, TEAMS_API } from './public.js';
     ...START_CONTROLLERS,
     ...DEPARTURE_CONTROLLERS,
     ...VOTE_CONTROLLERS,
+    ...TRIAL_CONTROLLERS,
   ],
   providers: [
     ...START_PROVIDERS,
     ...DEPARTURE_PROVIDERS,
     ...VOTE_PROVIDERS,
+    ...TRIAL_PROVIDERS,
     TeamAccessRepository,
     TeamRepository,
     TeamListRepository,
