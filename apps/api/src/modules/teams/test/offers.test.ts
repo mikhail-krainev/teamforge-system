@@ -439,20 +439,20 @@ describeInfra(
           roleCode: seat.roleCode,
           joinedVia: 'offer',
           trialUntil: null,
-          deficitAtJoin: false,
         });
         expect(await seatStatus(world, seat.id)).toBe('filled');
         expect(await activeAssignments(world, seat.id)).toBe(1);
-        // FR-TEAM-25: slice 3 binds DeficitPort to a stub - no deficit, zero counters, stored once.
+        // FR-TEAM-25: the matching DeficitPort counts the role across all teams (this seat is still
+        // open while it is counted) and the verdict is stored once; the numbers are in demand.test.ts.
         const stored = await world.sql<
           { deficit_at_join: boolean; deficit_open_seats: number; deficit_queued: number }[]
         >`SELECT deficit_at_join, deficit_open_seats, deficit_queued FROM teams.seat_assignment
            WHERE seat_id = ${seat.id} AND ended_at IS NULL`;
-        expect(stored[0]).toEqual({
-          deficit_at_join: false,
-          deficit_open_seats: 0,
-          deficit_queued: 0,
-        });
+        expect(stored[0]?.deficit_open_seats).toBeGreaterThanOrEqual(1);
+        expect(stored[0]?.deficit_at_join).toBe(
+          (stored[0]?.deficit_open_seats ?? 0) > (stored[0]?.deficit_queued ?? 0),
+        );
+        expect(joined.deficitAtJoin).toBe(stored[0]?.deficit_at_join);
         expect(await teamRow(world, t.id)).toMatchObject({ member_count: 2 });
         const dto = expectOk<TeamDto>(
           'getTeam',

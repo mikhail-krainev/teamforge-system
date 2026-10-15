@@ -1,16 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import { DomainError, InvariantError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
   JoinSeatInput,
   JoinSeatResult,
+  Level,
+  OpenSeatCount,
+  OpenSeatQuery,
+  OpenSeatView,
   RosterMember,
   RosterSnapshot,
   TeamId,
   TeamLockView,
   TeamStatus,
+  RoleCode,
+  SeatId,
   TeamsApi,
   UserId,
 } from '../../public.js';
@@ -103,6 +109,92 @@ export class TeamsFacade implements TeamsApi {
 
   joinSeat(input: JoinSeatInput): Promise<JoinSeatResult> {
     return this.joins.join(input);
+  }
+
+  async countOpenSeatsByRole(roles: RoleCode[]): Promise<OpenSeatCount[]> {
+    if (roles.length === 0) return [];
+    const rows = await this.tx.tx
+      .select({
+        roleCode: seat.roleCode,
+        openSeats: sql<number>`count(*)::int`,
+        teamsSeeking: sql<number>`count(distinct ${seat.teamId})::int`,
+      })
+      .from(seat)
+      .innerJoin(team, eq(team.id, seat.teamId))
+      .where(
+        and(
+          eq(seat.status, 'open'),
+          inArray(seat.roleCode, roles),
+          inArray(team.status, ['forming', 'active']),
+          lt(team.memberCount, 8),
+        ),
+      )
+      .groupBy(seat.roleCode);
+    return rows;
+  }
+
+  async listOpenSeats(query: OpenSeatQuery): Promise<OpenSeatView[]> {
+    if (query.seatIds?.length === 0 || query.roleCodes?.length === 0) return [];
+    const conditions: (SQL | undefined)[] = [
+      eq(seat.status, 'open'),
+      inArray(team.status, ['forming', 'active']),
+      lt(team.memberCount, 8),
+      query.seatIds === undefined ? undefined : inArray(seat.id, query.seatIds),
+      query.roleCodes === undefined ? undefined : inArray(seat.roleCode, query.roleCodes),
+      query.teamId === undefined ? undefined : eq(seat.teamId, query.teamId),
+      query.afterSeatId === undefined ? undefined : gt(seat.id, query.afterSeatId),
+    ];
+    const db = this.tx.tx;
+    const rows = await db
+      .select({
+        seatId: seat.id,
+        teamId: seat.teamId,
+        teamName: team.name,
+        roleCode: seat.roleCode,
+        minLevel: seat.minLevel,
+        minHours: seat.minHours,
+        stack: seat.stack,
+        openedAt: seat.openedAt,
+        teamTimezone: team.timezone,
+        teamHoursPerWeek: team.hoursPerWeek,
+        leadUserId: team.leadUserId,
+      })
+      .from(seat)
+      .innerJoin(team, eq(team.id, seat.teamId))
+      .where(and(...conditions))
+      .orderBy(asc(seat.id))
+      .limit(query.limit);
+    if (rows.length === 0) return [];
+    const teamIds = [...new Set(rows.map((r) => r.teamId))];
+    const members = await db
+      .select({ teamId: membership.teamId, userId: membership.userId })
+      .from(membership)
+      .where(and(inArray(membership.teamId, teamIds), eq(membership.status, 'active')));
+    const byTeam = new Map<string, string[]>();
+    for (const m of members) byTeam.set(m.teamId, [...(byTeam.get(m.teamId) ?? []), m.userId]);
+    return rows.map((r) => ({
+      ...r,
+      minLevel: r.minLevel as Level,
+      memberUserIds: byTeam.get(r.teamId) ?? [],
+    }));
+  }
+
+  async seatBelongsToTeam(teamId: TeamId, seatId: SeatId): Promise<boolean> {
+    const rows = await this.tx.tx
+      .select({ id: seat.id })
+      .from(seat)
+      .where(and(eq(seat.id, seatId), eq(seat.teamId, teamId)))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async getTeamNames(teamIds: TeamId[]): Promise<Map<TeamId, string>> {
+    if (teamIds.length === 0) return new Map();
+    const rows = await this.tx.tx
+      .select({ id: team.id, name: team.name })
+      .from(team)
+      .where(inArray(team.id, teamIds));
+    return new Map(rows.map((r) => [r.id, r.name]));
   }
 
   async lockTeam(teamId: TeamId, mode: 'update' | 'share' = 'update'): Promise<TeamLockView> {

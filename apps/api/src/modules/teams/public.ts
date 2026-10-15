@@ -88,9 +88,44 @@ export interface RosterSnapshot {
   departedUserIds: UserId[];
 }
 
+/** Open seats of one role across the teams that can still take people (C-02, statuses forming/active). */
+export interface OpenSeatCount {
+  roleCode: RoleCode;
+  openSeats: number;
+  /** Teams with at least one open seat of the role. */
+  teamsSeeking: number;
+}
+
+/** An open seat with the facts matching needs to score it (architecture 6.1). */
+export interface OpenSeatView {
+  seatId: SeatId;
+  teamId: TeamId;
+  teamName: string;
+  roleCode: RoleCode;
+  minLevel: Level;
+  minHours: number;
+  stack: string[];
+  /** Last time the seat was opened (FR-MATCH-06). */
+  openedAt: Date | null;
+  teamTimezone: string;
+  teamHoursPerWeek: number;
+  leadUserId: UserId | null;
+  /** Active members of the team, the lead included. */
+  memberUserIds: UserId[];
+}
+
+/** Filters of `listOpenSeats`; seats come ordered by id, `afterSeatId` is the keyset. */
+export interface OpenSeatQuery {
+  seatIds?: SeatId[];
+  teamId?: TeamId;
+  roleCodes?: RoleCode[];
+  afterSeatId?: SeatId;
+  limit: number;
+}
+
 /**
- * Facade of the teams module. Slice 3 provides the members of this list; the catalog reads
- * `listOpenSeats` / `countOpenSeatsByRole` belong to slice 4 (matching) and are added there.
+ * Facade of the teams module. Slice 3 provides the members of this list; `countOpenSeatsByRole`
+ * is added by slice 4 (demand showcase, deficit), the catalog reads `listOpenSeats` by matching.
  * Methods marked `@requiresTx` throw outside a transaction.
  */
 export interface TeamsApi {
@@ -111,6 +146,21 @@ export interface TeamsApi {
    * operations that only need the status to stay unchanged). Throws 404 when the team is missing.
    */
   lockTeam(teamId: TeamId, mode?: 'update' | 'share'): Promise<TeamLockView>;
+  /**
+   * Open seats and seeking teams per role: seats `open` of teams `forming`/`active` with fewer than
+   * 8 members. Roles without open seats are absent from the result. Reads inside the caller's
+   * transaction when there is one (the seat being joined still counts, FR-TEAM-25).
+   */
+  countOpenSeatsByRole(roles: RoleCode[]): Promise<OpenSeatCount[]>;
+  /**
+   * Seats `open` of teams `forming`/`active` with fewer than 8 members, with the team facts and
+   * the members (two statements, no query per seat). Ordered by seat id.
+   */
+  listOpenSeats(query: OpenSeatQuery): Promise<OpenSeatView[]>;
+  /** True when the seat exists and belongs to the team (any seat status). */
+  seatBelongsToTeam(teamId: TeamId, seatId: SeatId): Promise<boolean>;
+  /** Names of the teams; absent ids are absent from the map. */
+  getTeamNames(teamIds: TeamId[]): Promise<Map<TeamId, string>>;
   /** @requiresTx, the team must be locked by the caller. Stub until slice 6. */
   getCompletionRosterSnapshot(teamId: TeamId): Promise<RosterSnapshot>;
   /** @requiresTx */
