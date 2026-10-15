@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import { useMe } from '@/features/auth/session';
 import type { CatalogEntry } from '@/features/profile/api';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { TeamActions } from '@/features/offers/TeamActions';
-import { TrialBadge, TrialControls } from '@/features/trial/TrialControls';
+import { TrialBadge, TrialControls, type TrialOutcome } from '@/features/trial/TrialControls';
 import { isOnTrial } from '@/features/trial/model';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
 import { ApiError } from '@/lib/api/errors';
@@ -28,9 +29,15 @@ function MembersSection({
   canManage: boolean;
 }) {
   const active = members.filter((m) => m.status === 'active');
+  // Kept here, not in the row: reloading the team removes the excluded member's row.
+  const [outcome, setOutcome] = useState<TrialOutcome | null>(null);
   return (
     <section className="stack" aria-labelledby="team-members-heading">
       <h2 id="team-members-heading">{t('teams.detail.members')}</h2>
+      {outcome === 'confirmed' ? (
+        <Alert tone="success">{t('matching.trial.confirmed')}</Alert>
+      ) : null}
+      {outcome === 'excluded' ? <Alert tone="success">{t('matching.trial.excluded')}</Alert> : null}
       <ul className="stack">
         {active.map((member) => (
           <li key={member.userId} className="card nested">
@@ -53,7 +60,9 @@ function MembersSection({
                 <TrialBadge member={member} />
               </p>
             ) : null}
-            {canManage && isOnTrial(member) ? <TrialControls teamId={teamId} member={member} /> : null}
+            {canManage && isOnTrial(member) ? (
+              <TrialControls teamId={teamId} member={member} onDone={setOutcome} />
+            ) : null}
           </li>
         ))}
       </ul>

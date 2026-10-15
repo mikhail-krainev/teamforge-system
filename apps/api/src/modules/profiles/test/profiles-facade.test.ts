@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { insertProfile, PROFILE_ROLES, PROFILE_STACK } from '../../../../test/fixtures/profiles.js';
 import { World } from '../../../../test/fixtures/world.js';
 import { describeInfra } from '../../../../test/helpers/infra.js';
@@ -84,6 +84,45 @@ describeInfra('profiles facade (ProfilesApi for teams and matching)', ['db', 're
     await expect(
       api.listMatchingProfilesByRole(roleB, { limit: 1, cursor: page.nextCursor as string }),
     ).rejects.toBeInstanceOf(DomainError);
+  });
+
+  describe('people who may not be matched (privacy)', () => {
+    async function people(role: string) {
+      const good = await personWithRole(role);
+      const deleting = await world.createUser(labelOf('deleting'), { status: 'deleting' });
+      const noConsent = await world.createUser(labelOf('noconsent'), { consent: false });
+      const outdated = await world.createUser(labelOf('outdated'), { consent: 'outdated' });
+      for (const user of [deleting, noConsent, outdated]) {
+        await insertProfile(world.sql, user.id, {
+          rolePrefs: [{ roleCode: role, level: 'middle' }],
+        });
+      }
+      return { good, hidden: [deleting.id, noConsent.id, outdated.id] };
+    }
+
+    it('getMatchingProfiles leaves out accounts that are not active or have no valid consent', async () => {
+      const role = codeOf('privacy').slice(0, 30);
+      await world.ensureCatalog([role]);
+      const { good, hidden } = await people(role);
+      const result = await api.getMatchingProfiles([good, ...hidden]);
+      expect(result.map((p) => p.userId)).toEqual([good]);
+    });
+
+    it('listMatchingProfilesByRole leaves out accounts that are not active or have no valid consent', async () => {
+      const role = codeOf('privlist').slice(0, 30);
+      await world.ensureCatalog([role]);
+      const { good } = await people(role);
+      const page = await api.listMatchingProfilesByRole(role, { limit: 50 });
+      expect(page.items.map((p) => p.userId)).toEqual([good]);
+    });
+
+    it('the queue run may still read them to meet them at lock #1 (includeIneligible)', async () => {
+      const role = codeOf('privqueue').slice(0, 30);
+      await world.ensureCatalog([role]);
+      const { good, hidden } = await people(role);
+      const result = await api.getMatchingProfiles([good, ...hidden], { includeIneligible: true });
+      expect(result.map((p) => p.userId).sort()).toEqual([good, ...hidden].sort());
+    });
   });
 
   it('maps users without a profile to the deleted-user name', async () => {

@@ -19,7 +19,6 @@ export interface QueueEntry {
   applicationId: string;
   enqueuedAt: Date;
   roles: Set<string>;
-  excludedTeamIds: Set<string>;
 }
 
 /** Keyset position in a list ordered by score descending and then by a unique id. */
@@ -153,9 +152,26 @@ export class RecommendRepository {
   }
 
   /**
-   * Active applications of the users with their roles and the teams that excluded them: three
-   * statements for any number of users.
+   * Teams that excluded the people in the trial period (FR-MATCH-08), whatever application records
+   * it and whether the person is in the queue now: one statement for any number of users.
    */
+  async excludedTeams(userIds: string[]): Promise<Map<string, Set<string>>> {
+    const byUser = new Map<string, Set<string>>();
+    if (userIds.length === 0) return byUser;
+    const rows = await this.tx.tx
+      .select({ userId: searchApplication.userId, teamId: applicationExclusion.teamId })
+      .from(applicationExclusion)
+      .innerJoin(searchApplication, eq(searchApplication.id, applicationExclusion.applicationId))
+      .where(inArray(searchApplication.userId, userIds));
+    for (const row of rows) {
+      const teams = byUser.get(row.userId) ?? new Set<string>();
+      teams.add(row.teamId);
+      byUser.set(row.userId, teams);
+    }
+    return byUser;
+  }
+
+  /** Active applications of the users with their roles: one statement for any number of users. */
   async queueEntries(userIds: string[]): Promise<Map<string, QueueEntry>> {
     const entries = new Map<string, QueueEntry>();
     if (userIds.length === 0) return entries;
@@ -178,19 +194,10 @@ export class RecommendRepository {
         applicationId: row.applicationId,
         enqueuedAt: row.enqueuedAt,
         roles: new Set<string>(),
-        excludedTeamIds: new Set<string>(),
       };
       entry.roles.add(row.roleCode);
       byApplication.set(row.applicationId, entry);
       entries.set(row.userId, entry);
-    }
-    if (byApplication.size === 0) return entries;
-    const exclusions = await db
-      .select()
-      .from(applicationExclusion)
-      .where(inArray(applicationExclusion.applicationId, [...byApplication.keys()]));
-    for (const exclusion of exclusions) {
-      byApplication.get(exclusion.applicationId)?.excludedTeamIds.add(exclusion.teamId);
     }
     return entries;
   }

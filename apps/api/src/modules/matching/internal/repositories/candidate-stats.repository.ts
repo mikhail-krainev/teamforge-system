@@ -20,11 +20,27 @@ export class CandidateStatsRepository {
 
   /** Completed projects of one user per role. */
   async completedByRole(userId: string): Promise<Map<string, number>> {
+    return (await this.completedByUsers([userId])).get(userId) ?? new Map();
+  }
+
+  /** Completed projects per role of several users, one statement; users without rows are absent. */
+  async completedByUsers(userIds: string[]): Promise<Map<string, Map<string, number>>> {
+    const byUser = new Map<string, Map<string, number>>();
+    if (userIds.length === 0) return byUser;
     const rows = await this.tx.tx
-      .select({ roleCode: candidateStats.roleCode, count: candidateStats.completedCount })
+      .select({
+        userId: candidateStats.userId,
+        roleCode: candidateStats.roleCode,
+        count: candidateStats.completedCount,
+      })
       .from(candidateStats)
-      .where(eq(candidateStats.userId, userId));
-    return new Map(rows.map((row) => [row.roleCode, row.count]));
+      .where(inArray(candidateStats.userId, userIds));
+    for (const row of rows) {
+      const roles = byUser.get(row.userId) ?? new Map<string, number>();
+      roles.set(row.roleCode, row.count);
+      byUser.set(row.userId, roles);
+    }
+    return byUser;
   }
 
   /** Sets the counters of the user; a counter is replaced, never added (the event is at-least-once). */

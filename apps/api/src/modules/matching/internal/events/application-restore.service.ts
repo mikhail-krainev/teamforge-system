@@ -24,7 +24,8 @@ export interface Excluded {
  *   roles and priorities; the time in the team is added to `paused_seconds`; the team is remembered
  *   as an exclusion.
  * - A new active application exists: the old one stays as it is; the exclusions (this team and the
- *   old ones) and the earlier `enqueued_at` move to the new one.
+ *   old ones), the earlier `enqueued_at` and the pauses (old `paused_seconds` plus the time in the
+ *   team) move to the new one.
  */
 @Injectable()
 export class ApplicationRestoreService {
@@ -62,8 +63,12 @@ export class ApplicationRestoreService {
     const teams = [...(await this.restores.exclusionsOf(old.id)), excluded.teamId];
     await this.restores.addExclusions(current.id, teams);
     if (old.enqueuedAt < current.enqueuedAt) {
+      // The new application takes over the wait of the old one, so it takes over its pauses too:
+      // the earlier ones and the time in the excluding team. Done once: a repeated delivery finds
+      // `enqueued_at` moved already.
       await this.applications.update(current.id, {
         enqueuedAt: old.enqueuedAt,
+        pausedSeconds: current.pausedSeconds + old.pausedSeconds + this.secondsInTeam(old),
         version: current.version + 1,
       });
     }
@@ -82,11 +87,9 @@ export class ApplicationRestoreService {
     // A cancelled application stays cancelled; one fulfilled by another team is a later join.
     if (row.status !== 'fulfilled' || row.fulfilledTeamId !== excluded.teamId) return;
     const now = this.clock.now();
-    const inTeam =
-      row.fulfilledAt === null ? 0 : Math.floor((now.getTime() - row.fulfilledAt.getTime()) / 1000);
     await this.applications.update(row.id, {
       status: 'active',
-      pausedSeconds: row.pausedSeconds + Math.max(0, inTeam),
+      pausedSeconds: row.pausedSeconds + this.secondsInTeam(row),
       fulfilledAt: null,
       fulfilledSeatId: null,
       fulfilledRoleCode: null,
@@ -97,6 +100,12 @@ export class ApplicationRestoreService {
     await this.restores.activateRoles(row.id);
     await this.restores.addExclusions(row.id, [excluded.teamId]);
     await this.publishActive(row.userId, row.id);
+  }
+
+  /** Whole seconds from the add to the team until now (0 when the application was never fulfilled). */
+  private secondsInTeam(row: { fulfilledAt: Date | null }): number {
+    if (row.fulfilledAt === null) return 0;
+    return Math.max(0, Math.floor((this.clock.now().getTime() - row.fulfilledAt.getTime()) / 1000));
   }
 
   private async publishActive(userId: string, applicationId: string): Promise<void> {

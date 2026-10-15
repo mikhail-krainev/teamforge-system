@@ -2,7 +2,6 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert } from '@/components/ui/Alert';
 import { MatchingErrorAlert } from '@/features/matching/MatchingErrorAlert';
 import { teamEventsKey, teamKey, type Member } from '@/features/teams/api';
 import { t } from '@/i18n';
@@ -21,7 +20,10 @@ export function TrialBadge({ member }: { member: Pick<Member, 'trialUntil'> }) {
   );
 }
 
-function useTrialActions(teamId: string, userId: string) {
+/** What happened, reported to the roster: this row disappears or loses its buttons once the team is reloaded. */
+export type TrialOutcome = 'confirmed' | 'excluded';
+
+function useTrialActions(teamId: string, userId: string, onDone: (outcome: TrialOutcome) => void) {
   const queryClient = useQueryClient();
   // Also after a 409 (expired, confirmed elsewhere): the roster shows the real state.
   const refresh = async () => {
@@ -34,12 +36,18 @@ function useTrialActions(teamId: string, userId: string) {
   };
   const confirm = useIdempotentMutation({
     mutationFn: (_: void, key) => confirmTrial(teamId, userId, key),
-    onSuccess: refresh,
+    onSuccess: () => {
+      onDone('confirmed');
+      return refresh();
+    },
     onError: refresh,
   });
   const exclude = useIdempotentMutation({
     mutationFn: (_: void, key) => excludeTrialMember(teamId, userId, key),
-    onSuccess: refresh,
+    onSuccess: () => {
+      onDone('excluded');
+      return refresh();
+    },
     onError: refresh,
   });
   return { confirm, exclude };
@@ -69,14 +77,18 @@ function ExcludeConfirm({ name, pending, onYes, onNo }: ExcludeConfirmProps) {
   );
 }
 
+interface TrialControlsProps {
+  teamId: string;
+  member: Member;
+  onDone: (outcome: TrialOutcome) => void;
+}
+
 /** The lead's "Подтвердить" / "Исключить" for one member on trial (exclusion asks for confirmation). */
-export function TrialControls({ teamId, member }: { teamId: string; member: Member }) {
-  const { confirm, exclude } = useTrialActions(teamId, member.userId);
+export function TrialControls({ teamId, member, onDone }: TrialControlsProps) {
+  const { confirm, exclude } = useTrialActions(teamId, member.userId, onDone);
   const [asking, setAsking] = useState(false);
   const busy = confirm.isPending || exclude.isPending;
   const error = confirm.error ?? exclude.error;
-  if (confirm.isSuccess) return <Alert tone="success">{t('matching.trial.confirmed')}</Alert>;
-  if (exclude.isSuccess) return <Alert tone="success">{t('matching.trial.excluded')}</Alert>;
   return (
     <div className="stack">
       {error ? <MatchingErrorAlert error={error} /> : null}

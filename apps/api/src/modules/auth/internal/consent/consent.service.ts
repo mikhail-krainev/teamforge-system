@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
@@ -50,6 +50,23 @@ export class ConsentService {
       .where(this.validFor(userId))
       .limit(1);
     return rows.length > 0;
+  }
+
+  /** Which of the users have a valid consent: one statement for any number of users. */
+  async usersWithValidConsent(userIds: string[]): Promise<Set<string>> {
+    if (userIds.length === 0) return new Set();
+    const rows = await this.db
+      .selectDistinct({ userId: consent.userId })
+      .from(consent)
+      .where(
+        and(
+          inArray(consent.userId, userIds),
+          eq(consent.version, this.current.version),
+          eq(consent.textHash, Buffer.from(this.current.textHash, 'hex')),
+          isNull(consent.revokedAt),
+        ),
+      );
+    return new Set(rows.map((row) => row.userId));
   }
 
   /** Version of the newest valid consent, or null. */

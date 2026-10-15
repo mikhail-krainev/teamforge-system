@@ -1,7 +1,7 @@
-import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { RepeatingJobs } from '../../../../platform/queues/maintenance-tasks.js';
 import { type JobProcessor, ProcessorRegistry } from '../../../../platform/queues/queue-workers.js';
-import { QueuesService } from '../../../../platform/queues/queues.service.js';
 import { AUTO_ADD_WINDOW_MS } from '../domain/auto-add-rules.js';
 import { AutoAddService } from '../services/auto-add.service.js';
 import {
@@ -16,28 +16,25 @@ import {
  * fixed scheduler key, so starting several processes makes one schedule.
  */
 @Injectable()
-export class AutoAddProcessor implements JobProcessor, OnModuleInit, OnApplicationBootstrap {
+export class AutoAddProcessor implements JobProcessor, OnModuleInit {
   readonly queue = AUTO_ADD_QUEUE;
 
   constructor(
     @Inject(ProcessorRegistry) private readonly registry: ProcessorRegistry,
-    @Inject(QueuesService) private readonly queues: QueuesService,
+    @Inject(RepeatingJobs) private readonly repeating: RepeatingJobs,
     @Inject(AutoAddService) private readonly autoAdd: AutoAddService,
     @Inject(PinoLogger) private readonly logger: PinoLogger,
   ) {}
 
   onModuleInit(): void {
     this.registry.register(this);
-  }
-
-  async onApplicationBootstrap(): Promise<void> {
-    await this.queues
-      .getQueue(AUTO_ADD_QUEUE)
-      .upsertJobScheduler(
-        AUTO_ADD_SCHEDULER_KEY,
-        { every: AUTO_ADD_WINDOW_MS },
-        { name: AUTO_ADD_JOB, data: {} },
-      );
+    // The worker upserts the schedule at start; the API process must not wait for Redis at boot.
+    this.repeating.register({
+      queue: AUTO_ADD_QUEUE,
+      key: AUTO_ADD_SCHEDULER_KEY,
+      jobName: AUTO_ADD_JOB,
+      everyMs: AUTO_ADD_WINDOW_MS,
+    });
   }
 
   async process(): Promise<number> {

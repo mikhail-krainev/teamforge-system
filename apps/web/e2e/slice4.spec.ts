@@ -1,5 +1,6 @@
 import { test } from '@playwright/test';
 import { stopGithubDouble } from './support/github';
+import { resetLoginRateLimit } from './support/stack';
 import * as steps from './support/slice4-steps';
 import {
   DISPLAY_NAMES,
@@ -92,6 +93,7 @@ test.describe('slice 4: matching and the search queue', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async ({ browser }) => {
+    resetLoginRateLimit(); // slices 1-3 have used the sign-in allowance of this address
     // One after another: the GitHub double hands out one prepared identity per sign-in.
     const signedIn: [PersonKey, Person][] = [];
     for (const key of PEOPLE) {

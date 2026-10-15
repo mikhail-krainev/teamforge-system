@@ -31,10 +31,10 @@ const TOMBSTONE_MS = 180 * 24 * 3_600_000;
 
 /**
  * Modules whose step must be reported before auth erases the account itself (architecture 13.9).
- * Slice 2 knows `profiles` only; teams, matching, workspace, github and rewards add themselves in
- * their slices (and subscribe to the same event).
+ * Slices 2 and 4 know `profiles` and `matching`; teams, workspace, github and rewards add
+ * themselves in their slices (and subscribe to the same event).
  */
-export const EXPECTED_DELETION_MODULES: readonly DeletionModule[] = ['profiles'];
+export const EXPECTED_DELETION_MODULES: readonly DeletionModule[] = ['profiles', 'matching'];
 
 interface UserSnapshot {
   email: string | null;
@@ -94,6 +94,7 @@ export class DeletionSagaService implements OnModuleInit {
   ): Promise<void> {
     await this.tx.run(async () => {
       const now = this.clock.now();
+      await this.repository.lockRequest(requestId);
       if (!(await this.repository.addStep(requestId, module, now))) return;
       await this.repository.log(
         { id: randomUUID(), requestId, module, action: 'erase' },

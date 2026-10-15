@@ -32,6 +32,7 @@ const APPLICATION_PAGE = 100;
 /** Open seats per page of `listOpenSeats`. */
 const SEAT_PAGE = 500;
 const NO_TEAMS: ReadonlySet<string> = new Set();
+const NO_COUNTS: ReadonlyMap<string, number> = new Map();
 
 /** Refusals after which the whole application waits for the next run (architecture 6.4). */
 const SKIPS_APPLICATION: ReadonlySet<string> = new Set<JoinRejectCode | 'LOCK_TIMEOUT'>([
@@ -67,6 +68,8 @@ interface PageContext {
   roles: Map<string, QueuedRole[]>;
   profiles: Map<string, MatchingProfile>;
   exclusions: Map<string, Set<string>>;
+  /** Completed projects per role of each person of the page. */
+  completed: Map<string, Map<string, number>>;
 }
 
 /** What a run remembers between its applications. */
@@ -128,12 +131,16 @@ export class AutoAddService {
 
   private async contextOf(page: QueuedApplication[]): Promise<PageContext> {
     const ids = page.map((application) => application.id);
-    const [roles, profiles, exclusions] = await Promise.all([
+    const userIds = page.map((application) => application.userId);
+    const [roles, profiles, exclusions, completed] = await Promise.all([
       this.queue.activeRoles(ids),
-      this.profiles.getMatchingProfiles(page.map((application) => application.userId)),
+      // Eligibility is checked again under lock #1 (and logged there), so the run reads the profile
+      // of a person whose account is being deleted too.
+      this.profiles.getMatchingProfiles(userIds, { includeIneligible: true }),
       this.queue.exclusions(ids),
+      this.stats.completedByUsers(userIds),
     ]);
-    return { roles, profiles: new Map(profiles.map((p) => [p.userId, p])), exclusions };
+    return { roles, profiles: new Map(profiles.map((p) => [p.userId, p])), exclusions, completed };
   }
 
   /** Open seats of a role, read once per run. */
@@ -174,6 +181,7 @@ export class AutoAddService {
       profile,
       context.roles.get(application.id) ?? [],
       context.exclusions.get(application.id) ?? NO_TEAMS,
+      context.completed.get(application.userId) ?? NO_COUNTS,
     );
     for (const pair of orderPairs(pairs)) {
       if (state.gone.has(pair.seatId)) continue;
@@ -196,14 +204,13 @@ export class AutoAddService {
     profile: MatchingProfile,
     roles: QueuedRole[],
     excluded: ReadonlySet<string>,
+    completed: ReadonlyMap<string, number>,
   ): Promise<AutoAddPair[]> {
     const pairs: AutoAddPair[] = [];
-    let completed: Map<string, number> | undefined;
     for (const role of roles) {
       for (const seat of await this.seatsOf(state, role.roleCode)) {
         if (state.gone.has(seat.seatId)) continue;
         if (!isPairAllowed(seat, application.userId, excluded)) continue;
-        completed ??= await this.stats.completedByRole(application.userId);
         const evaluation = evaluatePair(
           seat,
           {

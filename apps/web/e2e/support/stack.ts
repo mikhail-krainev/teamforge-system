@@ -48,6 +48,23 @@ export function compose(...args: string[]): string {
   });
 }
 
+/**
+ * Forgets the sign-in hits of the per-IP limit `authLogin` (10 per 15 minutes, RATE_LIMITS). Every
+ * browser of the scenarios comes from the same address, so slices 1-3 use the whole allowance
+ * before slice 4 signs in; only the counters of the throwaway e2e Redis are cleared.
+ */
+export function resetLoginRateLimit(): void {
+  compose(
+    'exec',
+    '-T',
+    'redis',
+    'sh',
+    '-c',
+    'redis-cli --user api --pass "$REDIS_API_PASSWORD" --no-auth-warning --scan --pattern "rl:authLogin:*" | ' +
+      'xargs -r redis-cli --user api --pass "$REDIS_API_PASSWORD" --no-auth-warning del',
+  );
+}
+
 /** Stops one service (for example `redis`) of the e2e stack. */
 export function stopService(service: string): void {
   compose('stop', service);

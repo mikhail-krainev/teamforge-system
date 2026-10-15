@@ -29,13 +29,20 @@ export class DemandService {
 
   /** One row per requested role in the order asked; misses are counted together and cached. */
   async getDemand(roles: readonly string[]): Promise<RoleDemand[]> {
-    const wanted = uniqueRoles(roles);
+    const wanted = await this.knownRoles(uniqueRoles(roles));
     const cached = await this.cache.read(wanted);
     const missing = wanted.filter((r) => !cached.has(r));
     const fresh = await this.compute(missing);
     await this.cache.write(fresh);
     const byRole = new Map([...cached, ...fresh.map((row) => [row.roleCode, row] as const)]);
     return wanted.flatMap((r) => byRole.get(r) ?? []);
+  }
+
+  /** Requested roles that exist in the active catalog: nothing else becomes a cache key. */
+  private async knownRoles(roles: string[]): Promise<string[]> {
+    if (roles.length === 0) return roles;
+    const active = new Set((await this.profiles.listRoles()).map((role) => role.code));
+    return roles.filter((role) => active.has(role));
   }
 
   private async compute(roles: string[]): Promise<RoleDemand[]> {

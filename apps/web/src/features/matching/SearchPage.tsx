@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import type { CatalogEntry } from '@/features/profile/api';
@@ -8,7 +8,7 @@ import { useRoles } from '@/features/profile/useProfileQueries';
 import { RecommendedTeams } from '@/features/recommendations/RecommendedTeams';
 import { isVersionConflict } from '@/features/teams/errors';
 import { t } from '@/i18n';
-import { type SearchApplication } from './api';
+import { APPLICATION_KEY, type SearchApplication } from './api';
 import { ApplicationConflict, applicationFromConflict } from './ApplicationConflict';
 import { ApplicationForm } from './ApplicationForm';
 import { MatchingErrorAlert } from './MatchingErrorAlert';
@@ -93,6 +93,7 @@ interface ActiveProps {
 
 function ActiveApplication({ application, roles, onCancelled }: ActiveProps) {
   const { update, cancel } = useApplicationActions(onCancelled);
+  const queryClient = useQueryClient();
   const [formKey, setFormKey] = useState(0);
   const conflict = isVersionConflict(update.error);
   const mine = update.variables?.roles ?? [];
@@ -105,7 +106,9 @@ function ActiveApplication({ application, roles, onCancelled }: ActiveProps) {
           roles={roles}
           busy={update.isPending}
           onOverwrite={(latest) => update.mutate({ roles: mine, version: latest.version })}
-          onAdopt={() => {
+          onAdopt={(latest) => {
+            // The stored application is the new truth: the status card and the form follow it.
+            queryClient.setQueryData(APPLICATION_KEY, latest);
             update.reset();
             setFormKey((key) => key + 1);
           }}
@@ -132,21 +135,14 @@ function ActiveApplication({ application, roles, onCancelled }: ActiveProps) {
 
 function NewApplication({
   roles,
-  fulfilled,
   cancelled,
 }: {
   roles: readonly CatalogEntry[];
-  fulfilled: boolean;
   cancelled: boolean;
 }) {
   const { create } = useApplicationActions();
   return (
     <>
-      {fulfilled ? (
-        <Alert tone="success">
-          {t('matching.search.fulfilled')} <Link href="/teams">{t('matching.search.toTeams')}</Link>
-        </Alert>
-      ) : null}
       {cancelled ? <Alert tone="info">{t('matching.search.cancelled')}</Alert> : null}
       {create.isError ? <MatchingErrorAlert error={create.error} /> : null}
       <ApplicationForm
@@ -188,16 +184,14 @@ export function SearchPage() {
   const stored = application.data;
   return (
     <div className="stack">
-      {stored && stored.status === 'active' ? (
+      {stored ? (
         <ActiveApplication
           application={stored}
           roles={roles.data}
           onCancelled={() => setCancelled(true)}
         />
       ) : (
-        <NewApplication roles={roles.data} fulfilled={stored?.status === 'fulfilled'}
-          cancelled={cancelled}
-        />
+        <NewApplication roles={roles.data} cancelled={cancelled} />
       )}
       <RecommendedTeams roles={roles.data} />
     </div>

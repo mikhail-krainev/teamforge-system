@@ -116,12 +116,13 @@ describeInfra(
         role: true,
         stack: 0.5,
         level: 0.75,
-        availability: 0.8,
+        // a lead sees the hours and the time zone of a candidate in quarter steps only
+        availability: 0.75,
         completedProjects: 0,
         matchedStackTags: ['typescript'],
       });
-      expect(item?.reasons.timezone).toBeCloseTo(1 - 1 / 6, 3);
-      expect(item?.reasons.timezoneDiffHours).toBeCloseTo(1, 3);
+      expect(item?.reasons.timezone).toBe(0.75);
+      expect(item?.reasons.timezoneDiffHours).toBe(1);
     });
 
     it('FR-MATCH-12: hard filters - level below the seat minimum, fewer hours than the seat minimum, time zone 7 h away (C-43), another role - leave the list', async () => {

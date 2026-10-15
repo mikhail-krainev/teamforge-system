@@ -54,6 +54,11 @@ export interface AuthApi {
   findUserIdsByGithubIds(githubUserIds: number[]): Promise<Map<number, UserId>>;
   isAdmin(userId: UserId): Promise<boolean>;
   hasValidConsent(userId: UserId): Promise<boolean>;
+  /**
+   * Which of the users may be shown to others in matching (SEC-11): the account is `active` and the
+   * consent of the current text is valid. One batch, no per-user queries.
+   */
+  filterMatchable(userIds: UserId[]): Promise<Set<UserId>>;
   getIdentitySignals(userIds: UserId[], since: Date): Promise<IdentitySignal[]>;
   /**
    * Called by a module when its step of the deletion saga is done (idempotent, joins the caller's

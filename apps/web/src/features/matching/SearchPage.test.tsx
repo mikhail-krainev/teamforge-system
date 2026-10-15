@@ -133,12 +133,6 @@ describe('FR-MATCH-03: SearchPage, new application', () => {
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
   });
 
-  it('tells the user that a fulfilled application ended with a team', async () => {
-    serve(sampleApplication({ status: 'fulfilled' }));
-    renderWithClient(<SearchPage />);
-    expect(await screen.findByText(/Вас добавили в команду/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Встать в очередь' })).toBeTruthy();
-  });
 });
 
 describe('FR-MATCH-04: SearchPage, active application', () => {
@@ -200,6 +194,28 @@ describe('FR-MATCH-04: SearchPage, active application', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить мои роли' }));
     await screen.findByText('Заявка обновлена.');
     expect(bodies[1]).toEqual({ roles: [{ roleCode: 'backend', priority: 1 }], version: 5 });
+  });
+
+  it('VERSION_CONFLICT: taking the stored application shows it right away (status card and form)', async () => {
+    serve(sampleApplication());
+    const stored = sampleApplication({
+      version: 5,
+      roles: [{ roleCode: 'pm', priority: 1, addedAt: '2026-01-02T10:00:00.000Z' }],
+    });
+    server.use(
+      http.put(APP_URL, () => problem(409, 'VERSION_CONFLICT', { current: stored })),
+    );
+    renderWithClient(<SearchPage />);
+    await screen.findByText('Вы в очереди');
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать роль Тестировщик' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
+    await screen.findByText('Заявка изменена в другом месте');
+    fireEvent.click(screen.getByRole('button', { name: 'Взять актуальную заявку' }));
+    await waitFor(() => expect(screen.queryByText('Заявка изменена в другом месте')).toBeNull());
+    const list = screen.getByRole('list', { name: 'Роли по приоритету' });
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      '1. Менеджер проекта',
+    ]);
   });
 
   it('cancels the application only after a confirmation', async () => {

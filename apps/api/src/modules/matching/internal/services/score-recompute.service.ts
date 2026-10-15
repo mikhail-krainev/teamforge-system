@@ -86,6 +86,7 @@ export class ScoreRecomputeService {
       return 0;
     }
     const entry = (await this.matches.queueEntries([userId])).get(userId);
+    const excluded = (await this.matches.excludedTeams([userId])).get(userId) ?? NO_TEAMS;
     const completed = await this.stats.completedByRole(userId);
     const roleCodes = [
       ...new Set([...profile.rolePrefs.map((pref) => pref.roleCode), ...(entry?.roles ?? [])]),
@@ -99,7 +100,7 @@ export class ScoreRecomputeService {
         ...(after === undefined ? {} : { afterSeatId: after }),
       });
       for (const seat of seats) {
-        const row = this.pair(seat, profile, completed.get(seat.roleCode) ?? 0, entry, startedAt);
+        const row = this.pair(seat, profile, completed.get(seat.roleCode) ?? 0, entry, excluded, startedAt);
         if (row !== null) rows.push(row);
       }
       if (seats.length < SEAT_PAGE) break;
@@ -125,8 +126,9 @@ export class ScoreRecomputeService {
         cursor,
       });
       const userIds = page.items.map((profile) => profile.userId);
-      const [queue, completed] = await Promise.all([
+      const [queue, excluded, completed] = await Promise.all([
         this.matches.queueEntries(userIds),
+        this.matches.excludedTeams(userIds),
         this.stats.completedInRole(userIds, seat.roleCode),
       ]);
       for (const profile of page.items) {
@@ -135,6 +137,7 @@ export class ScoreRecomputeService {
           profile,
           completed.get(profile.userId) ?? 0,
           queue.get(profile.userId),
+          excluded.get(profile.userId) ?? NO_TEAMS,
           at,
         );
         if (row !== null) rows.push(row);
@@ -150,9 +153,10 @@ export class ScoreRecomputeService {
     profile: MatchingProfile,
     completedInRole: number,
     entry: QueueEntry | undefined,
+    excluded: ReadonlySet<string>,
     at: Date,
   ): MatchCandidateInsert | null {
-    if (!isPairAllowed(seat, profile.userId, entry?.excludedTeamIds ?? NO_TEAMS)) return null;
+    if (!isPairAllowed(seat, profile.userId, excluded)) return null;
     const evaluation = evaluatePair(
       seat,
       {

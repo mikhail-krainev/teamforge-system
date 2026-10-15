@@ -8,6 +8,7 @@ import {
   type Page,
 } from '../../../../platform/db/pagination.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
+import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import {
   DELETED_USER_NAME,
   type Level,
@@ -22,11 +23,19 @@ import { profile, profileRolePref, profileStack, role, stackTag } from '../schem
 /** Read-only facade for teams and matching (`ProfilesApi`). */
 @Injectable()
 export class ProfilesFacade implements ProfilesApi {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    @Inject(AUTH_API) private readonly auth: AuthApi,
+  ) {}
 
-  async getMatchingProfiles(userIds: UserId[]): Promise<MatchingProfile[]> {
+  async getMatchingProfiles(
+    userIds: UserId[],
+    options: { includeIneligible?: boolean } = {},
+  ): Promise<MatchingProfile[]> {
     if (userIds.length === 0) return [];
-    const [rows, tags, prefs] = await Promise.all([
+    const matchable =
+      options.includeIneligible === true ? undefined : await this.auth.filterMatchable(userIds);
+    const [allRows, tags, prefs] = await Promise.all([
       this.db.select().from(profile).where(inArray(profile.userId, userIds)),
       this.db.select().from(profileStack).where(inArray(profileStack.userId, userIds)),
       this.db
@@ -35,6 +44,7 @@ export class ProfilesFacade implements ProfilesApi {
         .where(inArray(profileRolePref.userId, userIds))
         .orderBy(asc(profileRolePref.ordinal)),
     ]);
+    const rows = allRows.filter((row) => matchable === undefined || matchable.has(row.userId));
     return rows.map((row) => ({
       userId: row.userId,
       timezone: row.timezone,

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gt, inArray, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import {
   applicationExclusion,
@@ -94,14 +95,21 @@ export class AutoAddRepository {
     return byApplication;
   }
 
-  /** Teams that excluded the candidate in the trial period, per application. */
+  /**
+   * Teams that excluded the candidate in the trial period, per application. An exclusion belongs to
+   * the person (FR-MATCH-08): the teams recorded on any application of the same user count, so
+   * cancelling and standing in the queue again does not lift it.
+   */
   async exclusions(applicationIds: string[]): Promise<Map<string, Set<string>>> {
     const byApplication = new Map<string, Set<string>>();
     if (applicationIds.length === 0) return byApplication;
+    const sibling = alias(searchApplication, 'sibling');
     const rows = await this.tx.tx
-      .select()
-      .from(applicationExclusion)
-      .where(inArray(applicationExclusion.applicationId, applicationIds));
+      .select({ applicationId: searchApplication.id, teamId: applicationExclusion.teamId })
+      .from(searchApplication)
+      .innerJoin(sibling, eq(sibling.userId, searchApplication.userId))
+      .innerJoin(applicationExclusion, eq(applicationExclusion.applicationId, sibling.id))
+      .where(inArray(searchApplication.id, applicationIds));
     for (const row of rows) {
       const teams = byApplication.get(row.applicationId) ?? new Set<string>();
       teams.add(row.teamId);
@@ -111,16 +119,7 @@ export class AutoAddRepository {
   }
 
   async isExcluded(applicationId: string, teamId: string): Promise<boolean> {
-    const rows = await this.tx.tx
-      .select({ teamId: applicationExclusion.teamId })
-      .from(applicationExclusion)
-      .where(
-        and(
-          eq(applicationExclusion.applicationId, applicationId),
-          eq(applicationExclusion.teamId, teamId),
-        ),
-      );
-    return rows.length > 0;
+    return (await this.exclusions([applicationId])).get(applicationId)?.has(teamId) ?? false;
   }
 
   /**

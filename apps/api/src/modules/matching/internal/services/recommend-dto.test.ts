@@ -64,11 +64,29 @@ describe('recommendation DTOs (SEC-11)', () => {
     expect(dto.computedAt).toBe('2026-01-15T12:00:00.000Z');
   });
 
+  it('a candidate shown to a lead carries coarse time zone and availability, not the exact values', () => {
+    const dto = toCandidateDto(
+      {
+        ...row,
+        reasons: { ...(row.reasons as object), timezone: 0.7083, availability: 0.8, timezoneDiffHours: 1.75 },
+      },
+      'Ann',
+    );
+    expect(dto.reasons.timezone).toBe(0.75);
+    expect(dto.reasons.availability).toBe(0.75);
+    expect(dto.reasons.timezoneDiffHours).toBe(2);
+    // the scores that are not derived from the person's private facts stay as they are
+    expect(dto.reasons).toMatchObject({ stack: 0.5, level: 1, completedProjects: 0 });
+  });
+
   it('a team recommendation names the team, never its lead or members', () => {
     const dto = toTeamRecommendationDto(row, 'Rockets');
     expect(Object.keys(dto).sort()).toEqual(
       ['computedAt', 'reasons', 'roleCode', 'score', 'seatId', 'teamId', 'teamName'].sort(),
     );
+    // the person sees his own match with the team exactly
+    expect(dto.reasons.timezone).toBe(0.8333);
+    expect(dto.reasons.timezoneDiffHours).toBe(1);
   });
 });
 
