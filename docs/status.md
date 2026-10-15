@@ -5,18 +5,23 @@
 - Фаза 0: решения в `docs/decisions.md` (РФ/СНГ, русский интерфейс с i18n, GitHub OAuth + email, один VPS в РФ, 152-ФЗ).
 - Фаза 1: `docs/research/methodologies.md`, `docs/research/components.md`, проверены ревьюером, HIGH исправлены, MEDIUM/LOW в `docs/backlog.md`.
 - Фаза 2: `docs/spec.md` (FR с критериями приёмки, CC-1..13, константы, антифрод AF-01..25, модель данных) и `docs/playbooks.md` (веб 84 дня, ML 91 день, YAML сидов, шаблоны). Ревью пройдено, HIGH исправлены.
-- Фаза 3: `docs/architecture.md`, `docs/api/openapi.yaml` (114 операций, `x-authz` у каждой), `docs/adr/0001..0018`, `docs/security-review-phase3.md`. Ревью архитектуры и аудит безопасности пройдены, CRITICAL/HIGH/MEDIUM исправлены.
+- Фаза 3: `docs/architecture.md`, `docs/api/openapi.yaml` (115 операций, `x-authz` у каждой), `docs/adr/0001..0018`, `docs/security-review-phase3.md`. Ревью архитектуры и аудит безопасности пройдены, CRITICAL/HIGH/MEDIUM исправлены.
 - Фаза 4: `docs/plan.md` (7 срезов, 86 задач, покрытие всех FR и операций), `docs/todo.md` (чек-лист). Ревью пройдено, HIGH исправлены.
 - Срез 1 (каркас): монорепо pnpm, `packages/shared` из OpenAPI, api (NestJS 12 + Fastify ESM, Drizzle, транзакции и блокировки, идемпотентность, outbox, BullMQ, лимиты, AuthzRegistry с запретом по умолчанию, проверка тел по контракту), web (Next.js 16, i18n, клиент с Idempotency-Key, CSP с nonce), Docker Compose (PgBouncer, Redis ACL, SeaweedFS вместо MinIO, ADR-0019), CI (6 джоб зелёные), Playwright. Ревью кода и повторное ревью пройдены.
 - Срез 2 (авторизация и профиль), ветка `feat/auth-profile`: S2-01..S2-12, аудит безопасности и ревью кода исправлены (CRITICAL/HIGH нет), повторное ревью исправлений пройдено, R2-01 исправлена. На реальном стеке 2026-10-13: integration 814/814, concurrency 5 повторов зелёные, `docker compose up --build` с чистых томов, Playwright slice1+slice2 11/11, actionlint без замечаний. MEDIUM/LOW в `docs/backlog.md` (разделы "Срез 2, ревью кода" и "повторное ревью").
 
+- Срез 2 слит в main (PR #12, CI зелёный, 2026-10-14).
+- Срез 3, часть 1 (ветка `feat/teams`, PR не слит): S3-01 тесты среза (301), S3-02 схема teams/playbooks/notification и порты, S3-03 команды и места, S3-04 единый `joinSeat` и предложения, S3-05 приглашения, S3-09 старт проекта и автомат статусов, S3-10 уведомления и WebSocket, web S3-11..S3-13. Зелёные на tf-test: offers, invitations, start-project, teams, seats, workspace, CC-1, CC-2, CC-8, CC-13 (x5). Аудит безопасности и ревью кода части 1: CRITICAL/HIGH нет, MEDIUM в `docs/backlog.md` ("Срез 3, часть 1").
+
+- Срез 3 (команды и роли), PR #13: S3-01..S3-14, голосование за тимлида, уведомления и WebSocket, web. Фаза 6 на Redis 8: integration 1398/1398 (ветви 82.2%), concurrency x5 (65 тестов), автоматы 100%, `compose up` с нуля, перезапуск Redis без потери расписаний, Playwright slice1-3 19/19 дважды, gitleaks, actionlint. Ревью и аудит (дважды): CRITICAL/HIGH/MEDIUM нет, LOW в `docs/backlog.md`.
+
 ## Следующая фаза
 
-Срез 3 (команды и роли), ветка `feat/teams` от свежей main после слияния PR среза 2. Сначала проверить, что PR среза 2 слит.
+Срез 4 (подбор и очередь поиска), ветка `feat/matching` от свежей main. Сначала проверить, что PR #13 слит. Пользователь велел остановиться после среза 3 и ждать команды.
 
 ## Принятые решения
 
-- Пользователь разрешил полностью автономную работу: оркестратор сам коммитит, открывает и сливает запросы, переходит между фазами. Проверку делают независимые агенты-ревьюеры.
+- Пользователь разрешил полностью автономную работу: оркестратор сам коммитит, открывает и сливает запросы, переходит между фазами и срезами подряд в одной сессии без подтверждений (2026-10-14). Проверку делают независимые агенты-ревьюеры.
 - Авторизация: Better Auth, email через magic link, токены GitHub шифруются (`encryptOAuthTokens`).
 - Разбор резюме: unpdf + mammoth в изолированном воркере.
 - GitHub: GitHub App; вклад по Issues и PR, Projects v2 не основа (вебхуки только для организаций).
@@ -33,6 +38,8 @@
 - Разбор резюме: отдельный контейнер и отдельный Redis, дочерний процесс на файл.
 - Отзывы публикуются пакетом, только при отзывах от 2 и более авторов.
 - Локальное S3: SeaweedFS (образы MinIO недоступны), ADR-0019.
+- Redis 8 вместо 7: в 7.4 загрузка AOF теряет MULTI/EXEC при выключенном `default`, ADR-0020.
+- Возвращение неактивного тимлида - отдельная операция `returnAsLead`; выход кандидата снимает кандидатуру.
 - Роли БД: `tf_migrator` владелец схем, `tf_app` только DML.
 - Лишние поля в теле запроса отклоняются 400. Токены OAuth шифруются `BETTER_AUTH_SECRET`.
 - resume-worker: родитель root с cap_drop ALL + SETUID/SETGID, дочерний процесс uid 10002.

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AccountMenu } from '@/features/auth/AccountMenu';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { t } from '@/i18n';
 import { collectNavItems } from './nav';
 import { ShellNav } from './ShellNav';
@@ -17,7 +18,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             {t('shell.appName')}
           </Link>
           <ShellNav items={collectNavItems()} />
-          <AccountMenu />
+          <div className="row">
+            <NotificationBell />
+            <AccountMenu />
+          </div>
         </div>
       </header>
       <main id="main" tabIndex={-1} className="container shell-main">

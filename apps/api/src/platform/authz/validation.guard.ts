@@ -31,7 +31,13 @@ export class ValidationGuard implements CanActivate {
       query: request.query,
       body: request.body,
     });
-    if (errors.length > 0) throw new DomainError('VALIDATION_FAILED', 400, { errors });
+    if (errors.length > 0) {
+      // Contract: a body without the optimistic-lock `version` is VERSION_MISSING, not a schema error.
+      const missingVersion = errors.some((e) => e.pointer === '/version' && e.code === 'required');
+      throw new DomainError(missingVersion ? 'VERSION_MISSING' : 'VALIDATION_FAILED', 400, {
+        errors,
+      });
+    }
     return true;
   }
 }

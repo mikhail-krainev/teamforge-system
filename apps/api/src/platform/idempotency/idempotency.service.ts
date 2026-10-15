@@ -5,11 +5,13 @@ import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 import type { IdempotencyContext } from '../context/cls-store.js';
 import { Clock } from '../clock/clock.js';
-import { DomainError } from '../errors/domain-error.js';
+import { SecretBox } from '../crypto/secret-box.js';
+import { CommittedDomainError, DomainError } from '../errors/domain-error.js';
 import { type ProblemResult, toProblem } from '../errors/problem.js';
 import { canonicalJson } from '../http/canonical-json.js';
 import { TxHooks } from '../tx/tx-hooks.js';
 import type { TxHost } from '../tx/tx-runner.js';
+import { openResponse, sealResponse } from './sealed-fields.js';
 import { type KeyRow, IdempotencyStore, type ResponseRecord } from './idempotency.store.js';
 
 /** In-progress claim lifetime: longer than the 70 s worst case of a request (12.1, 12.4). */
@@ -53,6 +55,7 @@ export class IdempotencyService implements OnModuleInit {
     @Inject(TransactionHost) private readonly txHost: TxHost,
     @Inject(TxHooks) private readonly hooks: TxHooks,
     @Inject(PinoLogger) private readonly logger: PinoLogger,
+    @Inject(SecretBox) private readonly box: SecretBox,
   ) {}
 
   onModuleInit(): void {
@@ -102,7 +105,11 @@ export class IdempotencyService implements OnModuleInit {
   }
 
   private replayOf(row: KeyRow): BeginDecision {
-    return { kind: 'replay', status: row.responseStatus ?? 200, body: row.responseBody };
+    return {
+      kind: 'replay',
+      status: row.responseStatus ?? 200,
+      body: openResponse(this.box, row.responseBody),
+    };
   }
 
   /**
@@ -114,7 +121,7 @@ export class IdempotencyService implements OnModuleInit {
   private async completeInTx(result: unknown): Promise<void> {
     const ctx = this.cls.get('idempotency');
     if (ctx === undefined) return;
-    const body = toJson(result);
+    const body = sealResponse(this.box, toJson(result));
     const done = await this.store.complete(this.txHost.tx, ctx, {
       status: ctx.successStatus,
       body,
@@ -130,7 +137,7 @@ export class IdempotencyService implements OnModuleInit {
    * a handler without database effect completes the key here.
    */
   async afterSuccess(ctx: IdempotencyContext, value: unknown): Promise<void> {
-    const body = toJson(value);
+    const body = sealResponse(this.box, toJson(value));
     if (!ctx.completedInTx) {
       await this.store.complete(this.txHost.tx, ctx, { status: ctx.successStatus, body });
       return;
@@ -169,7 +176,14 @@ export class IdempotencyService implements OnModuleInit {
     error: unknown,
     problemContext: { instance: string; requestId: string },
   ): Promise<void> {
-    if (ctx.committed || isFencingFailure(error)) return;
+    if (isFencingFailure(error)) return;
+    if (ctx.committed) {
+      if (error instanceof CommittedDomainError && ctx.completedInTx) {
+        const committed = toProblem(error, problemContext);
+        await this.finalizeResponse(ctx, { status: committed.status, body: committed.body });
+      }
+      return;
+    }
     const problem = toProblem(error, problemContext);
     if (isDefinitiveRejection(problem)) {
       await this.store.complete(this.txHost.tx, ctx, {

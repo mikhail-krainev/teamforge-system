@@ -79,7 +79,7 @@
 - LOW (S1R-23): ошибка подписки на `outbox:kick` глотается, `onApplicationShutdown` relay не дожидается текущего прохода `tick`.
 - LOW (S1R-24): очистки (`idempotency-cleanup`, `outbox-cleanup`) - один `DELETE` без пакетов и `statement_timeout`; нет инструмента `events:replay` для строк `event_dead_letter` (срез 2).
 - LOW (S1R-25): пароль Redis в аргументах `redis-cli` виден в `ps` (использовать `REDISCLI_AUTH`); приложение работает под S3-идентификатором `Admin` (нужны Read/Write/List).
-- LOW (S1R-26): `.gitleaks.toml` исключает целиком `apps/api/test/`, `docker-compose.test.yml`, `.env.test`; заменить на `regexes` с конкретными тестовыми значениями.
+- LOW (S1R-26): `.gitleaks.toml` исключал целиком `apps/api/test/`; путь заменён точными `regexes` тестовых значений (срез 3). Остались исключения путей `docker-compose.test.yml` и `.env.test` (публичные одноразовые пароли тестового стека).
 - LOW (S1R-27): CI: `cancel-in-progress` отменяет и запуски на `main`; нет сканирования образов (trivy/grype) и `actionlint`/`zizmor`.
 - LOW (S1R-28): минимальная версия Next.js `15.2.3` в `check-deps.mjs` и `next-config.test.ts` учитывает только CVE-2025-29927; завести минимумы по линиям 15.x и 16.x.
 - LOW (S1R-29): `apps/api/test/boundaries.test.ts` создаёт нарушающие файлы в `src/modules/...`; при убитом процессе они ломают `lint`; использовать временный каталог вне `src`.
@@ -162,3 +162,41 @@
 - LOW: R2-09 `magic-link.test.ts` (S2CR-07): заголовки сравниваются только по `content-type`; проверка отсутствия лишнего письма может не поймать запоздавший дубль. Сравнивать весь набор заголовков и ждать перед финальным `countTo`.
 - LOW: R2-10 `deletion-mail.consumer.ts`: нет блокировки между чтением `status` и постановкой письма; при конкурентной отмене уходит письмо с уже отменённым запросом (безвредно, отмена вернёт 200 или 410).
 - LOW: R2-11 `suggestions.ts`: `NEW_PROFILE_REQUIRED` требует `strengths`/`weaknesses`, которых парсер обычно не находит; дать заполнить оставшиеся поля в той же форме.
+
+## Срез 3, часть 1: аудит безопасности и ревью кода
+
+Аудит безопасности и ревью кода диффа `origin/main..feat/teams` (2026-10-14): CRITICAL и HIGH нет. MEDIUM ниже закрыть до слияния среза 3.
+
+- MEDIUM: S3SEC-01 событие `auth.session_revoked` никто не публикует; после выхода или отзыва сессии сокет `/api/ws` остаётся открытым (`realtime.gateway.ts`). Публиковать событие при signOut/revoke или перепроверять сессию в heartbeat и закрывать с 4401.
+- MEDIUM: S3SEC-02 `github-login-resolver.ts` ходит в GitHub API без токена (60 запросов в час на IP) до проверки лимита C-13 и без rate limit: один тимлид исчерпывает квоту для всех. Нужны лимит на пользователя, кэш login->id, токен GitHub App.
+- MEDIUM: S3CR-01 `invitation.service.ts` (`expireOverdue`) и `offers.service.ts` (`expireStale`) обновляют строки уровня #3 под блокировкой #4: обратный порядок к accept, возможен 40P01. Убрать `expireOverdue` (фильтр по `expires_at` уже есть), для офферов освобождать слот отдельной транзакцией; тест гонки "accept просроченного против create".
+- MEDIUM: S3CR-02 открытый токен приглашения сохраняется в `idempotency_key.response_body` (`createInvitation`), это нарушает SEC-18 "токен только хэшем". Хранить запечатанное значение, как в MailService.
+- MEDIUM/LOW: S3CR-03 `notification.consumer.ts`: `mail.enqueue` со случайным `jobId` внутри inbox-транзакции, при повторе письма дублируются. Детерминированный `jobId`.
+- LOW: S3SEC-03 лимит `maxConnectionsPerUser` проверяется до `await`, параллельные рукопожатия его обходят; после `await mayJoin` нет проверки закрытия сокета (утечка в `ChannelRegistry`).
+- LOW: S3SEC-04 подписка `team:` отзывается только по member_left/excluded, при архивации или смене статуса живёт до перепроверки через 5 минут.
+- LOW: S3SEC-05 `listTeamEvents` отдаёт участникам `offer_created` с `userId` кандидата, а список офферов по контракту виден только тимлиду.
+- LOW: S3SEC-06 HMAC email приглашения считается на `IP_HASH_SALT`; нужен отдельный `EMAIL_HMAC_KEY` (см. R2-03).
+- LOW: S3CR-04 события outbox `invitation_created`, `invitation_revoked`, `invitation_accepted` не публикуются, хотя есть в `NOTIFICATION_SOURCES`.
+- LOW: S3CR-05 `start.service.ts`: `plannedEndAt` по последнему опубликованному плейбуку, а не по закреплённому (нужен `PlaybooksApi` по id, срез 5).
+- LOW: S3CR-06 `reject` просроченного pending-оффера переводит его в `rejected` вместо 409 `INVALID_STATE`.
+- LOW: S3CR-07 `markCompleted`/`setReleaseUrl` не проверяют удержание блокировки #4 и допустимость перехода.
+- LOW: S3CR-08 `offers.service.ts`: `getIdentity` до BEGIN различает 404/409 по чужому userId (перебор), TOCTOU со статусом пользователя.
+- LOW: S3-01 неоднозначности контракта: `closeSeat` в описании OpenAPI `SEAT_NOT_OPEN`, решено `INVALID_STATE` (обновить текст контракта); CC-2(б) невозможен при C-04=12, тест берёт 5 мест и 20 кандидатов; `markNotificationsRead` чужие id игнорируются с 204; коды дубля пары (место, пользователь) - `INVALID_STATE`, дубль роли - `ALREADY_MEMBER`.
+- LOW: модули `auth`, `profiles`, `playbooks`, `teams` помечены `@Global()`, чтобы обойти запрет depcruise на импорт чужих `*.module.ts`; рассмотреть явный экспорт токенов через модуль публичных API.
+- LOW: в `SeatOffer` нет `displayName`, тимлид вводит UUID кандидата вручную; гость на `/invite` теряет токен после входа (`safeRedirectPath` отбрасывает `#`).
+- LOW: e2e `slice2.spec.ts` с `--repeat-each 3` падает на третьем повторе, вероятно лимит magic link на общий адрес модуля.
+
+## Срез 3, повторные ревью и аудит
+
+CRITICAL, HIGH и MEDIUM закрыты. Остаток:
+
+- LOW: S3SEC-04 подписка `team:` отзывается только по `member_left`/`member_excluded`; при приостановке или смене статуса живёт до перепроверки через 5 минут.
+- LOW: GitHub API для резолва логина вызывается без токена (`gh_inst_token:*` доступен только воркеру): общая квота 45 запросов в час исчерпывается пятью тимлидами по 10. Нужен токен GitHub App на стороне api или резолв в воркере; промахи по несуществующим логинам считать отдельно.
+- LOW: кэш логинов `gh_state:cache:login:*` делит пространство имён с OAuth `state`; при реализации колбэка GitHub отклонять `state` с `:` (architecture 7.2) или вынести кэш в `gh_login:*` с правкой ACL.
+- LOW: `vote-lead-return.service.ts` не вызывает `processDue`; просроченная фаза даёт 409 до срабатывания сканера (до минуты).
+- LOW: бюллетень за снятого кандидата даёт 409 `INVALID_STATE`, за неподтверждённого неснятого 404.
+- INFO: `requestHash` идемпотентности - sha256 без ключа от тела с `inviteeEmail`; перейти на HMAC.
+- INFO: `sealed-fields.ts` при ошибке `open` (ротация ключа) отдаёт строку `sealed:...`; отвечать ошибкой.
+- LOW: таймер `departure-default` ставится после COMMIT; при недоступности Redis решение остаётся `pending`, скана-подстраховки нет.
+- LOW: `offers.test.ts` 832 строки (лимит 800).
+- LOW: `format:check` ругается на 26 файлов срезов 1-2 и сгенерированные (в основном CRLF в рабочей копии); в CI проверки формата нет.

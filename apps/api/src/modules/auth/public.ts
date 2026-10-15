@@ -39,6 +39,18 @@ export interface AuthApi {
    */
   lockUserForJoin(userId: UserId): Promise<JoinEligibility>;
   getIdentity(userId: UserId): Promise<UserIdentity | null>;
+  /**
+   * SEC-18: HMAC-SHA-256 (key `IP_HASH_SALT`) of the normalized e-mail, as raw bytes. Lets a module
+   * address a person by e-mail without keeping the address (teams: invitations).
+   */
+  hmacOfEmail(email: string): Buffer;
+  /** The same HMAC for the address of an account; `null` when the account has no address. */
+  getEmailHmac(userId: UserId): Promise<Buffer | null>;
+  /**
+   * SEC-11: the e-mail address for a transactional mail, read at send time. `null` when the
+   * account is not `active`, has no address or has no valid consent (no mail is sent then).
+   */
+  getMailRecipient(userId: UserId): Promise<string | null>;
   findUserIdsByGithubIds(githubUserIds: number[]): Promise<Map<number, UserId>>;
   isAdmin(userId: UserId): Promise<boolean>;
   hasValidConsent(userId: UserId): Promise<boolean>;

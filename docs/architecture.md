@@ -42,7 +42,7 @@ flowchart LR
   api --> pgb[PgBouncer<br/>transaction pooling]
   worker[worker<br/>NestJS app context<br/>BullMQ, outbox relay, таймеры] --> pgb
   pgb --> pg[(PostgreSQL 16)]
-  api --> redis[(Redis 7<br/>сессии, кэш, лимиты,<br/>BullMQ, pub/sub)]
+  api --> redis[(Redis 8<br/>сессии, кэш, лимиты,<br/>BullMQ, pub/sub)]
   worker --> redis
   api --> minio
   worker --> minio
@@ -63,11 +63,11 @@ flowchart LR
 | `worker` | процессоры BullMQ всех модулей, ретранслятор outbox, планировщик (повторяющиеся задачи и отложенные таймеры), вызовы GitHub API, постановка задач разбора резюме в `redis-resume` и запись результата; запросов по URL пользователей не делает | N экземпляров; задачи идемпотентны |
 | `resume-worker` | разбор резюме (FR-PROF-03): родительский процесс берёт задачу из `redis-resume`, каждый файл разбирается в отдельном одноразовом дочернем процессе под другим uid без секретов; результат - только текст ограниченного формата. Без БД, основного Redis, MinIO и интернета; read-only ФС, non-root, лимиты CPU/памяти/времени (13.15, ADR-0010, ADR-0012) | 1+ |
 | `link-checker` | проверки ссылок и релиза (очередь `link-check`; HTTP-проверки шагов `auto-checks` ставятся в неё же) SSRF-клиентом (13.12); тот же образ, что `worker`, другая точка входа; без БД и S3, к Redis - отдельным ACL-пользователем только на ключи `bull:link-check:*`; результат - коды, обрабатывает `worker` (SEC-05) | 1+ |
-| `redis-resume` | отдельный экземпляр Redis 7 только для очереди `resume-parse`; без AOF (потеря задач лечит сканер `resume-stuck-scan`), ACL: `worker` (постановка), `resume` (обработка), `default` выключен | один |
+| `redis-resume` | отдельный экземпляр Redis 8 только для очереди `resume-parse`; без AOF (потеря задач лечит сканер `resume-stuck-scan`), ACL: `worker` (постановка), `resume` (обработка), `default` выключен | один |
 | `migrate` | `drizzle-kit migrate` и посевы (справочники, сценарии, badge_def) напрямую в PostgreSQL, минуя PgBouncer | разовый контейнер перед выкаткой |
 | PostgreSQL 16 | единственная БД; схема на каждый модуль (`auth`, `profiles`, ...), плюс `platform` | одна; резервные копии в РФ |
 | PgBouncer | пул в режиме транзакций, пул API не более 20 на экземпляр (spec 5.2) | один |
-| Redis 7 | сессии Better Auth (`secondaryStorage`), кэш витрины и токенов установки GitHub, счётчики лимитов, BullMQ, pub/sub реального времени, одноразовые `state` | один; AOF включён (BullMQ); ACL-пользователи на процесс, `default` выключен (13.16) |
+| Redis 8 | сессии Better Auth (`secondaryStorage`), кэш витрины и токенов установки GitHub, счётчики лимитов, BullMQ, pub/sub реального времени, одноразовые `state` | один; AOF включён (BullMQ); ACL-пользователи на процесс, `default` выключен (13.16) |
 | MinIO | бакеты `tf-resumes`, `tf-artifacts` (приватные) | один |
 
 Код: `apps/api/src/modules/<module>/` для каждого из восьми модулей, `apps/api/src/platform/` для общего слоя (транзакции, outbox, идемпотентность, ошибки, лимиты, конфигурация, часы), точки входа `apps/api/src/main.api.ts` и `apps/api/src/main.worker.ts` (одна кодовая база, разные наборы провайдеров), `apps/api/src/resume-worker/` (отдельный образ без зависимостей на БД и S3; точка входа `main.resume-worker.ts` и `parse-child.ts`), `apps/api/src/main.link-checker.ts`.
@@ -188,7 +188,7 @@ export interface AuthApi {
 }
 ```
 
-Публикует: `auth.user_registered`, `auth.github_linked {userId, githubUserId}`, `auth.user_deletion_requested {requestId, userId, reason}`, `auth.user_deleted {userId}`. Слушает: `*.deletion_step_done` (через `reportDeletionStep`).
+Публикует: `auth.user_registered`, `auth.github_linked {userId, githubUserId}`, `auth.user_deletion_requested {requestId, userId, reason}`, `auth.user_deleted {userId}`, `auth.session_revoked {userId, sessionId?, reason}` (sign-out и revoke-all; realtime закрывает сокеты отозванных сессий с 4401). Слушает: `*.deletion_step_done` (через `reportDeletionStep`).
 
 ### 3.2 profiles
 
@@ -1320,7 +1320,7 @@ sequenceDiagram
   A-->>L: installUrl = https://github.com/apps/<slug>/installations/new?state=...
   L->>G: установка App на выбранный репозиторий, затем авторизация пользователя (OAuth при установке)
   G->>A: GET /v1/github/setup?installation_id&setup_action&state&code (Callback URL №1 App)
-  A->>R: GETDEL gh_state:<state> (одноразово, проверка userId сессии)
+  A->>R: GETDEL gh_state:<state> (одноразово, проверка userId сессии; state без `:`)
   A->>G: обмен code на пользовательский токен, GET /user/installations (доступ к installation_id)
   A->>A: токен отброшен, upsert gh_installation, INSERT installation_grant (installation, team, user)
   A-->>L: 302 /teams/{teamId}/settings/repository?installation=...
@@ -1328,6 +1328,8 @@ sequenceDiagram
   L->>A: PUT /v1/teams/{teamId}/repository {installationId, repositoryId}
   A->>A: tx: assertLead, grant, проверка форка и доступа, INSERT repo_link (unique repository_id) -> 200 / 404 INSTALLATION_NOT_GRANTED / 409 REPO_TAKEN
 ```
+
+Пространство `gh_state:` разрешено ACL-пользователю `api` целиком и делится с кэшем логинов GitHub (`gh_state:cache:login:<login>`, `GET /users/{login}` команды): значение `state` - случайная строка base64url и не содержит `:`; обработчик возврата отклоняет `state` с `:` до обращения к Redis, поэтому `state` не может назвать ключ кэша.
 
 Маршрут `/v1/github/setup` - это Callback URL App, а не Setup URL: `code` приходит только при включённой опции "Request user authorization (OAuth) during installation" (7.1), и именно он доказывает, что установку выполнил этот пользователь (параметр `installation_id` можно подделать, GitHub предупреждает об этом). Если на прототипе окажется, что `state` не возвращается после такой цепочки, привязка к команде не теряется: установка в любом случае проверяется по `GET /user/installations`, а команда выбирается следующим шагом `PUT /v1/teams/{teamId}/repository`, который требует сессию тимлида и доступ установки к репозиторию; в этом случае `state` используется только как защита от CSRF на странице возврата и заменяется проверкой сессии.
 
@@ -1387,11 +1389,11 @@ sequenceDiagram
 | Тимлид удалил аккаунт | обработчик `auth.user_deletion_requested` выполняет то же |
 | Неактивность тимлида > C-15 = 14 дней (`lead_last_active_at`) и запросы `vote_request` не менее чем от ceil(N/2) активных участников | в транзакции последнего запроса создаётся голосование (`trigger='lead_inactive'`) |
 
-Создание: блокировка команды (lock #4), проверка статуса (`forming`/`active`), `INSERT leader_vote` - частичный уникальный индекс `leader_vote_open_uq` гарантирует одно открытое голосование (CC-4); `team.status_before_vote = status`, `status = 'voting'`. Особые случаи сразу при создании: один активный участник - он тимлид (`outcome='sole_member'`, голосование закрыто); участников нет - `archived`.
+Создание: блокировка команды (lock #4), проверка статуса (`forming`/`active`; у `suspended` команды вышедший тимлид тоже открывает голосование, а по его закрытию команда возвращается в `suspended` через `status_before_vote`; Р-27), `INSERT leader_vote` - частичный уникальный индекс `leader_vote_open_uq` гарантирует одно открытое голосование (CC-4); `team.status_before_vote = status`, `status = 'voting'`. Особые случаи сразу при создании: один активный участник - он тимлид (`outcome='sole_member'`, голосование закрыто); участников нет - `archived`.
 
 Имеющие право (`vote_eligible`, снимок на момент открытия): активные участники без действующего испытательного срока; если таких нет - все активные. N = `eligible_count`, кворум = ⌊N/2⌋+1. Вышедший во время голосования теряет право; его поданный голос остаётся (решение архитектуры); снятый кандидат (`withdrawn_at`) из подсчёта исключается.
 
-Если `trigger='lead_inactive'` и тимлид совершает действие до первого голоса, голосование отменяется (`cancelled`, `outcome='cancelled_lead_returned'`, статус команды восстанавливается).
+Если `trigger='lead_inactive'`, тимлид может отменить голосование до первого голоса операцией `returnAsLead` (`POST /v1/teams/{teamId}/leader-votes/{voteId}/lead-return`, `x-authz: team-lead`, блокировки #4 -> #7): `cancelled`, `outcome='cancelled_lead_returned'`, статус команды восстанавливается, `lead_last_active_at = now`, `team_event vote_cancelled`. После первого голоса, для голосования не из-за неактивности и для уже закрытого - 409 `INVALID_STATE`. Чтение (`listLeaderVotes`) ничего не отменяет; в вебе кнопка "Я вернулся, отменить голосование" на странице голосования.
 
 ### 8.2 Состояния
 
@@ -1420,10 +1422,11 @@ stateDiagram-v2
 ```
 
 - Голосовать можно в фазах `voting` (раунд 1) и `runoff` (раунд 2, только за кандидатов `in_runoff`). Выдвижение - только в `nominating`, кандидат появляется в бюллетене после согласия (`consent_at`).
-- Снятие кандидатуры (MEDIUM ревью): `withdrawCandidacy` (`POST .../leader-votes/{voteId}/candidates/me/withdrawal`), блокировки #4 команда -> #7 голосование, `UPDATE vote_candidate SET withdrawn_at = :now WHERE vote_id = :v AND user_id = :me AND withdrawn_at IS NULL` (0 строк - 404 или 409 `INVALID_STATE`). Допустимо в `nominating`, `voting`, `runoff`; в `confirming` снятие победителя равно его отказу (следующий по голосам, как при истечении срока). Голоса за снятого не переносятся и не учитываются при подсчёте максимума и досрочного закрытия; кворум считается по поданным бюллетеням (снятие не уменьшает явку). Если подтверждённых кандидатов не осталось, при наступлении срока фазы голосование переходит в `offering` (FR-TEAM-20). Выход кандидата из команды ставит `withdrawn_at` тем же кодом.
+- Снятие кандидатуры (MEDIUM ревью): `withdrawCandidacy` (`POST .../leader-votes/{voteId}/candidates/me/withdrawal`), блокировки #4 команда -> #7 голосование, `UPDATE vote_candidate SET withdrawn_at = :now WHERE vote_id = :v AND user_id = :me AND withdrawn_at IS NULL` (0 строк - 404 или 409 `INVALID_STATE`). Допустимо в `nominating`, `voting`, `runoff`; в `confirming` снятие победителя равно его отказу (следующий по голосам, как при истечении срока). Голоса за снятого не переносятся и не учитываются при подсчёте максимума и досрочного закрытия; кворум считается по поданным бюллетеням (снятие не уменьшает явку). Если подтверждённых кандидатов не осталось, при наступлении срока фазы голосование переходит в `offering` (FR-TEAM-20). Выход кандидата из команды ставит `withdrawn_at` тем же кодом в транзакции выхода (`VoteLeaveService.afterLeave`) и пишет `team_event candidacy_withdrawn` (`reason='left_team'`); бюллетень за снятого или вышедшего - 409 `INVALID_STATE` (кандидата нет в голосовании - 404).
 - Досрочное закрытие (FR-TEAM-17): после вставки голоса в той же транзакции считается `max(votes)`; если > N/2 - переход в `confirming`.
 - Ничья во втором туре: побеждает больший `vote_eligible.joined_at` стаж (раньше вступил); при равенстве - `crypto.randomInt`, `random_tie_break = true`, запись в `team_event` с участниками жребия.
 - Срок ответа на предложение старшему участнику не задан спецификацией; принято 24 ч, как у подтверждения победителя (раздел 16, Р-12).
+- Если адресат предложения (победитель в `confirming` или старший в `offering`) выходит из команды, предложение сразу считается отклонённым и голосование идёт дальше. Если выход оставляет команду без участников, команда архивируется, открытое голосование закрывается с исходом `archived` (событие автомата `team_emptied`).
 - Итог: `team.lead_user_id = winner`, `status = status_before_vote`, `team_event` (`lead_changed`), `teams.lead_changed`. Приостановка: `status='suspended'`, `suspended_at`, таймер `suspension-expire` (C-28 = 14 дней) - затем `archived` без зачёта (FR-TEAM-20). Таймеры этапов заморожены (FR-WORK-18).
 - Журнал (FR-TEAM-21): после закрытия `LeaderVote.candidates[].votes` раскрывает число голосов; кто за кого голосовал, не отдаётся никогда.
 
@@ -1431,7 +1434,7 @@ stateDiagram-v2
 
 - Каждая смена фазы ставит отложенную задачу BullMQ `vote-deadline` с `jobId = vote_<voteId>_<status>_<round>_<deadlineEpoch>` и задержкой до `phase_deadline` (`voting_deadline` для голосования). Повторная постановка с тем же `jobId` не создаёт дубля.
 - Обработчик: транзакция, lock #4 команда, lock #7 `leader_vote FOR UPDATE`; если статус/раунд/дедлайн не совпадают с параметрами задачи или `phase_deadline > now` - выход без изменений (устаревший таймер). Иначе - переход по диаграмме.
-- Страховка от потери отложенных задач в Redis: сканер `vote-deadline-scan` раз в минуту выбирает `leader_vote_deadline_idx` с истёкшим `phase_deadline` и ставит задачи (тот же `jobId`).
+- Страховка от потери отложенных задач в Redis: сканер `vote-deadline-scan` раз в минуту выбирает `leader_vote_deadline_idx` с истёкшим `phase_deadline` и сам переводит каждое такое голосование дальше тем же обработчиком, что и задача (задач не ставит: уже стоящая в Redis задача с тем же `jobId` блокировала бы новую). Повторный и параллельный запуск безопасны. Те же правила применяются на лету: `castBallot`, `nominateCandidate`, `consentCandidacy`, `withdrawCandidacy` сначала закрывают фазу, срок которой истёк; отказ после такого перехода коммитит переход (`CommittedDomainError`).
 - "Последний голос" против "истечения срока" (CC-4): обе транзакции берут одни и те же блокировки в одном порядке; вторая видит уже изменённый статус и выходит. Ровно один тимлид и одна запись `lead_changed`.
 
 ---
@@ -2006,10 +2009,10 @@ CI: (а) скрипт проверяет, что у каждой операци�
 | FR-TEAM-11 | teams | `leaveTeam`, `listNotifications` | событие `teams.member_left` -> workspace (снятие исполнителя), уведомление |
 | FR-TEAM-12 | teams | `closeSeat`, `listDepartures`, `decideDeparture` | таймер `departure-default` (C-14) |
 | FR-TEAM-13 | teams | `listDepartures`, `decideDeparture`, `assignChecklistItem`, `getContributionSummary` | - |
-| FR-TEAM-14 | teams | `leaveTeam`, `getLeaderVoteRequests`, `requestLeaderVote`, `transitionStage` | сага удаления (лидер), таймер неактивности `lead-inactivity-scan` |
+| FR-TEAM-14 | teams | `leaveTeam`, `getLeaderVoteRequests`, `requestLeaderVote`, `returnAsLead`, `transitionStage` | сага удаления (лидер), таймер неактивности `lead-inactivity-scan` |
 | FR-TEAM-15 | teams | `nominateCandidate`, `consentCandidacy`, `withdrawCandidacy` | - |
 | FR-TEAM-16 | teams | `castBallot`, `withdrawCandidacy` | - |
-| FR-TEAM-17 | teams | `castBallot`, `respondLeaderOffer` | таймер `vote-deadline` |
+| FR-TEAM-17 | teams | `castBallot`, `returnAsLead`, `respondLeaderOffer` | таймер `vote-deadline` |
 | FR-TEAM-18 | teams | `respondLeaderOffer` | таймер `vote-deadline` |
 | FR-TEAM-19 | teams | `castBallot` | таймер `vote-deadline` |
 | FR-TEAM-20 | teams | `respondLeaderOffer` | таймер `vote-deadline`, `suspension-expire` |
@@ -2124,6 +2127,7 @@ CI: (а) скрипт проверяет, что у каждой операци�
 | Р-24 | FR-AUTH-09 (а) | Удаление запускается одним запросом из любой сессии без отсрочки (SEC-17) | Свежая сессия (10 мин) и отсрочка 72 ч с отменой по ссылке из письма, в пределах C-36 (13.9). Предлагается отразить в FR-AUTH-09 |
 | Р-25 | 8 (AF-15, AF-17, AF-19, AF-21) | В модели данных не было сигналов для правил мультиаккаунтов; AF-15 обходится удалением аккаунта (SEC-13) | `auth.identity_signal` (HMAC подсети, User-Agent, cookie устройства, 90 дней) и `auth.identity_tombstone` (HMAC GitHub id и email удалённых, 180 дней, сигнал, не блок) (5.2). Требует отражения в тексте согласия и политике ПД (раздел 17) |
 | Р-26 | FR-PROF-03 | Spec требует разбор в `worker_threads`; поток делит процесс (и секреты в памяти) с кодом, держащим подключение к очереди (SEC-01) | Разбор в одноразовом дочернем процессе под отдельным uid с теми же лимитами C-22..C-26 (13.15): изоляция строже, требования к лимитам и статусам выполняются. Предлагается заменить в FR-PROF-03 "`worker_threads`" на "изолированный дочерний процесс" |
+| Р-27 | FR-TEAM-14, -20 | Не определено, что происходит, когда тимлид выходит из `suspended` команды | Голосование открывается как для `active`; `status_before_vote = 'suspended'`, по закрытию команда возвращается в `suspended` (статусная таблица допускает `suspended -> voting -> suspended`). Команда без голосования (`completed`, `archived`) остаётся без тимлида, версия команды растёт |
 
 ---
 

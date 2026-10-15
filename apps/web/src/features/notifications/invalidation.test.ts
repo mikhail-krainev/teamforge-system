@@ -1,0 +1,50 @@
+import { QueryClient } from '@tanstack/react-query';
+import { describe, expect, it } from 'vitest';
+import { ME_QUERY_KEY } from '@/features/auth/session';
+import { createInvalidator } from '@/lib/realtime';
+import { keysFor } from './invalidation';
+
+const ID = '0192f0a0-7c1e-7b3a-8d2f-00000000a001';
+
+describe('keysFor', () => {
+  it('notification.created refreshes the bell', () => {
+    expect(keysFor({ type: 'notification.created', channel: `user:${ID}` })).toEqual([
+      ['notifications'],
+    ]);
+  });
+
+  it('vote.updated refreshes the vote and the team of the CHANNEL', () => {
+    const keys = keysFor({ type: 'vote.updated', channel: `team:${ID}` });
+    expect(keys).toContainEqual(['votes', ID]);
+    expect(keys).toContainEqual(['teams', 'detail', ID]);
+  });
+
+  it('member events refresh the roster, lists and offers', () => {
+    const keys = keysFor({ type: 'member.left', channel: `team:${ID}` });
+    expect(keys).toContainEqual(['teams', 'detail', ID]);
+    expect(keys).toContainEqual(['teams', 'list']);
+    expect(keys).toContainEqual(['offers']);
+  });
+
+  it('session.revoked re-reads the current user', () => {
+    expect(keysFor({ type: 'session.revoked', channel: `user:${ID}` })).toEqual([ME_QUERY_KEY]);
+  });
+
+  it('an unknown user event refreshes nothing', () => {
+    expect(keysFor({ type: 'something.new', channel: `user:${ID}` })).toEqual([]);
+  });
+});
+
+describe('createInvalidator', () => {
+  it('marks matching queries stale on a signal and everything on reconnect', () => {
+    const client = new QueryClient();
+    client.setQueryData(['votes', ID], []);
+    client.setQueryData(['other'], 1);
+    const invalidator = createInvalidator(client, keysFor);
+    invalidator.onSignal({ type: 'vote.updated', channel: `team:${ID}` });
+    expect(client.getQueryState(['votes', ID])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['other'])?.isInvalidated).toBe(false);
+    invalidator.onReconnected();
+    expect(client.getQueryState(['other'])?.isInvalidated).toBe(true);
+  });
+});

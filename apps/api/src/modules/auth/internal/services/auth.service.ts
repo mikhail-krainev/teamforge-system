@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ClsService } from 'nestjs-cls';
 import { and, eq, gt, gte, inArray, isNotNull } from 'drizzle-orm';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
@@ -14,6 +15,7 @@ import type {
   UserId,
   UserIdentity,
 } from '../../public.js';
+import { normalizeEmail } from '../magic-link/email-normalizer.js';
 import { ConsentService } from '../consent/consent.service.js';
 import { DeletionSagaService } from '../deletion/deletion-saga.service.js';
 import { identitySignal, identityTombstone, user } from '../schema/auth.js';
@@ -29,6 +31,7 @@ export class AuthService implements AuthApi {
     @Inject(ConsentService) private readonly consent: ConsentService,
     @Inject(DeletionSagaService) private readonly saga: DeletionSagaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(ClsService) private readonly cls: ClsService,
   ) {}
 
   async lockUserForJoin(userId: UserId): Promise<JoinEligibility> {
@@ -39,13 +42,26 @@ export class AuthService implements AuthApi {
     }>(userId);
     if (row === undefined) throw new DomainError('NOT_FOUND', 404);
     if (row.status !== 'active') throw new DomainError('USER_INACTIVE', 409);
-    return {
+    const eligibility: JoinEligibility = {
       userId,
       status: row.status,
       // bigint columns come back from the raw query as strings.
       githubUserId: row.github_user_id === null ? null : Number(row.github_user_id),
       consentValid: await this.consent.hasValidConsent(userId),
     };
+    this.rememberLock(eligibility);
+    return eligibility;
+  }
+
+  /** Lets `TeamsApi.joinSeat({ userLocked: true })` verify lock #1 and reuse what was read under it. */
+  private rememberLock(eligibility: JoinEligibility): void {
+    if (!this.cls.isActive()) return;
+    const locked = this.cls.get('lockedUsers') ?? {};
+    locked[eligibility.userId] = {
+      githubUserId: eligibility.githubUserId,
+      consentValid: eligibility.consentValid,
+    };
+    this.cls.set('lockedUsers', locked);
   }
 
   async getIdentity(userId: UserId): Promise<UserIdentity | null> {
@@ -58,6 +74,31 @@ export class AuthService implements AuthApi {
       .from(user)
       .where(eq(user.id, userId));
     return rows[0] ?? null;
+  }
+
+  hmacOfEmail(email: string): Buffer {
+    return hmacBytes(this.config.IP_HASH_SALT, normalizeEmail(email));
+  }
+
+  async getEmailHmac(userId: UserId): Promise<Buffer | null> {
+    const rows = await this.db
+      .select({ email: user.emailNormalized })
+      .from(user)
+      .where(eq(user.id, userId));
+    const email = rows[0]?.email;
+    return email === undefined || email === null
+      ? null
+      : hmacBytes(this.config.IP_HASH_SALT, email);
+  }
+
+  async getMailRecipient(userId: UserId): Promise<string | null> {
+    const rows = await this.db
+      .select({ email: user.email, status: user.status })
+      .from(user)
+      .where(eq(user.id, userId));
+    const row = rows[0];
+    if (row === undefined || row.status !== 'active' || !row.email) return null;
+    return (await this.consent.hasValidConsent(userId)) ? row.email : null;
   }
 
   async findUserIdsByGithubIds(githubUserIds: number[]): Promise<Map<number, UserId>> {

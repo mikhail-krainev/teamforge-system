@@ -22,13 +22,6 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    await db.sql.unsafe(`
-      CREATE TABLE teams.team (id uuid PRIMARY KEY);
-      CREATE TABLE teams.seat (id uuid PRIMARY KEY);
-      CREATE TABLE teams.seat_assignment (id uuid PRIMARY KEY, seat_id uuid NOT NULL, ended_at timestamptz);
-      CREATE UNIQUE INDEX seat_assignment_active_seat_uq ON teams.seat_assignment (seat_id)
-        WHERE ended_at IS NULL;
-    `);
     testApp = await createTestApp({ databaseUrl: db.url });
     runner = testApp.app.get(TxRunner);
     locks = testApp.app.get(LockService);
@@ -39,10 +32,38 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
     await db.drop();
   });
 
-  async function insertIds(table: string, count: number): Promise<string[]> {
+  const PLAYBOOK_ID = '00000000-0000-7000-8000-0000000a0001';
+
+  async function insertUser(): Promise<string> {
+    const id = randomUUID();
+    await db.sql`INSERT INTO auth."user" (id, created_at, updated_at) VALUES (${id}, now(), now())`;
+    return id;
+  }
+
+  function teamInsert(id: string, createdBy: string) {
+    return sql`INSERT INTO teams.team (id, name, description, product_type_code, playbook_id, status,
+      timezone, hours_per_week, created_by, created_at, updated_at)
+      VALUES (${id}::uuid, 'probe', 'probe', 'web_service', ${PLAYBOOK_ID}::uuid, 'forming', 'UTC', 10,
+      ${createdBy}::uuid, now(), now())`;
+  }
+
+  async function insertTeams(count: number): Promise<string[]> {
+    const createdBy = await insertUser();
     const ids = Array.from({ length: count }, () => randomUUID());
-    for (const id of ids) await db.sql.unsafe(`INSERT INTO ${table} (id) VALUES ('${id}')`);
+    for (const id of ids) {
+      await db.sql`INSERT INTO teams.team (id, name, description, product_type_code, playbook_id, status,
+        timezone, hours_per_week, created_by, created_at, updated_at)
+        VALUES (${id}::uuid, 'probe', 'probe', 'web_service', ${PLAYBOOK_ID}::uuid, 'forming', 'UTC', 10,
+        ${createdBy}::uuid, now(), now())`;
+    }
     return ids;
+  }
+
+  async function insertSeat(teamId: string, ordinal: number): Promise<string> {
+    const id = randomUUID();
+    await db.sql`INSERT INTO teams.seat (id, team_id, role_code, ordinal, min_level, min_hours, status)
+      VALUES (${id}::uuid, ${teamId}::uuid, 'backend', ${ordinal}, 'junior', 10, 'open')`;
+    return id;
   }
 
   it('sets lock_timeout=5s and statement_timeout=10s locally and rolls back on error', async () => {
@@ -56,9 +77,10 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
     expect(outside[0]?.lock_timeout).toBe('0');
 
     const marker = randomUUID();
+    const createdBy = await insertUser();
     await expect(
       runner.run(async () => {
-        await runner.tx.execute(sql`INSERT INTO teams.team (id) VALUES (${marker}::uuid)`);
+        await runner.tx.execute(teamInsert(marker, createdBy));
         throw new Error('abort');
       }),
     ).rejects.toThrow('abort');
@@ -66,7 +88,7 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   });
 
   it('S1-05: second transaction gets 503 LOCK_TIMEOUT while the row is held', async () => {
-    const [teamId] = await insertIds('teams.team', 1);
+    const [teamId] = await insertTeams(1);
     const holder = db.sql.begin(async (tx) => {
       await tx`SELECT id FROM teams.team WHERE id = ${teamId ?? ''} FOR UPDATE`;
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -102,7 +124,7 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   });
 
   it('retries a deadlocked transaction (40P01) and both transactions finish', async () => {
-    const [a, b] = await insertIds('teams.team', 2);
+    const [a, b] = await insertTeams(2);
     const gate = barrier(2);
     let attempts = 0;
     const crossLock = (first: string, second: string) =>
@@ -127,7 +149,7 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   });
 
   it('S1-05: taking a lower lock level after a higher one throws in test mode', async () => {
-    const [teamId] = await insertIds('teams.team', 1);
+    const [teamId] = await insertTeams(1);
     const userId = randomUUID();
     await db.sql`INSERT INTO auth."user" (id, created_at, updated_at) VALUES (${userId}, now(), now())`;
     await expect(
@@ -145,7 +167,10 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   });
 
   it('locks several seats in ascending id order and rejects locks outside a transaction', async () => {
-    const seatIds = await insertIds('teams.seat', 4);
+    const [teamId] = await insertTeams(1);
+    const seatIds: string[] = [];
+    for (let ordinal = 1; ordinal <= 4; ordinal += 1)
+      seatIds.push(await insertSeat(teamId ?? '', ordinal));
     const locked = await runner.run(() => locks.lockSeats([...seatIds].reverse()));
     expect(locked.map((row) => row.id)).toEqual([...seatIds].sort());
     await expect(locks.lockTeam(randomUUID())).rejects.toThrow(/outside a transaction/);
@@ -211,15 +236,28 @@ describeInfra('S1-05 transactions, locks, DB errors (real PostgreSQL)', ['db', '
   });
 
   it('maps a real 23505 on seat_assignment_active_seat_uq to 409 SEAT_TAKEN', async () => {
-    const seatId = randomUUID();
-    const insert = () =>
+    const [teamId] = await insertTeams(1);
+    const seatId = await insertSeat(teamId ?? '', 1);
+    const people = [await insertUser(), await insertUser()];
+    const memberships: string[] = [];
+    for (const userId of people) {
+      const membershipId = randomUUID();
+      memberships.push(membershipId);
+      await db.sql`INSERT INTO teams.membership (id, team_id, user_id, status, joined_via, joined_at)
+        VALUES (${membershipId}::uuid, ${teamId ?? ''}::uuid, ${userId}::uuid, 'active', 'creator', now())`;
+    }
+    const insert = (n: number) =>
       runner.run(async () => {
         await runner.tx.execute(
-          sql`INSERT INTO teams.seat_assignment (id, seat_id) VALUES (${randomUUID()}::uuid, ${seatId}::uuid)`,
+          sql`INSERT INTO teams.seat_assignment (id, seat_id, team_id, membership_id, user_id, role_code,
+            joined_via, started_at, deficit_at_join, deficit_open_seats, deficit_queued)
+            VALUES (${randomUUID()}::uuid, ${seatId}::uuid, ${teamId ?? ''}::uuid,
+            ${memberships[n] ?? ''}::uuid, ${people[n] ?? ''}::uuid, ${`role${n}`}, 'creator', now(),
+            false, 0, 0)`,
         );
       });
-    await insert();
-    const error = await insert().catch((e: unknown) => e);
+    await insert(0);
+    const error = await insert(1).catch((e: unknown) => e);
     const problem = toProblem(error, { instance: '/x', requestId: 'r' });
     expect(problem.status).toBe(409);
     expect(problem.body.code).toBe('SEAT_TAKEN');
