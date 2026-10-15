@@ -200,3 +200,15 @@ CRITICAL, HIGH и MEDIUM закрыты. Остаток:
 - LOW: таймер `departure-default` ставится после COMMIT; при недоступности Redis решение остаётся `pending`, скана-подстраховки нет.
 - LOW: `offers.test.ts` 832 строки (лимит 800).
 - LOW: `format:check` ругается на 26 файлов срезов 1-2 и сгенерированные (в основном CRLF в рабочей копии); в CI проверки формата нет.
+
+## Срез 4, аудит и ревью
+
+CRITICAL и HIGH нет, MEDIUM исправлены. Остаток LOW:
+
+- `trial.service.ts`: повторный `confirmTrial` после срабатывания `trial-expire` даёт 200, до таймера - 409 `TRIAL_EXPIRED`; `trial_confirmed_at` означает и подтверждение, и истечение срока.
+- `score-recompute.service.ts`: `recomputeSeat` не берёт кандидатов из очереди с ролью вне профиля, их строки `match_candidate` появляются и пропадают.
+- `auto-add.service.ts`: строка `auto_add_log` пишется каждые 60 с для каждой застрявшей заявки; нужна очистка или запись только при смене причины.
+- `matching.module.ts`: `process.env.NODE_ENV` читается при загрузке модуля мимо `APP_CONFIG` (обработчик перепроверяет конфиг).
+- `recommend.repository.ts`: `notInArray` со всеми id может упереться в лимит параметров Postgres; удалять по `computed_at < startedAt`.
+- `wait_sample`: `onConflictDoNothing` - повторное автодобавление той же заявки после возврата не пишет второй замер.
+- e2e: повторный прогон на том же стеке падает из-за данных прошлого прогона; slice4 шаг 4 ждёт расписание (до 2.5 мин).
