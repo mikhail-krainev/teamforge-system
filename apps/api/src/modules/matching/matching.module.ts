@@ -10,19 +10,21 @@ import { MatchingDeficitPort } from './internal/demand/deficit.port.js';
 import { ApplicationRepository } from './internal/repositories/application.repository.js';
 import { ApplicationService } from './internal/services/application.service.js';
 import { MatchingFacade } from './internal/services/matching-facade.service.js';
+import { RECOMMEND_CONTROLLERS, RECOMMEND_PROVIDERS } from './internal/recommend.providers.js';
 import { MATCHING_API } from './public.js';
 
 /**
  * Matching: the search queue application (S4-02), the demand showcase and the `DeficitPort`
- * (S4-03); recommendations (S4-04) and auto-add (S4-05) are registered by their own tasks.
+ * (S4-03), recommendations (S4-04); auto-add (S4-05) is registered by its own task.
  *
  * Global because teams injects `DEFICIT_PORT` and may not import matching (architecture 2.2, Р-1):
  * this module is the one place where the port is bound.
  */
 @Global()
 @Module({
-  controllers: [ApplicationController, DemandController],
+  controllers: [ApplicationController, DemandController, ...RECOMMEND_CONTROLLERS],
   providers: [
+    ...RECOMMEND_PROVIDERS,
     ApplicationRepository,
     ApplicationService,
     DemandRepository,
