@@ -3,6 +3,7 @@ import auth from './ru/auth.json';
 import errors from './ru/errors.json';
 import home from './ru/home.json';
 import invitations from './ru/invitations.json';
+import matching from './ru/matching.json';
 import notFound from './ru/notFound.json';
 import notifications from './ru/notifications.json';
 import offers from './ru/offers.json';
@@ -17,6 +18,7 @@ export const ruDictionaries = {
   "errors": errors,
   "home": home,
   "invitations": invitations,
+  "matching": matching,
   "notFound": notFound,
   "notifications": notifications,
   "offers": offers,

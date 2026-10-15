@@ -6,6 +6,8 @@ import { useMe } from '@/features/auth/session';
 import type { CatalogEntry } from '@/features/profile/api';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { TeamActions } from '@/features/offers/TeamActions';
+import { TrialBadge, TrialControls } from '@/features/trial/TrialControls';
+import { isOnTrial } from '@/features/trial/model';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
 import { ApiError } from '@/lib/api/errors';
 import { t } from '@/i18n';
@@ -16,7 +18,15 @@ import { SeatRow } from './SeatRow';
 import { StartProject } from './StartProject';
 import { TeamEvents } from './TeamEvents';
 
-function MembersSection({ members }: { members: readonly Member[] }) {
+function MembersSection({
+  teamId,
+  members,
+  canManage,
+}: {
+  teamId: string;
+  members: readonly Member[];
+  canManage: boolean;
+}) {
   const active = members.filter((m) => m.status === 'active');
   return (
     <section className="stack" aria-labelledby="team-members-heading">
@@ -32,12 +42,18 @@ function MembersSection({ members }: { members: readonly Member[] }) {
               {t('teams.detail.joined', {
                 date: new Date(member.joinedAt).toLocaleDateString('ru-RU'),
               })}
-              {member.trialUntil
+              {member.trialUntil && !isOnTrial(member)
                 ? ` · ${t('teams.detail.trialUntil', {
                     date: new Date(member.trialUntil).toLocaleDateString('ru-RU'),
                   })}`
                 : ''}
             </p>
+            {isOnTrial(member) ? (
+              <p>
+                <TrialBadge member={member} />
+              </p>
+            ) : null}
+            {canManage && isOnTrial(member) ? <TrialControls teamId={teamId} member={member} /> : null}
           </li>
         ))}
       </ul>
@@ -131,7 +147,7 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
       <h1>{data.name}</h1>
       {canManage ? <p className="muted">{t('teams.detail.youAreLead')}</p> : null}
       <Summary team={data} typeName={typeName} />
-      <MembersSection members={data.members} />
+      <MembersSection teamId={data.id} members={data.members} canManage={canManage} />
       <SeatsSection team={data} roles={roles.data ?? []} canManage={canManage} />
       {canManage && data.status === 'forming' ? <StartProject teamId={data.id} /> : null}
       <TeamActions team={data} meId={me.data?.id} roles={roles.data ?? []} isLead={canManage} />
