@@ -201,6 +201,8 @@ export interface TeamOptions {
   /** Role of the open seats (default: cycles through TEAM_ROLES). */
   roleCode?: string;
   name?: string;
+  /** Members take the seats of the planned roles, not the first seats the API lists (it lists by role code). */
+  joinPlannedRoles?: boolean;
 }
 
 const roleAt = (index: number, fixed?: string): string =>
@@ -251,7 +253,15 @@ export async function team(world: World, options: TeamOptions = {}): Promise<Tea
     201,
   );
   const members: UserFixture[] = [];
-  for (const [i, seat] of created.seats.slice(0, memberCount - 1).entries()) {
+  const plannedRoles = seats.slice(0, memberCount - 1).map((seat) => String(seat['roleCode']));
+  const free = [...created.seats];
+  const joining = options.joinPlannedRoles
+    ? plannedRoles.flatMap((role) => {
+        const at = free.findIndex((seat) => seat.roleCode === role);
+        return at < 0 ? [] : free.splice(at, 1);
+      })
+    : created.seats.slice(0, memberCount - 1);
+  for (const [i, seat] of joining.entries()) {
     const member = await githubUser(world, `member-${i}`);
     await joinThroughOffer(world, lead, created.id, seat.id, member);
     members.push(member);

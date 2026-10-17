@@ -131,6 +131,7 @@ export async function routeTeam(
     members: options.members ?? 3,
     openSeats: 1,
     roleCode: options.openRole ?? 'devops',
+    joinPlannedRoles: true,
     status: options.started === false ? 'forming' : 'active',
   });
   const [backend, frontend] = built.members;

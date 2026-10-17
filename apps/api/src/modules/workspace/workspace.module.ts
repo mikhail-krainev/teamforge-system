@@ -1,6 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { DEPARTURE_ITEMS_PORT, TEAM_LIFECYCLE_PORT } from '../teams/public.js';
 import { StageTransitionController } from './internal/controllers/stage-transition.controller.js';
+import { StageDueNotify } from './internal/jobs/stage-due-notify.js';
+import { ParticipationService } from './internal/services/participation.service.js';
+import { TransitionRepository } from './internal/repositories/transition.repository.js';
 import { StageTransitionService } from './internal/services/stage-transition.service.js';
 import { ArtifactController } from './internal/controllers/artifact.controller.js';
 import {
@@ -34,7 +37,7 @@ import { NotificationService } from './internal/services/notification.service.js
 /**
  * Workspace module. S3-10: notifications (list, read marks, event handlers, e-mail) and the
  * WebSocket gateway with its Redis relay. S5-04: the route of a project (stages, checklist) and
- * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup).
+ * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer.
  *
  * Global because teams injects `TEAM_LIFECYCLE_PORT` and may not import workspace (architecture
  * 2.2): this module is the one place where the port is bound.
@@ -57,7 +60,10 @@ import { NotificationService } from './internal/services/notification.service.js
     ArtifactService,
     ArtifactFileRemovalConsumer,
     OrphanArtifactSweeper,
+    TransitionRepository,
     StageTransitionService,
+    ParticipationService,
+    StageDueNotify,
     ItemService,
     ReviewRepository,
     ReviewService,

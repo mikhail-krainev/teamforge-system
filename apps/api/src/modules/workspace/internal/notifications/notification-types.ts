@@ -15,6 +15,7 @@ export const NOTIFICATION_TYPES = [
   'vote_closed',
   'leader_offer',
   'auto_added',
+  'stage_due',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

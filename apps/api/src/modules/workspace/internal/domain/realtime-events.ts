@@ -57,6 +57,14 @@ const memberLeft: Mapper = (p) => {
   return userId === undefined ? [] : onTeam(teamId, 'member.left', { teamId, userId });
 };
 
+function stageSignal(
+  type: 'stage.opened' | 'stage.closed',
+  p: Record<string, unknown>,
+): RealtimeSignal[] {
+  const [teamId, stageId] = [str(p['teamId']), str(p['stageId'])];
+  return stageId === undefined ? [] : onTeam(teamId, type, { teamId, stageId });
+}
+
 const MAPPERS: Record<string, Mapper> = {
   'teams.member_joined': (p) => {
     const [teamId, userId] = [str(p['teamId']), str(p['userId'])];
@@ -80,6 +88,8 @@ const MAPPERS: Record<string, Mapper> = {
     if (itemId === undefined) return [];
     return onTeam(teamId, 'item.updated', { teamId, itemId, version: num(p['version']) });
   },
+  'workspace.stage_opened': (p) => stageSignal('stage.opened', p),
+  'workspace.stage_closed': (p) => stageSignal('stage.closed', p),
   'workspace.project_completed': (p) =>
     onTeam(str(p['teamId']), 'project.completed', { teamId: str(p['teamId']) }),
   'profiles.resume_updated': (p) => {

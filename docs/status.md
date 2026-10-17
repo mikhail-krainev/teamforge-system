@@ -18,7 +18,7 @@
 ## Следующая фаза
 
 ПАУЗА 2026-10-17: недельный лимит почти исчерпан. Продолжить срез 5 в `feat/playbooks` (worktree `.claude/worktrees/playbooks`):
-1. S5-06 сделан (подпись SigV4 написана вручную - проверить ревьюером или заменить на @aws-sdk/s3-request-presigner; сигнал `sha_dedup` подключить в S5-09). S5-08 переход этапа (заменить заглушку `transitionStage` с 501), участие, `stage-due-notify`; S5-09 автопроверки и `link-checker` (очередь `link-check` уже копит задачи); S5-10..S5-12 по плану (web и дополнение тестов).
+1. S5-06 сделан (подпись SigV4 написана вручную - проверить ревьюером или заменить на @aws-sdk/s3-request-presigner; сигнал `sha_dedup` подключить в S5-09). S5-08 сделан (не сделано: сдвиг срока открытого этапа после выхода из `suspended`, `AUTO_CHECKS_FAILED` ждёт S5-09; события `workspace.stage_opened`/`stage_closed` по architecture); S5-09 автопроверки и `link-checker` (очередь `link-check` уже копит задачи); S5-10..S5-12 по плану (web и дополнение тестов).
 2. Решения S5-01: условия перехода 409 `STAGE_TRANSITION_BLOCKED` с `unmet[]` (по контракту); интерфейс SSRF-клиента `apps/api/src/link-checker/ssrf-client.ts` `createLinkChecker({resolve, request}).check(url)`.
 3. Фаза 6: integration, concurrency x5, e2e slice1-5, ревью и аудит, PR, CI, слияние.
 Известно: `cc-playbook-publish` "10 версий" не переживает повторный прогон на той же БД.
