@@ -52,6 +52,13 @@ networks:
   resume-net:
     internal: true
 
+  # `checker-net` joins link-checker and the main Redis only (ACL user `linkcheck`, keys bull:link-check:*):
+  # internal, so it has no route out. `egress` is the only way to the internet and holds no other data
+  # services (architecture 2, SEC-05); the SSRF client refuses internal addresses on top of that.
+  checker-net:
+    internal: true
+  egress: {}
+
 volumes:
   postgres-data:
   redis-data:
@@ -119,6 +126,8 @@ services:
       - redis-data:/data
     tmpfs:
       - /tmp
+    # `default` for api and worker, `checker-net` for link-checker.
+    networks: [default, checker-net]
     ports:
       - '127.0.0.1:${REDIS_HOST_PORT:-6379}:6379'
     healthcheck:
@@ -304,6 +313,33 @@ services:
       REDIS_RESUME_URL: redis://resume:${REDIS_RESUME_PASSWORD:?run "pnpm run env:init" first}@redis-resume:6379
     depends_on:
       redis-resume:
+        condition: service_healthy
+
+  # Outgoing URL checks (architecture 13.12, SEC-05): the api image with another entry point. No
+  # database, S3, session or GitHub variables (the process refuses to start when they are set); Redis
+  # only as ACL user `linkcheck`. No `ports:`, no `internal` network; non-root, read-only root, no caps.
+  link-checker:
+    build: *api-build
+    image: teamforge-api:local
+    restart: unless-stopped
+    command: ['node', 'dist/link-checker/main.js']
+    user: node
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
+    networks: [checker-net, egress]
+    environment:
+      REDIS_LINKCHECK_URL: redis://linkcheck:${REDIS_LINKCHECK_PASSWORD:?run "pnpm run env:init" first}@redis:6379
+      QUEUE_PREFIX: ${QUEUE_PREFIX:-bull}
+      SELF_PUBLIC_IPS: ${SELF_PUBLIC_IPS:-}
+    depends_on:
+      redis:
         condition: service_healthy
 
   web:

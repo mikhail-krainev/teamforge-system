@@ -114,7 +114,10 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     entrypoint: ['/bin/sh', '/docker/seaweedfs/start.sh']
-    environment: *test-env
+    environment:
+      <<: *test-env
+      # A volume on the local tmpfs is small: the default 256 MB volume makes uploads fail with 500.
+      SEAWEEDFS_VOLUME_SIZE_MB: '32'
     volumes:
       - ./docker/seaweedfs:/docker/seaweedfs:ro
     tmpfs:
