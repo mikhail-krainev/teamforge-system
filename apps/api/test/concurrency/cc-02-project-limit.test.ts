@@ -91,7 +91,9 @@ describeInfra(
       );
       expect(tally(fired)).toEqual({ 200: 2, 409: 18 });
       expect(await activeMembershipsOf(world, candidate.id)).toBe(2);
-    });
+      // 20 teams are created one after another before the burst: under a loaded run (all test files
+      // in parallel, coverage) that setup alone takes more than the default 30 s.
+    }, 120_000);
 
     it('CC-2(б): a team of 7 and twenty candidates for its free seats -> one success, the others TEAM_FULL', async () => {
       // C-04 allows 12 seats, so 7 members leave 5 open seats; 20 candidates are spread over them.

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { INestApplicationContext } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { TestingModuleBuilder } from '@nestjs/testing';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type postgres from 'postgres';
@@ -36,6 +37,8 @@ export interface WorldOptions {
   /** https origins, so that `Secure` session cookies are expected (FR-AUTH-01). */
   secureOrigins?: boolean;
   env?: Record<string, string | undefined>;
+  /** Overrides on the API application only (e.g. a counting database client, slice 4 query-count tests). */
+  customizeApp?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
 }
 
 export interface TestUserOptions {
@@ -97,7 +100,7 @@ export class World {
       env,
       ...(options.clock ? { clock: options.clock } : {}),
     };
-    const testApp = await createTestApp(common);
+    const testApp = await createTestApp(common, options.customizeApp);
     const worker = options.worker === false ? undefined : await createTestWorker(common);
     const resume = options.resumeWorker ? startFakeResumeWorker(queuePrefix) : undefined;
     return new World(db, testApp, mail, queuePrefix, options, github, resume, worker?.context, []);

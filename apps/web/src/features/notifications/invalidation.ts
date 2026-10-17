@@ -26,7 +26,8 @@ export function keysFor({ type, channel }: RealtimeSignal): readonly QueryKey[] 
     case 'session.revoked':
       return [ME_QUERY_KEY];
     case 'application.changed':
-      return [['applications']];
+      // Queue application changed or fulfilled (auto-add): the roster, demand and offers follow it.
+      return [['applications'], ['teams'], ['offers'], ['demand'], ['recommendations']];
     case 'credits.changed':
       return [['credits']];
     case 'team.updated':
@@ -39,6 +40,8 @@ export function keysFor({ type, channel }: RealtimeSignal): readonly QueryKey[] 
         ['teams', 'list'],
         ['offers'],
         votesKey(id),
+        ['demand'],
+        ['recommendations'],
       ];
     case 'vote.updated':
       return [votesKey(id), teamKey(id), teamEventsKey(id)];

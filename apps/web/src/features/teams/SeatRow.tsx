@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Field } from '@/components/ui/Field';
@@ -116,6 +117,11 @@ export function SeatRow({ teamId, seat, roleName, holderName, canManage }: Props
           onToggleDesired={() => update.mutate({ version: seat.version, desired: !seat.desired })}
           onClose={() => close.mutate()}
         />
+      ) : null}
+      {canManage && seat.status === 'open' ? (
+        <p>
+          <Link href={`/teams/${teamId}/seats/${seat.id}`}>{t('matching.candidates.open')}</Link>
+        </p>
       ) : null}
       {editing ? (
         <SeatEditForm

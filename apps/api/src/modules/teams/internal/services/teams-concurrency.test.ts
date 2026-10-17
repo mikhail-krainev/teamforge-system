@@ -176,7 +176,8 @@ describeInfra(
           await gate.wait();
           return world.as(user).patch(`/v1/teams/${team.id}/seats/${seat.id}`, {
             version: seat.version,
-            minHours: 3 + i,
+            // never equal to the seat's own 10: an unchanged value is a no-op 200 that keeps the version
+            minHours: 11 + i,
           });
         }),
       );

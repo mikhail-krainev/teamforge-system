@@ -93,11 +93,12 @@ describeInfra(
         const left = await db.sql`SELECT count(*)::int AS n FROM platform.idempotency_key`;
         expect(left[0]?.n).toBe(0);
         const schedulers = await queues.getQueue('maintenance').getJobSchedulers();
-        // the platform's own tasks plus the ones modules register (slice 2: deletion, resume scan, orphan objects; slice 3: teams)
+        // the platform's own tasks plus the ones modules register (slice 2: deletion, resume scan, orphan objects; slice 3: teams; slice 4: matching)
         expect(schedulers.map((s) => s.key).sort()).toEqual([
           'deletion-scheduler',
           'idempotency-cleanup',
           'invitation-cleanup',
+          'matching-recompute-all',
           'max-duration-scan',
           'orphan-objects',
           'outbox-cleanup',

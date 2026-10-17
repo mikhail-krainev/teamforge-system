@@ -26,6 +26,20 @@ describe('keysFor', () => {
     expect(keys).toContainEqual(['offers']);
   });
 
+  it('application.changed (queue, auto-add) refreshes the application, teams, demand and recommendations', () => {
+    const keys = keysFor({ type: 'application.changed', channel: `user:${ID}` });
+    expect(keys).toContainEqual(['applications']);
+    expect(keys).toContainEqual(['teams']);
+    expect(keys).toContainEqual(['demand']);
+    expect(keys).toContainEqual(['recommendations']);
+  });
+
+  it('team events refresh the demand and the recommendations of seats and candidates', () => {
+    const keys = keysFor({ type: 'member.joined', channel: `team:${ID}` });
+    expect(keys).toContainEqual(['demand']);
+    expect(keys).toContainEqual(['recommendations']);
+  });
+
   it('session.revoked re-reads the current user', () => {
     expect(keysFor({ type: 'session.revoked', channel: `user:${ID}` })).toEqual([ME_QUERY_KEY]);
   });

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { QueueName } from './queue-definitions.js';
 
 /** A periodic job of the `maintenance` queue owned by a module (e.g. `deletion-scheduler`). */
 export interface MaintenanceTask {
@@ -25,5 +26,33 @@ export class MaintenanceTasks {
 
   all(): MaintenanceTask[] {
     return [...this.tasks.values()];
+  }
+}
+
+/** A repeating job of a queue of its own (not `maintenance`); the schedule is registered by the worker only. */
+export interface RepeatingJob {
+  readonly queue: QueueName;
+  /** Fixed scheduler key: registering it again on every start is idempotent. */
+  readonly key: string;
+  readonly jobName: string;
+  readonly everyMs: number;
+}
+
+/**
+ * Registry that modules fill in `onModuleInit`; the MaintenanceProcessor (worker process only) upserts the
+ * schedules at start. The API process never touches Redis at boot, so it starts while Redis is down.
+ */
+@Injectable()
+export class RepeatingJobs {
+  private readonly jobs = new Map<string, RepeatingJob>();
+
+  register(job: RepeatingJob): void {
+    const id = `${job.queue}:${job.key}`;
+    if (this.jobs.has(id)) throw new Error(`Repeating job ${id} already exists`);
+    this.jobs.set(id, job);
+  }
+
+  all(): RepeatingJob[] {
+    return [...this.jobs.values()];
   }
 }

@@ -29,9 +29,19 @@ export const DELETED_USER_NAME = 'Удалённый пользователь';
 
 /** Facade of the profiles module for teams and matching (read-only). */
 export interface ProfilesApi {
-  /** Batch read, no N+1; users without a profile are absent from the result. */
-  getMatchingProfiles(userIds: UserId[]): Promise<MatchingProfile[]>;
-  /** Profiles that prefer `role`, keyset-paged by user id. */
+  /**
+   * Batch read, no N+1; users without a profile are absent from the result, and so are accounts
+   * that are not `active` or have no valid consent (SEC-11) unless `includeIneligible`: that is for
+   * a caller that checks eligibility itself under lock #1 and shows the profile to nobody.
+   */
+  getMatchingProfiles(
+    userIds: UserId[],
+    options?: { includeIneligible?: boolean },
+  ): Promise<MatchingProfile[]>;
+  /**
+   * Profiles that prefer `role`, keyset-paged by user id. Only people who may be matched: the
+   * account is `active` and the consent is valid (SEC-11).
+   */
   listMatchingProfilesByRole(role: RoleCode, query: PageQuery): Promise<Page<MatchingProfile>>;
   /** A name for every requested id; ids without a profile map to `DELETED_USER_NAME`. */
   getDisplayNames(userIds: UserId[]): Promise<Map<UserId, string>>;

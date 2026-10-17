@@ -57,6 +57,13 @@
       "when": 1791922216833,
       "tag": "0007_seed_product_types_stub_playbooks",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792091404580,
+      "tag": "0008_matching_tables",
+      "breakpoints": true
     }
   ]
 }

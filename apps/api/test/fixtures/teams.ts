@@ -42,6 +42,7 @@ export interface MemberDto {
   displayName: string;
   status: 'active' | 'left' | 'removed';
   joinedVia: string;
+  joinedAt: string;
   trialUntil: string | null;
   roles: string[];
   isLead: boolean;

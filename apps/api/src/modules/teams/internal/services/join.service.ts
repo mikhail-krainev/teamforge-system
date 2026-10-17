@@ -139,14 +139,16 @@ export class JoinService {
     existing: MembershipRow | undefined,
   ): Promise<JoinSeatResult> {
     const now = this.clock.now();
-    const member = existing ?? (await this.createMembership(input, team.id, now));
     // FR-TEAM-25: matching knows the demand across all teams, so teams passes no count of its own.
+    // Asked before the member is counted: a join that fills the team to 8 would otherwise take the
+    // team (and its seat) out of the open seats before they are counted.
     const deficit = await this.deficit.evaluate({
       roleCode: seat.role_code,
       openSeats: 0,
       joiningUserId: input.userId,
       via: input.via,
     });
+    const member = existing ?? (await this.createMembership(input, team.id, now));
     await this.joins.insertAssignment({
       id: uuidv7(),
       seatId: seat.id,

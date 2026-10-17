@@ -629,3 +629,24 @@ legend {
     transition: transform 0.15s ease-out;
   }
 }
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.application-role {
+  align-items: center;
+  justify-content: space-between;
+}

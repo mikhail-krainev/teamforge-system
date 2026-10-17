@@ -48,6 +48,23 @@ export function compose(...args: string[]): string {
   });
 }
 
+/**
+ * Forgets the sign-in hits of the per-IP limit `authLogin` (10 per 15 minutes, RATE_LIMITS). Every
+ * browser of the scenarios comes from the same address, so slices 1-3 use the whole allowance
+ * before slice 4 signs in; only the counters of the throwaway e2e Redis are cleared.
+ */
+export function resetLoginRateLimit(): void {
+  compose(
+    'exec',
+    '-T',
+    'redis',
+    'sh',
+    '-c',
+    'redis-cli --user api --pass "$REDIS_API_PASSWORD" --no-auth-warning --scan --pattern "rl:authLogin:*" | ' +
+      'xargs -r redis-cli --user api --pass "$REDIS_API_PASSWORD" --no-auth-warning del',
+  );
+}
+
 /** Stops one service (for example `redis`) of the e2e stack. */
 export function stopService(service: string): void {
   compose('stop', service);
@@ -57,4 +74,19 @@ export function stopService(service: string): void {
 export function startService(service: string): void {
   compose('start', service);
   compose('up', '-d', '--no-recreate', '--no-build', '--wait', service);
+}
+
+/**
+ * Runs a background job of the worker once, now, instead of waiting for its schedule: the CLI of the
+ * worker image (`dist/cli/run-job.js`, apps/api/src/cli) in the running worker container. No HTTP
+ * door is involved; the CLI refuses any job that is not on its closed list. Returns the JSON report.
+ */
+export function runWorkerJob(job: 'matching-auto-add'): unknown {
+  const output = compose('exec', '-T', 'worker', 'node', 'dist/cli/run-job.js', job);
+  // The report is the last line; the application logs (JSON too) come before it.
+  const report = output.trim().split(/\r?\n/).at(-1);
+  if (report === undefined || !report.startsWith('{')) {
+    throw new Error(`run-job ${job} printed no report: ${output}`);
+  }
+  return JSON.parse(report);
 }

@@ -5,7 +5,7 @@ import { Clock } from '../clock/clock.js';
 import { DB, type Database } from '../db/db.module.js';
 import { inboxEvent, outboxEvent } from '../db/schema/platform.js';
 import { IdempotencyService } from '../idempotency/idempotency.service.js';
-import { MaintenanceTasks } from '../queues/maintenance-tasks.js';
+import { MaintenanceTasks, RepeatingJobs } from '../queues/maintenance-tasks.js';
 import { type JobProcessor, ProcessorRegistry } from '../queues/queue-workers.js';
 import { QueuesService, type QueueJob } from '../queues/queues.service.js';
 
@@ -24,6 +24,7 @@ export class MaintenanceProcessor implements JobProcessor, OnModuleInit, OnAppli
     @Inject(IdempotencyService) private readonly idempotency: IdempotencyService,
     @Inject(QueuesService) private readonly queues: QueuesService,
     @Inject(MaintenanceTasks) private readonly tasks: MaintenanceTasks,
+    @Inject(RepeatingJobs) private readonly repeating: RepeatingJobs,
     @Inject(DB) private readonly db: Database,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(PinoLogger) private readonly logger: PinoLogger,
@@ -45,6 +46,11 @@ export class MaintenanceProcessor implements JobProcessor, OnModuleInit, OnAppli
         { every: task.everyMs },
         { name: task.name, data: {} },
       );
+    }
+    for (const job of this.repeating.all()) {
+      await this.queues
+        .getQueue(job.queue)
+        .upsertJobScheduler(job.key, { every: job.everyMs }, { name: job.jobName, data: {} });
     }
   }
 

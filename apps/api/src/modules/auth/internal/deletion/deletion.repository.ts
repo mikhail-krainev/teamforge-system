@@ -99,6 +99,19 @@ export class DeletionRepository {
     return rows[0];
   }
 
+  /**
+   * Serializes the reports of one request: several modules report from separate transactions, and
+   * under READ COMMITTED each would miss the step the other has not committed yet, so nobody would
+   * finalize. After this lock a transaction sees every step committed before it.
+   */
+  async lockRequest(id: string): Promise<void> {
+    await this.tx.tx
+      .select({ id: deletionRequest.id })
+      .from(deletionRequest)
+      .where(eq(deletionRequest.id, id))
+      .for('update');
+  }
+
   /** Records that a module finished its step; false when it had already reported. */
   async addStep(requestId: string, module: string, at: Date): Promise<boolean> {
     const rows = await this.tx.tx
