@@ -9,17 +9,19 @@
 - Фаза 4: `docs/plan.md` (7 срезов, 86 задач, покрытие всех FR и операций), `docs/todo.md` (чек-лист). Ревью пройдено, HIGH исправлены.
 - Срез 1 (каркас): монорепо pnpm, `packages/shared` из OpenAPI, api (NestJS 12 + Fastify ESM, Drizzle, транзакции и блокировки, идемпотентность, outbox, BullMQ, лимиты, AuthzRegistry с запретом по умолчанию, проверка тел по контракту), web (Next.js 16, i18n, клиент с Idempotency-Key, CSP с nonce), Docker Compose (PgBouncer, Redis ACL, SeaweedFS вместо MinIO, ADR-0019), CI (6 джоб зелёные), Playwright. Ревью кода и повторное ревью пройдены.
 - Срез 2 (авторизация и профиль), ветка `feat/auth-profile`: S2-01..S2-12, аудит безопасности и ревью кода исправлены (CRITICAL/HIGH нет), повторное ревью исправлений пройдено, R2-01 исправлена. На реальном стеке 2026-10-13: integration 814/814, concurrency 5 повторов зелёные, `docker compose up --build` с чистых томов, Playwright slice1+slice2 11/11, actionlint без замечаний. MEDIUM/LOW в `docs/backlog.md` (разделы "Срез 2, ревью кода" и "повторное ревью").
-
 - Срез 2 слит в main (PR #12, CI зелёный, 2026-10-14).
-- Срез 3, часть 1 (ветка `feat/teams`, PR не слит): S3-01 тесты среза (301), S3-02 схема teams/playbooks/notification и порты, S3-03 команды и места, S3-04 единый `joinSeat` и предложения, S3-05 приглашения, S3-09 старт проекта и автомат статусов, S3-10 уведомления и WebSocket, web S3-11..S3-13. Зелёные на tf-test: offers, invitations, start-project, teams, seats, workspace, CC-1, CC-2, CC-8, CC-13 (x5). Аудит безопасности и ревью кода части 1: CRITICAL/HIGH нет, MEDIUM в `docs/backlog.md` ("Срез 3, часть 1").
-
 - Срез 3 (команды и роли), PR #13: S3-01..S3-14, голосование за тимлида, уведомления и WebSocket, web. Фаза 6 на Redis 8: integration 1398/1398 (ветви 82.2%), concurrency x5 (65 тестов), автоматы 100%, `compose up` с нуля, перезапуск Redis без потери расписаний, Playwright slice1-3 19/19 дважды, gitleaks, actionlint. Ревью и аудит (дважды): CRITICAL/HIGH/MEDIUM нет, LOW в `docs/backlog.md`.
 
-- Срез 4 (подбор и очередь поиска), PR #14: S4-01..S4-09. На стеке: coverage 1691 тест (ветви 82.65%), concurrency x5 (86 тестов), правила подбора и испытательного срока 100% ветвей, Playwright slice1-4 27/27 дважды, gitleaks чисто. Аудит и ревью: CRITICAL/HIGH нет, MEDIUM исправлены.
+- Срез 4 слит в main (PR #14, CI зелёный).
+- Срез 5 (маршрут проекта), ветка `feat/playbooks` (PR не открыт): S5-01 тесты (~380 кейсов, 9 Playwright), S5-02/03 загрузка и чтение сценариев из YAML (CLI `playbooks:load`, сиды из `docs/playbooks.md`, шаблоны платформы), S5-04 этапы и чек-лист при старте, S5-05 правка пунктов с версией, назначение, запасные шаги, ссылки https с политикой SSRF при сохранении, учёт времени в `suspended`. S5-07 ревью (`ReviewService.unpassedStepKeys` для перехода; тесты ревью ждут загрузку файлов S5-06).
 
 ## Следующая фаза
 
-Если PR #14 не слит: дождаться зелёного CI и слить. Затем срез 5 (маршрут проекта), ветка `feat/playbooks` от свежей main. Работа остановлена 2026-10-17 по недельному лимиту.
+ПАУЗА 2026-10-17: недельный лимит почти исчерпан. Продолжить срез 5 в `feat/playbooks` (worktree `.claude/worktrees/playbooks`):
+1. S5-06 файлы артефактов (квоты, magic bytes, подписанные ссылки); S5-08 переход этапа (заменить заглушку `transitionStage` с 501), участие, `stage-due-notify`; S5-09 автопроверки и `link-checker` (очередь `link-check` уже копит задачи); S5-10..S5-12 по плану (web и дополнение тестов).
+2. Решения S5-01: условия перехода 409 `STAGE_TRANSITION_BLOCKED` с `unmet[]` (по контракту); интерфейс SSRF-клиента `apps/api/src/link-checker/ssrf-client.ts` `createLinkChecker({resolve, request}).check(url)`.
+3. Фаза 6: integration, concurrency x5, e2e slice1-5, ревью и аудит, PR, CI, слияние.
+Известно: `cc-playbook-publish` "10 версий" не переживает повторный прогон на той же БД.
 
 ## Принятые решения
 

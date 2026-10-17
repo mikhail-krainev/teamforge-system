@@ -6,14 +6,16 @@ import { Authz } from '../../../../platform/http/operation.decorator.js';
 import { FallbackService } from '../services/fallback.service.js';
 import { ItemAssignService } from '../services/item-assign.service.js';
 import { ItemService } from '../services/item.service.js';
+import { ReviewService } from '../services/review.service.js';
 
-/** updateChecklistItem, assignChecklistItem, revertFallback (FR-WORK-02..07, CC-7). */
+/** updateChecklistItem, assignChecklistItem, revertFallback, submitReview, acceptReviewRisk (FR-WORK-02..09, CC-7). */
 @Controller('v1/teams/:teamId/checklist-items')
 export class ItemController {
   constructor(
     @Inject(ItemService) private readonly items: ItemService,
     @Inject(ItemAssignService) private readonly assignment: ItemAssignService,
     @Inject(FallbackService) private readonly fallback: FallbackService,
+    @Inject(ReviewService) private readonly review: ReviewService,
     @Inject(ClsService) private readonly cls: ClsService,
   ) {}
 
@@ -46,5 +48,26 @@ export class ItemController {
     @Body() body: BodyOf<'revertFallback'>,
   ): Promise<Ok<'revertFallback'>> {
     return this.fallback.revert(requireUserId(this.cls), teamId, itemId, body);
+  }
+
+  @Put(':itemId/review')
+  @Authz('submitReview')
+  submitReview(
+    @Param('teamId') teamId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: BodyOf<'submitReview'>,
+  ): Promise<Ok<'submitReview'>> {
+    return this.review.submit(requireUserId(this.cls), teamId, itemId, body);
+  }
+
+  @Post(':itemId/review/risk-acceptances')
+  @HttpCode(200)
+  @Authz('acceptReviewRisk')
+  acceptReviewRisk(
+    @Param('teamId') teamId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: BodyOf<'acceptReviewRisk'>,
+  ): Promise<Ok<'acceptReviewRisk'>> {
+    return this.review.acceptRisk(requireUserId(this.cls), teamId, itemId, body);
   }
 }

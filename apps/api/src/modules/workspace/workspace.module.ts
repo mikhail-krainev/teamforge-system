@@ -10,6 +10,8 @@ import { FallbackService } from './internal/services/fallback.service.js';
 import { ItemAssignService } from './internal/services/item-assign.service.js';
 import { ItemGate } from './internal/services/item-gate.js';
 import { ItemService } from './internal/services/item.service.js';
+import { ReviewRepository } from './internal/repositories/review.repository.js';
+import { ReviewService } from './internal/services/review.service.js';
 import { StageController } from './internal/controllers/stage.controller.js';
 import { RouteRepository } from './internal/repositories/route.repository.js';
 import { RouteQueryService } from './internal/services/route-query.service.js';
@@ -38,6 +40,8 @@ import { NotificationService } from './internal/services/notification.service.js
     ItemGate,
     StageTransitionService,
     ItemService,
+    ReviewRepository,
+    ReviewService,
     ItemAssignService,
     FallbackService,
     RouteMembersConsumer,

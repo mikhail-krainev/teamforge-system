@@ -1,5 +1,6 @@
 import type { Schema } from 'shared';
 import type { StepDefinition } from '../../../playbooks/public.js';
+import { isReviewPassed } from '../domain/review-rules.js';
 import { effectiveDueAt, isOverdue } from '../domain/route-plan.js';
 import type {
   FileRow,
@@ -73,8 +74,9 @@ export function toReviewDto(step: StepDefinition, facts: ReviewFacts): ReviewSta
   return {
     reviewerUserId: facts.answers[0]?.reviewerUserId ?? null,
     answers,
-    passed:
-      answers.length > 0 && answers.every((a) => a.answer === true || a.acceptedRisk !== null),
+    passed: isReviewPassed(
+      answers.map((a) => ({ answer: a.answer, riskAccepted: a.acceptedRisk !== null })),
+    ),
   };
 }
 
