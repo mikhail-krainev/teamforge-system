@@ -4,8 +4,11 @@ export interface SemVer {
   patch: number;
 }
 
-/** `MAJOR.MINOR.PATCH` without leading zeros, pre-release or build parts; each part fits `integer`. */
-const SEMVER = /^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$/;
+/**
+ * `MAJOR.MINOR.PATCH` without leading zeros, pre-release or build parts. A part has at most 10 digits
+ * (the width of the largest `integer`, 2147483647); `parseSemver` then refuses what does not fit.
+ */
+const SEMVER = /^(0|[1-9][0-9]{0,9})\.(0|[1-9][0-9]{0,9})\.(0|[1-9][0-9]{0,9})$/;
 
 export function parseSemver(value: string): SemVer | null {
   const match = SEMVER.exec(value);

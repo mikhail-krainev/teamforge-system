@@ -173,7 +173,8 @@ export async function bUploadsAFileCPastesALinkAndCloseItems(): Promise<void> {
   await expect(fileUi.download(spec, 'spec.pdf')).toBeVisible();
   await stageUi.status(spec).check();
   await expect(stageUi.status(spec)).toBeChecked();
-  expect((await itemOf(b, 'mini_spec')).status).toBe('done');
+  // The checkbox follows the click at once (the write is in flight), so wait for the stored status.
+  await expect.poll(async () => (await itemOf(b, 'mini_spec')).status).toBe('done');
 
   const cPage = c.session.page;
   await cPage.goto(ROUTES.stage(world.teamId, 1));

@@ -59,6 +59,91 @@ describe('isStorableLink (SEC-05 at saving)', () => {
   });
 });
 
+describe('isStorableLink: edges of the special-purpose ranges (S5-14)', () => {
+  it.each([
+    'https://192.0.0.1/',
+    'https://192.0.0.255/',
+    'https://192.0.2.1/',
+    'https://198.18.0.1/',
+    'https://198.19.255.255/',
+    'https://198.51.100.7/',
+    'https://198.51.100.255/',
+    'https://203.0.113.9/',
+    'https://255.255.255.255/',
+    'https://[::]/',
+    'https://[64:ff9b::7f00:1]/',
+    'https://[fc00::1]/',
+  ])('the documentation, benchmarking and reserved address %s is refused', (link) => {
+    expect(isStorableLink(link)).toBe(false);
+  });
+
+  it.each([
+    'https://9.255.255.255/',
+    'https://11.0.0.1/',
+    'https://100.63.255.255/',
+    'https://100.128.0.1/',
+    'https://169.253.255.255/',
+    'https://172.15.255.255/',
+    'https://172.32.0.1/',
+    'https://192.0.1.1/',
+    'https://192.167.255.255/',
+    'https://192.169.0.1/',
+    'https://198.17.255.255/',
+    'https://198.20.0.1/',
+    'https://198.51.101.1/',
+    'https://203.0.112.255/',
+    'https://203.0.114.1/',
+    'https://223.255.255.255/',
+  ])('the public neighbour %s of a forbidden range is stored', (link) => {
+    expect(isStorableLink(link)).toBe(true);
+  });
+
+  it.each([
+    'https://１２７.０.０.１/',
+    'https://127.1/',
+    'https://0177.0.0.1/',
+    'https://127.0.0.1./',
+    'https://%31%32%37.0.0.1/',
+    'https://10.1/',
+    'https://0xa9fea9fe/',
+    'https://3232235777/',
+  ])('%s is the same internal address under another spelling: refused', (link) => {
+    expect(isStorableLink(link)).toBe(false);
+  });
+
+  it.each([
+    'https://example.test./',
+    'https://EXAMPLE.TEST/',
+    'https://example.test:0443/',
+    'https://exa\tmple.test/',
+    'https://a.b.c.d/',
+    'https://127.0.0.1.nip.io/',
+    // a backslash ends the host like a slash: the host that is judged is the one that is connected to
+    'https://example.test\\@127.0.0.1/',
+    'https://xn--80ak6aa92e.xn--p1ai/',
+  ])(
+    '%j is an ordinary public name: stored (the connection-time check judges what it resolves to)',
+    (link) => {
+      expect(isStorableLink(link)).toBe(true);
+    },
+  );
+
+  it.each([
+    'https://x.lan/',
+    'https://x.localdomain/',
+    'https://a.b.home.arpa/',
+    'https://x.local./',
+    'https://x.INTERNAL/',
+    'https://example.test:65536/',
+    'https://example.test:-1/',
+    'https:/',
+    'https://',
+    'https://exa mple.test/',
+  ])('%j is refused', (link) => {
+    expect(isStorableLink(link)).toBe(false);
+  });
+});
+
 describe('linkStatusOf (the answer of the link-checker)', () => {
   it('2xx is ok', () => {
     expect(linkStatusOf({ ok: true, reason: null })).toBe('ok');

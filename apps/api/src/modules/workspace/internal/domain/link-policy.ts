@@ -13,16 +13,17 @@ const BLOCKED_SUFFIXES = [
   '.home.arpa',
 ];
 
-function ipv4Octets(host: string): number[] | undefined {
+type Octets = readonly [number, number, number, number];
+
+function ipv4Octets(host: string): Octets | undefined {
   const parts = host.split('.');
   if (parts.length !== 4) return undefined;
   const octets = parts.map((p) => (/^\d{1,3}$/.test(p) ? Number(p) : Number.NaN));
-  return octets.every((o) => o >= 0 && o <= 255) ? octets : undefined;
+  return octets.every((o) => o >= 0 && o <= 255) ? (octets as unknown as Octets) : undefined;
 }
 
 /** Special-purpose and private IPv4 ranges (RFC 1918, 6598, 3927, 5737, 2544, multicast, reserved). */
-function blockedIpv4([a, b, c]: number[]): boolean {
-  if (a === undefined || b === undefined || c === undefined) return true;
+function blockedIpv4([a, b, c]: Octets): boolean {
   if (a === 0 || a === 10 || a === 127 || a >= 224) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
   if (a === 169 && b === 254) return true;

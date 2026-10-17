@@ -19,7 +19,10 @@ export interface AutoCheckFacts {
 }
 
 /** `min_files:2` is the check `min_files` with a parameter. */
-const nameOf = (key: string): string => key.split(':')[0] ?? key;
+const nameOf = (key: string): string => {
+  const colon = key.indexOf(':');
+  return colon === -1 ? key : key.slice(0, colon);
+};
 
 const present = (value: string | null): boolean => value !== null && value.trim() !== '';
 

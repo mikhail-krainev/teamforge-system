@@ -124,3 +124,44 @@ describe('stage dates (FR-WORK-12, -18)', () => {
     expect(isOverdue(early, due, null, now)).toBe(false);
   });
 });
+
+describe('chooseExecutor: alternatives (S5-14)', () => {
+  it('two holders of alternative roles wait for the lead, without a fallback and without a role', () => {
+    expect(
+      chooseExecutor({ ownerRole: 'pm', altRoles: ['ba', 'qa'] }, [
+        lead,
+        ba,
+        { userId: 'qa', roles: ['qa'] },
+      ]),
+    ).toEqual({
+      assigneeUserId: null,
+      roleCode: null,
+      fallbackUsed: false,
+    });
+  });
+
+  it('one member who holds both alternative roles is one holder: he is the executor under the first alternative he holds', () => {
+    const both = { userId: 'both', roles: ['qa', 'ba'] };
+    expect(chooseExecutor({ ownerRole: 'pm', altRoles: ['ba', 'qa'] }, [lead, both])).toEqual({
+      assigneeUserId: 'both',
+      roleCode: 'ba',
+      fallbackUsed: false,
+    });
+  });
+
+  it('a step without alternatives and without an owner holder goes to the fallback', () => {
+    expect(chooseExecutor({ ownerRole: 'pm', altRoles: [] }, [lead, backend])).toEqual({
+      assigneeUserId: null,
+      roleCode: null,
+      fallbackUsed: true,
+    });
+  });
+
+  it('nobody in the team at all still gives the fallback, not a crash', () => {
+    expect(chooseExecutor({ ownerRole: 'pm', altRoles: ['ba'] }, [])).toEqual({
+      assigneeUserId: null,
+      roleCode: null,
+      fallbackUsed: true,
+    });
+  });
+});

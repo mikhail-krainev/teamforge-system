@@ -15,6 +15,7 @@
   "answerLine": "{text}: {answer}",
   "passed": "Ревью пройдено",
   "notPassed": "Ревью не пройдено",
+  "notStarted": "Ревью ещё не проводилось",
   "riskAccepted": "Риск принят: {reason}",
   "acceptRisk": "Принять как риск",
   "riskReason": "Обоснование",

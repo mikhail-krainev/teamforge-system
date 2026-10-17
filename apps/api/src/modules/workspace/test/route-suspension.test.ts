@@ -121,6 +121,52 @@ describeInfra(
       expect(clockOf(world)).toBe(clock);
     });
 
+    it('FR-WORK-18: two separate suspensions add up: the due date moves by 2 days, then by 3 more (5 in all), never by the total twice', async () => {
+      const fx = await routeTeam(world);
+      const original = (await firstStage(fx)).due_at.getTime();
+
+      await suspend(fx.team.id);
+      clock.advance(2 * DAY);
+      await resume(fx.team.id, 2 * 86_400);
+      await waitFor(async () => (await firstStage(fx)).due_at.getTime() === original + 2 * DAY);
+
+      clock.advance(DAY);
+      await suspend(fx.team.id);
+      clock.advance(3 * DAY);
+      // While it lasts the shown date already includes the second suspension and the first one once.
+      expect(await dueOf(fx)).toBe(original + 5 * DAY);
+      await resume(fx.team.id, 3 * 86_400);
+      await waitFor(async () => (await firstStage(fx)).due_at.getTime() === original + 5 * DAY);
+      expect(await dueOf(fx)).toBe(original + 5 * DAY);
+      const row = await world.sql<{ applied: number }[]>`
+        SELECT suspended_applied_seconds AS applied FROM workspace.project_stage
+         WHERE team_id = ${fx.team.id} AND ordinal = 1`;
+      expect(row[0]?.applied).toBe(5 * 86_400);
+    });
+
+    it('FR-WORK-18: a stage that opens between two suspensions keeps only the later one: the earlier is its baseline, not a shift', async () => {
+      const fx = await routeTeam(world);
+      await suspend(fx.team.id);
+      clock.advance(2 * DAY);
+      await resume(fx.team.id, 2 * 86_400);
+      await completeStageOne(fx);
+      await advanceStage(fx, 1);
+      const [, second] = await stageRows(world, fx.team.id);
+      if (!second?.due_at) throw new Error('stage 2 did not open');
+      const planned = second.due_at.getTime();
+
+      await suspend(fx.team.id);
+      clock.advance(DAY);
+      await resume(fx.team.id, 86_400);
+      await waitFor(
+        async () => (await stageRows(world, fx.team.id))[1]?.due_at?.getTime() === planned + DAY,
+      );
+      const rows = await world.sql<{ ordinal: number; applied: number }[]>`
+        SELECT ordinal, suspended_applied_seconds AS applied FROM workspace.project_stage
+         WHERE team_id = ${fx.team.id} ORDER BY ordinal`;
+      expect(rows.map((r) => r.applied)).toEqual([2 * 86_400, 3 * 86_400, 0]);
+    });
+
     const eventsOf = (teamId: string) =>
       world.sql<{ type: string; payload: { teamId: string; ordinal: number } }[]>`
         SELECT type, payload FROM platform.outbox_event

@@ -176,10 +176,12 @@ async function follow(context: Context, raw: string): Promise<LinkCheckOutcome> 
     if (answer.status >= 200 && answer.status < 300) {
       return { ok: true, reason: null, httpStatus: answer.status };
     }
-    const redirecting = REDIRECT_STATUSES.has(answer.status) && answer.location !== undefined;
-    if (!redirecting) return failure('HTTP_STATUS', answer.status);
+    const { location } = answer;
+    if (location === undefined || !REDIRECT_STATUSES.has(answer.status)) {
+      return failure('HTTP_STATUS', answer.status);
+    }
     if (redirects >= MAX_REDIRECTS) return failure('TOO_MANY_REDIRECTS');
-    current = targetOf(answer.location ?? '', current.url);
+    current = targetOf(location, current.url);
     // A redirect back to a page of this very chain is a loop: no point in following it.
     if (current.ok && visited.has(current.url.href)) return failure('TOO_MANY_REDIRECTS');
   }

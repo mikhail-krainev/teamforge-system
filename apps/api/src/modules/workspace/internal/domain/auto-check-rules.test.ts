@@ -102,3 +102,105 @@ describe('autoCheckFailuresOf (done, required items of a stage)', () => {
     expect(failures).toEqual([{ itemId: 'a', stepKey: 'step_a', checks: ['link_https'] }]);
   });
 });
+
+describe('failedBlockingChecks: edges found while implementing S5-09 (S5-14)', () => {
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf'])(
+    'the name "%s" of the prototype chain is not a blocking check (a step file cannot switch a check on by naming it)',
+    (name) => {
+      expect(failedBlockingChecks([name], artifact())).toEqual([]);
+    },
+  );
+
+  it('a parameter after the colon does not change which check it is: file_ok:1 and link_https:strict block like the plain names', () => {
+    expect(failedBlockingChecks(['file_ok:1'], artifact())).toEqual(['file_ok']);
+    expect(failedBlockingChecks(['link_https:strict'], artifact())).toEqual(['link_https']);
+    expect(failedBlockingChecks(['file_ok:1', 'file_ok'], artifact())).toEqual(['file_ok']);
+  });
+
+  it('ritual_fields does not judge an artifact item, whatever fields it lacks', () => {
+    expect(failedBlockingChecks(['ritual_fields'], artifact())).toEqual([]);
+  });
+
+  it('ritual_fields treats a blank day or outcome like a missing one', () => {
+    const ritual = (over: Partial<AutoCheckFacts>) =>
+      artifact({
+        kind: 'ritual',
+        heldOn: '2026-03-01',
+        externalUrl: 'https://example.test/m',
+        outcome: 'agreed',
+        ...over,
+      });
+    expect(failedBlockingChecks(['ritual_fields'], ritual({ heldOn: '  ' }))).toEqual([
+      'ritual_fields',
+    ]);
+    expect(failedBlockingChecks(['ritual_fields'], ritual({ outcome: '\n\t' }))).toEqual([
+      'ritual_fields',
+    ]);
+    expect(failedBlockingChecks(['ritual_fields'], ritual({ externalUrl: null }))).toEqual([
+      'ritual_fields',
+    ]);
+  });
+
+  it('link_https fails for a blank address even with a good status; a link in the state "none" with an address passes (status is judged by the checker, not here)', () => {
+    expect(
+      failedBlockingChecks(['link_https'], artifact({ linkUrl: '   ', linkStatus: 'ok' })),
+    ).toEqual(['link_https']);
+    expect(
+      failedBlockingChecks(
+        ['link_https'],
+        artifact({ linkUrl: 'https://example.test/', linkStatus: 'none' }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('file_ok counts stored files only: the number the caller passes is what decides (deleted files are not in it)', () => {
+    expect(failedBlockingChecks(['file_ok'], artifact({ filesCount: 3 }))).toEqual([]);
+    expect(failedBlockingChecks(['file_ok'], artifact({ filesCount: 0 }))).toEqual(['file_ok']);
+  });
+
+  it('every blocking check of one step is reported when all of them fail, in the step order', () => {
+    const ritual = artifact({ kind: 'ritual', linkUrl: null });
+    expect(failedBlockingChecks(['ritual_fields', 'link_https', 'file_ok'], ritual)).toEqual([
+      'ritual_fields',
+      'link_https',
+      'file_ok',
+    ]);
+  });
+});
+
+describe('autoCheckFailuresOf: several items and several checks (S5-14)', () => {
+  const base = artifact();
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    stepKey: `step_${id}`,
+    required: true,
+    status: 'done',
+    ...base,
+    ...over,
+  });
+
+  it('keeps the order of the items and gives every item its own list of failed checks', () => {
+    const failures = autoCheckFailuresOf(
+      [
+        row('a', { linkUrl: 'https://x.test/', linkStatus: 'rejected' }),
+        row('b', { filesCount: 1 }),
+        row('c'),
+      ],
+      (key) =>
+        key === 'step_a'
+          ? ['link_https']
+          : key === 'step_b'
+            ? ['file_ok']
+            : ['file_ok', 'link_https'],
+    );
+    expect(failures).toEqual([
+      { itemId: 'a', stepKey: 'step_a', checks: ['link_https'] },
+      { itemId: 'c', stepKey: 'step_c', checks: ['file_ok', 'link_https'] },
+    ]);
+  });
+
+  it('a stage without items and a step the playbook does not know give no failure', () => {
+    expect(autoCheckFailuresOf([], () => ['file_ok'])).toEqual([]);
+    expect(autoCheckFailuresOf([row('a')], () => [])).toEqual([]);
+  });
+});

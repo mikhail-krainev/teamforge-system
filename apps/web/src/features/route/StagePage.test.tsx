@@ -242,6 +242,21 @@ describe('FR-WORK-05: files', () => {
 });
 
 describe('FR-WORK-09: review', () => {
+  it('says the review has not started while no point is answered, and "not passed" only once someone answered', async () => {
+    const unanswered = [
+      { ordinal: 1, text: 'Записаны цели и не-цели?', answer: null },
+      { ordinal: 2, text: 'Описаны альтернативы?', answer: null },
+    ];
+    serve({
+      meId: LEAD_ID,
+      items: [sampleSpecItem({ review: { passed: false, answers: unanswered } })],
+    });
+    open();
+    const view = within(await card('Спецификация'));
+    expect(await view.findByText('Ревью ещё не проводилось')).toBeTruthy();
+    expect(view.queryByText('Ревью не пройдено')).toBeNull();
+  });
+
   it('lets a reviewer answer every point and sends the answers with the item version', async () => {
     serve({ meId: LEAD_ID, items: [sampleSpecItem({ version: 7 })] });
     let sent: { version: number; answers: { ordinal: number; answer: boolean }[] } | undefined;

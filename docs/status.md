@@ -17,11 +17,11 @@
 
 ## Следующая фаза
 
-ПАУЗА 2026-10-17: недельный лимит почти исчерпан. Продолжить срез 5 в `feat/playbooks` (worktree `.claude/worktrees/playbooks`):
-1. S5-06 сделан (подпись SigV4 написана вручную - проверить ревьюером или заменить на @aws-sdk/s3-request-presigner; сигнал `sha_dedup` подключить в S5-09). S5-08 сделан (не сделано: сдвиг срока открытого этапа после выхода из `suspended`, `AUTO_CHECKS_FAILED` ждёт S5-09; события `workspace.stage_opened`/`stage_closed` по architecture); S5-09 автопроверки и `link-checker` (очередь `link-check` уже копит задачи); S5-10..S5-12 по плану (web и дополнение тестов).
-2. Решения S5-01: условия перехода 409 `STAGE_TRANSITION_BLOCKED` с `unmet[]` (по контракту); интерфейс SSRF-клиента `apps/api/src/link-checker/ssrf-client.ts` `createLinkChecker({resolve, request}).check(url)`.
-3. Фаза 6: integration, concurrency x5, e2e slice1-5, ревью и аудит, PR, CI, слияние.
-Известно: `cc-playbook-publish` "10 версий" не переживает повторный прогон на той же БД.
+ПАУЗА 2026-10-17 (по просьбе пользователя). Срез 5 в `feat/playbooks`, PR не открыт. Готово: S5-01..S5-13 (backend, link-checker и compose-сервис, web), всё запушено. Тесты API: integration 2309/2312 (3 красных ssrf-links исправлены сервисом `link-checker` в compose, не перепрогнано), concurrency x5 зелёные.
+Осталось: S5-14 (дополнение тестов, начато агентом и прервано, правки могут быть незавершены), Playwright slice1-5 на полном стеке (не запускался), integration/coverage на полном стеке, ревью кода и аудит безопасности среза, PR, слияние. Затем срез 6 (`feat/workspace-github`), срез 7 (`feat/rewards`), фаза 7 (`docs/release.md`).
+Нужно: `gh` (brew install gh, gh auth login) для PR. Пользователь разрешил автослияние, моки вместо реальных секретов GitHub App, удаление слитых веток (сделано).
+Локально: pnpm-обёртка не запускается, использовать node_modules/.bin; SeaweedFS в тестах с `SEAWEEDFS_VOLUME_SIZE_MB=32`.
+Не сделано в S5-09: проверки `md_headings`, `min_files:N`, `ci_workflow`, `pr_cross_review`; `repo_*` придут в срезе 6; `sha_dedup` без подписчика до среза 7. `ChecklistItem` без кода причины проверки ссылки и без ключа шаблона (вопрос к контракту).
 
 ## Принятые решения
 

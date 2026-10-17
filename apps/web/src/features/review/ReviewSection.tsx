@@ -71,10 +71,17 @@ function ReviewResult({
   canAccept: boolean;
   onAccept: (ordinal: number) => void;
 }) {
+  // No answer at all is "not started", not a failed review: the verdict appears with the first answer.
+  const started = review.answers.some((entry) => entry.answer !== null);
+  const verdict = review.passed
+    ? 'review.passed'
+    : started
+      ? 'review.notPassed'
+      : 'review.notStarted';
   return (
     <>
       <p>
-        <strong>{t(review.passed ? 'review.passed' : 'review.notPassed')}</strong>
+        <strong>{t(verdict)}</strong>
       </p>
       <Answers review={review} canAccept={canAccept} onAccept={onAccept} />
     </>

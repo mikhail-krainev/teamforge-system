@@ -48,19 +48,21 @@ export function completionIssue(
   context: { today: string; stageOpenedOn: string | null },
 ): CompletionIssue | undefined {
   if (facts.kind === 'ritual') {
+    const { heldOn } = facts;
     const missing = [
-      present(facts.heldOn) ? undefined : '/heldOn',
+      present(heldOn) ? undefined : '/heldOn',
       present(facts.externalUrl) ? undefined : '/externalUrl',
       present(facts.outcome) ? undefined : '/outcome',
     ].filter((p): p is string => p !== undefined);
-    if (missing.length > 0) {
+    // `heldOn === null` always has '/heldOn' in `missing`; it is here so that `heldOn` is a string below.
+    if (missing.length > 0 || heldOn === null) {
       return {
         code: 'RITUAL_FIELDS_REQUIRED',
         pointers: missing,
         message: 'A ritual is closed with the day, an external link and the outcome',
       };
     }
-    return facts.heldOn === null ? undefined : heldOnIssue(facts.heldOn, context);
+    return heldOnIssue(heldOn, context);
   }
   const hasLink = present(facts.linkUrl);
   const hasFile = facts.filesCount > 0;
