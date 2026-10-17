@@ -64,6 +64,20 @@
       "when": 1792091404580,
       "tag": "0008_matching_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792231925861,
+      "tag": "0009_playbooks_stages_steps_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792231962538,
+      "tag": "0010_seed_platform_templates",
+      "breakpoints": true
     }
   ]
 }

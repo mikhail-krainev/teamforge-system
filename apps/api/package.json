@@ -17,6 +17,8 @@
     "test:coverage": "vitest run --coverage",
     "migrate": "tsx src/platform/db/migrate.ts",
     "migrate:prod": "node dist/platform/db/migrate.js",
+    "playbooks:load": "tsx src/cli/playbooks-load.ts",
+    "playbooks:load:prod": "node dist/cli/playbooks-load.js",
     "db:generate": "drizzle-kit generate",
     "db:check": "node scripts/check-migrations.mjs",
     "depcruise": "depcruise src test --config ../../.dependency-cruiser.cjs",
@@ -50,6 +52,7 @@
     "shared": "workspace:*",
     "unpdf": "1.8.1",
     "uuidv7": "1.2.1",
+    "yaml": "2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

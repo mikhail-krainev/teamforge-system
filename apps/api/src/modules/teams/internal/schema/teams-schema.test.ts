@@ -64,9 +64,17 @@ describeInfra('S3-02 teams schema from a clean database', ['db'], () => {
     return rows.map((r) => String(r.table_name));
   };
 
-  it('creates the fourteen teams tables, the playbooks minimum and the notification', async () => {
+  it('creates the fourteen teams tables, the playbooks tables and the notification', async () => {
     expect(await tablesOf('teams')).toEqual(TEAMS_TABLES);
-    expect(await tablesOf('playbooks')).toEqual(['playbook', 'product_type']);
+    expect(await tablesOf('playbooks')).toEqual([
+      'platform_template',
+      'playbook',
+      'product_type',
+      'stage',
+      'step',
+      'step_fallback',
+      'step_review_item',
+    ]);
     expect(await tablesOf('workspace')).toEqual(['notification']);
   });
 

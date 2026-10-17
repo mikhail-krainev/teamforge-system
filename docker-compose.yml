@@ -7,8 +7,8 @@ x-api-build: &api-build
   context: .
   dockerfile: docker/api.Dockerfile
 
-x-app-env: &app-env
-  # The e2e project sets APP_NODE_ENV=development: production refuses the GitHub double (GITHUB_*_BASE_URL).
+x-app-env:
+  &app-env # The e2e project sets APP_NODE_ENV=development: production refuses the GitHub double (GITHUB_*_BASE_URL).
   NODE_ENV: ${APP_NODE_ENV:-production}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   API_PORT: '4000'
@@ -195,11 +195,17 @@ services:
       timeout: 3s
       retries: 20
 
-  # One-shot: applies Drizzle migrations over the DIRECT connection (never through PgBouncer).
+  # One-shot: applies Drizzle migrations over the DIRECT connection (never through PgBouncer), then loads
+  # and publishes the first playbooks from seeds/playbooks (FR-PLAY-05); a repeated run changes nothing.
   migrate:
     build: *api-build
     image: teamforge-api:local
-    command: ['node', 'dist/platform/db/migrate.js']
+    command:
+      - sh
+      - -c
+      - >-
+        node dist/platform/db/migrate.js &&
+        node dist/cli/playbooks-load.js --publish seeds/playbooks/web_service.yaml seeds/playbooks/ml_product.yaml
     environment:
       DATABASE_DIRECT_URL: postgres://tf_migrator:${TF_MIGRATOR_PASSWORD:?run "pnpm run env:init" first}@postgres:5432/teamforge
       ADMIN_GITHUB_IDS: ${ADMIN_GITHUB_IDS:-}

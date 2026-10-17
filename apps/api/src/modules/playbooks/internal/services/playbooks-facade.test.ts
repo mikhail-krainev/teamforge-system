@@ -6,6 +6,8 @@ import { databaseUrlFor } from '../../../../../test/helpers/db-url.js';
 import { describeInfra } from '../../../../../test/helpers/infra.js';
 import type { Database } from '../../../../platform/db/db.module.js';
 import { runMigrations } from '../../../../platform/db/migrate.js';
+import { PlaybookDefinitions } from '../read/playbook-definitions.js';
+import { PlaybookReader } from '../read/playbook-reader.js';
 import { PlaybooksFacade } from './playbooks-facade.service.js';
 
 describeInfra('S3-02 PlaybooksApi (seeded stubs)', ['db'], () => {
@@ -32,7 +34,8 @@ describeInfra('S3-02 PlaybooksApi (seeded stubs)', ['db'], () => {
     await runMigrations(directUrl);
     sql = postgres(directUrl, { max: 2, ...quiet });
     app = postgres(databaseUrlFor(process.env.DATABASE_URL ?? '', dbName), { max: 2, ...quiet });
-    facade = new PlaybooksFacade(drizzle(app) as unknown as Database);
+    const db = drizzle(app) as unknown as Database;
+    facade = new PlaybooksFacade(db, new PlaybookDefinitions(new PlaybookReader(db)));
   });
 
   afterAll(async () => {
