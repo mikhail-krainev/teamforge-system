@@ -1,0 +1,165 @@
+# Mini playbook of the slice 5 tests: 3 stages, 28 days, valid by FR-PLAY-02 (docs/playbooks.md 2.1).
+# Roles: pm and ba are absent from the test teams (fallback), backend and frontend are present.
+product_type: web_service
+title: 'Мини-сценарий'
+version: '9.0.0'
+total_days: 28
+stages:
+  - key: mini_s1
+    title: 'Этап 1. Старт'
+    goal: 'Договориться о цели и собрать репозиторий.'
+    duration_days: 7
+    exit_criteria: 'Обязательные шаги выполнены, ревью спецификации пройдено.'
+    steps:
+      - key: mini_kickoff
+        title: 'Kickoff команды'
+        description: 'Созвон: цель, роли, правила работы. Итоги записываются в поле итогов.'
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ['ritual_fields']
+        sources:
+          - 'https://scrumguides.org/scrum-guide.html'
+      - key: mini_board
+        title: 'Репозиторий и доска'
+        description: 'Ссылка на репозиторий и на доску задач.'
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ['link_https']
+        sources:
+          - 'https://kanbanguides.org/english/'
+      - key: mini_charter
+        title: 'Устав команды'
+        description: 'Документ: цель, роли, правила общения, Definition of Done.'
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ['ba']
+        fallback:
+          title: 'Устав по шаблону платформы'
+          instruction: 'Тимлид назначает исполнителя, он заполняет шаблон устава.'
+          template: tpl_charter
+        review_checklist: false
+        auto_checks: ['file_ok', 'sha_dedup']
+        sources:
+          - 'https://scrumguides.org/scrum-guide.html'
+      - key: mini_spec
+        title: 'Спецификация'
+        description: 'Документ со спецификацией первой версии.'
+        type: artifact
+        submission: file
+        required: true
+        owner_role: backend
+        alt_roles: []
+        fallback:
+          title: 'Спецификация по шаблону'
+          instruction: 'Заполнить шаблон мини design doc.'
+          template: tpl_design_doc
+        review_checklist: true
+        review_items:
+          - 'Записаны цели и не-цели?'
+          - 'Описаны альтернативы?'
+          - 'Указаны риски?'
+        auto_checks: ['file_ok', 'sha_dedup']
+        sources:
+          - 'https://basecamp.com/shapeup/1.5-chapter-06'
+      - key: mini_optional
+        title: 'Заметки о качестве'
+        description: 'Необязательные заметки по тестированию, ссылка или файл.'
+        type: artifact
+        submission: either
+        required: false
+        owner_role: qa
+        alt_roles: []
+        fallback:
+          title: 'Заметки по шаблону'
+          instruction: 'Совет: заполнить чек-лист ручного тестирования.'
+          template: tpl_manual_test_checklist
+        review_checklist: false
+        auto_checks: ['file_ok', 'link_https']
+        sources:
+          - 'https://scrumguides.org/scrum-guide.html'
+  - key: mini_s2
+    title: 'Этап 2. Разработка'
+    goal: 'Сделать основу продукта.'
+    duration_days: 14
+    exit_criteria: 'Дизайн готов, ретроспектива проведена.'
+    steps:
+      - key: mini_design
+        title: 'Дизайн интерфейса'
+        description: 'Файл с макетами или описанием экранов.'
+        type: artifact
+        submission: file
+        required: true
+        owner_role: frontend
+        alt_roles: []
+        fallback:
+          title: 'Дизайн по UI-киту'
+          instruction: 'Взять готовый UI-кит и описать список экранов.'
+          template: tpl_ui_kit_guide
+        review_checklist: false
+        auto_checks: ['file_ok', 'sha_dedup']
+        sources:
+          - 'https://www.nngroup.com/articles/usability-testing-101/'
+      - key: mini_retro
+        title: 'Ретроспектива этапа'
+        description: 'Созвон: что получилось, что нет, что меняем.'
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ['ritual_fields']
+        sources:
+          - 'https://scrumguides.org/scrum-guide.html'
+      - key: mini_notes
+        title: 'Дополнительные материалы'
+        description: 'Необязательная ссылка на материалы.'
+        type: artifact
+        submission: link
+        required: false
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ['link_https']
+        sources:
+          - 'https://scrumguides.org/scrum-guide.html'
+  - key: mini_s3
+    title: 'Этап 3. Релиз'
+    goal: 'Выпустить продукт.'
+    duration_days: 7
+    exit_criteria: 'Есть ссылка на работающий релиз и репозиторий.'
+    steps:
+      - key: mini_final_links
+        title: 'Ссылка на работающий релиз и репозиторий'
+        description: 'Публичный URL релиза и репозиторий GitHub.'
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ['link_https', 'release_alive_web', 'repo_final']
+        sources:
+          - 'https://sre.google/sre-book/launch-checklist/'
+      - key: mini_wrapup
+        title: 'Итоговая встреча'
+        description: 'Необязательная встреча команды после релиза.'
+        type: ritual
+        ritual_kind: brainstorm
+        required: false
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ['ritual_fields']
+        sources:
+          - 'https://scrumguides.org/scrum-guide.html'
