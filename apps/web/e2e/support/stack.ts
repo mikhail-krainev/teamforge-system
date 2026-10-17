@@ -75,3 +75,18 @@ export function startService(service: string): void {
   compose('start', service);
   compose('up', '-d', '--no-recreate', '--no-build', '--wait', service);
 }
+
+/**
+ * Runs a background job of the worker once, now, instead of waiting for its schedule: the CLI of the
+ * worker image (`dist/cli/run-job.js`, apps/api/src/cli) in the running worker container. No HTTP
+ * door is involved; the CLI refuses any job that is not on its closed list. Returns the JSON report.
+ */
+export function runWorkerJob(job: 'matching-auto-add'): unknown {
+  const output = compose('exec', '-T', 'worker', 'node', 'dist/cli/run-job.js', job);
+  // The report is the last line; the application logs (JSON too) come before it.
+  const report = output.trim().split(/\r?\n/).at(-1);
+  if (report === undefined || !report.startsWith('{')) {
+    throw new Error(`run-job ${job} printed no report: ${output}`);
+  }
+  return JSON.parse(report);
+}

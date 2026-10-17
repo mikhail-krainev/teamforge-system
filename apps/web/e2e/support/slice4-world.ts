@@ -5,12 +5,14 @@ import { openSession, signInWithGithub, type Person, type Session } from './slic
 
 /**
  * State shared by the steps of the slice 4 scenario (the tests run serially in one worker).
- * Two people: A leads a team with one open Backend seat; B stands in the queue and is auto-added.
+ * Three people: A leads a team with one open Backend seat; B stands in the queue, is auto-added and
+ * later excluded; C leads a second team that B finds in the recommendations (A's team is never
+ * recommended to B again, FR-MATCH-08).
  * They sign in through the GitHub double like in slice 3 (a linked GitHub account is required for
  * the queue, FR-AUTH-05, and for the auto-add, FR-MATCH-07).
  */
 
-export type PersonKey = 'a' | 'b';
+export type PersonKey = 'a' | 'b' | 'c';
 
 export const world = {
   teamName: `Команда подбора ${Date.now()}`,
@@ -21,6 +23,10 @@ export const world = {
   applicationId: '',
   /** `queuedCandidates` of Backend right before B stood in the queue (step 3 compares against it). */
   queuedBefore: 0,
+  /** The second team (led by C) that B finds in the recommendations after A excluded him (step 7). */
+  otherTeamName: `Соседняя команда ${Date.now()}`,
+  otherTeamId: '',
+  otherSeatId: '',
 };
 
 let people: Record<PersonKey, Person> | undefined;
@@ -37,7 +43,11 @@ export function person(key: PersonKey): Person {
 export { openSession, signInWithGithub };
 export type { Session };
 
-export const DISPLAY_NAMES: Record<PersonKey, string> = { a: 'Анна Лидова', b: 'Борис Очередин' };
+export const DISPLAY_NAMES: Record<PersonKey, string> = {
+  a: 'Анна Лидова',
+  b: 'Борис Очередин',
+  c: 'Кирилл Соседов',
+};
 
 export function get<T>(who: Person, path: string): Promise<ApiResult<T>> {
   return apiGet<T>(who.session.context.request, path);

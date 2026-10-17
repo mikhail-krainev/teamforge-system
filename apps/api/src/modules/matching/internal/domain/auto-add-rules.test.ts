@@ -78,6 +78,37 @@ describe('orderPairs (architecture 6.4 step 2)', () => {
     expect(ordered.map((p) => p.seatId)).toEqual(['old-role', 'new-role']);
   });
 
+  it('a seat without a recorded opening is tried from the moment of the role, by its own key', () => {
+    const ordered = orderPairs([
+      pair({ seatId: 'known', openedAt: at(20_000), addedAt: at(0) }),
+      pair({ seatId: 'unknown', openedAt: null, addedAt: at(10_000) }),
+    ]);
+    // both fall into the first window; the unknown opening counts as the role moment (10 s) < 20 s
+    expect(ordered.map((p) => p.seatId)).toEqual(['unknown', 'known']);
+  });
+
+  it('a lower priority number and a higher score each decide before the seat age', () => {
+    const ordered = orderPairs([
+      pair({ seatId: 'old', priority: 2, score: 0.99, openedAt: at(0) }),
+      pair({ seatId: 'young', priority: 1, score: 0.5, openedAt: at(30_000) }),
+    ]);
+    expect(ordered.map((p) => p.seatId)).toEqual(['young', 'old']);
+  });
+
+  it('pairs of the same seat keep their input order (nothing to break the tie)', () => {
+    const first = pair({ seatId: 'same', roleCode: 'backend' });
+    const second = pair({ seatId: 'same', roleCode: 'frontend' });
+    expect(orderPairs([first, second])).toEqual([first, second]);
+    expect(orderPairs([second, first])).toEqual([second, first]);
+  });
+
+  it('equal keys: the seat id decides, whatever the input order', () => {
+    const a = pair({ seatId: 'a' });
+    const b = pair({ seatId: 'b' });
+    expect(orderPairs([a, b])).toEqual([a, b]);
+    expect(orderPairs([b, a])).toEqual([a, b]);
+  });
+
   it('does not change its input', () => {
     const input = [pair({ seatId: 'b', priority: 2 }), pair({ seatId: 'a', priority: 1 })];
     orderPairs(input);
@@ -93,5 +124,16 @@ describe('compareApplications (fairness)', () => {
       { id: 'a', enqueuedAt: at(0) },
     ].sort(compareApplications);
     expect(list.map((a) => a.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('is symmetric and says equal for the same wait and the same id', () => {
+    const one = { id: 'a', enqueuedAt: at(0) };
+    expect(compareApplications(one, { ...one })).toBe(0);
+    expect(
+      compareApplications({ id: 'a', enqueuedAt: at(0) }, { id: 'b', enqueuedAt: at(0) }),
+    ).toBe(-1);
+    expect(
+      compareApplications({ id: 'b', enqueuedAt: at(0) }, { id: 'a', enqueuedAt: at(0) }),
+    ).toBe(1);
   });
 });

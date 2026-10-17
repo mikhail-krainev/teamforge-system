@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from './axe';
+import { runWorkerJob } from './stack';
 import { teamFormUi, teamPageUi, ROUTES as TEAM_ROUTES } from './slice3-ui';
 import {
   bellUi,
@@ -17,25 +18,25 @@ import {
   get,
   patch,
   person,
+  post,
   saveCandidateProfile,
   teamAs,
   world,
   type ApplicationBody,
+  type TeamBody,
 } from './slice4-world';
 
 /**
  * Step bodies of slice4.spec.ts (docs/plan.md, "Тесты среза" -> Playwright slice4.spec.ts, steps 1-8).
  *
- * The auto-add (step 4) is NOT driven by a test-only endpoint: the e2e stack runs api and worker as
- * `development` (support/stack.ts, APP_NODE_ENV), and the api has no `/v1/_test` door there (the
- * test support module belongs to the Vitest harness only). The scenario therefore makes B eligible
- * (his weekly hours reach the seat's minimum) and waits for the scheduled `matching-auto-add` run
- * (every C-38 = 60 s, architecture 6.4). If a test-only trigger is added later, call it at the
- * marked place in `autoAddFires` and drop the wait.
+ * The auto-add (step 4) is NOT driven by a test-only HTTP endpoint: the e2e stack runs api and worker
+ * as `development` (support/stack.ts, APP_NODE_ENV), and the api has no `/v1/_test` door there (the
+ * test support module belongs to the Vitest harness only). The scenario makes B eligible (his weekly
+ * hours reach the seat's minimum) and runs one `matching-auto-add` pass through the worker CLI
+ * (`runWorkerJob`), the same `AutoAddService.run()` the scheduled job calls, so no minute is waited for.
  */
 
 const BACKEND_SEAT_MIN_HOURS = 30;
-const MINUTE = 60_000;
 
 // ---- step 1: A creates a team with one open Backend seat --------------------------------------
 
@@ -142,15 +143,16 @@ export async function autoAddFires(): Promise<void> {
   const team = await teamAs(a);
   // B is now eligible for the seat (hours >= the seat minimum, FR-MATCH-12 hard filter).
   await saveCandidateProfile(b, { hoursPerWeek: 40, timezone: team.timezone });
-  // Test-only trigger of `matching-auto-add` would go here (see the header of this file); without
-  // it the scheduled run (every minute) takes B in.
+  // One run of the job now (the schedule would only come within a minute). The profile event may
+  // not have reached the queue's view of B yet, so the run is repeated until B is a member.
   await expect
     .poll(
       async () => {
+        runWorkerJob('matching-auto-add');
         const now = await teamAs(a);
         return now.members.some((m) => m.userId === b.id && m.status === 'active');
       },
-      { timeout: 2 * MINUTE + 30_000, intervals: [3_000, 5_000] },
+      { timeout: 60_000, intervals: [1_000, 2_000, 3_000] },
     )
     .toBe(true);
 
@@ -214,10 +216,44 @@ export async function aExcludesBAndBIsBackInTheQueue(): Promise<void> {
   await expect(searchUi.inQueue(b.session.page)).toBeVisible();
 }
 
-// ---- step 7: B finds the team in the recommendations and applies ---------------------------------
+// ---- step 7: B finds ANOTHER team in the recommendations and applies -----------------------------
+
+/**
+ * World setup of the step: C leads a second team with one open Backend seat. A's team excluded B in
+ * step 6 and is therefore never recommended to him again (FR-MATCH-08), so the recommendation has
+ * to come from another team. The seat is chosen so that the auto-add must not take B in before he
+ * applies (the score stays below the 0.5 threshold, C-45): it asks for a TypeScript stack B does not
+ * have (stack 0), at the lowest level (0.5 of the level share) and few hours.
+ */
+async function cLeadsAnotherTeamWithOpenBackendSeat(): Promise<void> {
+  const c = person('c');
+  const created = await post<TeamBody>(c, '/v1/teams', {
+    name: world.otherTeamName,
+    description: 'Вторая команда для сквозного сценария среза 4',
+    timezone: (await teamAs(person('a'))).timezone,
+    hoursPerWeek: 10,
+    productTypeCode: 'web_service',
+    seats: [
+      {
+        roleCode: ROLE.backend.code,
+        desired: false,
+        minLevel: 'beginner',
+        minHours: 3,
+        stack: ['typescript'],
+        count: 1,
+      },
+    ],
+  });
+  expect(created.status, created.text).toBe(201);
+  world.otherTeamId = created.body.id;
+  const seat = created.body.seats.find((s) => s.roleCode === ROLE.backend.code);
+  expect(seat?.status, 'one open Backend seat of the second team').toBe('open');
+  world.otherSeatId = seat?.id ?? '';
+}
 
 export async function bAppliesFromTheRecommendations(): Promise<void> {
   const b = person('b');
+  await cLeadsAnotherTeamWithOpenBackendSeat();
   const { page } = b.session;
   await page.goto(ROUTES.search);
   await expect(recommendationsUi.heading(page)).toBeVisible();
@@ -227,13 +263,15 @@ export async function bAppliesFromTheRecommendations(): Promise<void> {
       async () => {
         await page.reload();
         await expect(recommendationsUi.heading(page)).toBeVisible();
-        return recommendationsUi.apply(page, world.teamName).count();
+        return recommendationsUi.apply(page, world.otherTeamName).count();
       },
       { timeout: 60_000, intervals: [2_000, 3_000, 5_000] },
     )
     .toBe(1);
+  // FR-MATCH-08: the team that excluded B in the trial is not offered to him again.
+  await expect(recommendationsUi.apply(page, world.teamName)).toHaveCount(0);
   await expectNoSeriousA11yViolations(page);
-  await recommendationsUi.apply(page, world.teamName).click();
+  await recommendationsUi.apply(page, world.otherTeamName).click();
   await expect(recommendationsUi.applied(page)).toBeVisible();
 
   const requests = await get<{ items: { seatId: string; direction: string; status: string }[] }>(
@@ -242,8 +280,13 @@ export async function bAppliesFromTheRecommendations(): Promise<void> {
   );
   expect(requests.status, requests.text).toBe(200);
   expect(requests.body.items).toContainEqual(
-    expect.objectContaining({ seatId: world.seatId, direction: 'user_to_lead', status: 'pending' }),
+    expect.objectContaining({
+      seatId: world.otherSeatId,
+      direction: 'user_to_lead',
+      status: 'pending',
+    }),
   );
+  expect(requests.body.items).not.toContainEqual(expect.objectContaining({ seatId: world.seatId }));
   // FR-TEAM-29: the join request does not touch the queue.
   const stillQueued = await get<ApplicationBody>(b, '/v1/me/search-application');
   expect(stillQueued.status).toBe(200);
@@ -260,11 +303,15 @@ export async function everyPageOfTheSliceIsAccessible(): Promise<void> {
     if (route === ROUTES.profile) await expect(profileDemandUi.block(b.session.page)).toBeVisible();
     await expectNoSeriousA11yViolations(b.session.page);
   }
-  const { page } = a.session;
-  await page.goto(ROUTES.seat(world.teamId, world.seatId));
-  await expect(candidatesUi.list(page)).toBeVisible({ timeout: 45_000 });
-  await expect(candidatesUi.offer(page, b.name)).toBeVisible();
-  await expectNoSeriousA11yViolations(page);
-  await page.goto(TEAM_ROUTES.team(world.teamId));
-  await expectNoSeriousA11yViolations(page);
+  // The seat candidates of the team that B applied to (A's team excluded him, FR-MATCH-08: B is no
+  // candidate of its seat any more).
+  const c = person('c');
+  await c.session.page.goto(ROUTES.seat(world.otherTeamId, world.otherSeatId));
+  await expect(candidatesUi.list(c.session.page)).toBeVisible({ timeout: 45_000 });
+  await expect(candidatesUi.offer(c.session.page, b.name)).toBeVisible();
+  await expectNoSeriousA11yViolations(c.session.page);
+  await a.session.page.goto(TEAM_ROUTES.team(world.teamId));
+  await expectNoSeriousA11yViolations(a.session.page);
+  await c.session.page.goto(TEAM_ROUTES.team(world.otherTeamId));
+  await expectNoSeriousA11yViolations(c.session.page);
 }

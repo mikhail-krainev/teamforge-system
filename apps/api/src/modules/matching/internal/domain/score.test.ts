@@ -233,6 +233,12 @@ describe('isPairAllowed and ordering', () => {
     ];
     expect(rows.sort(compareRecommendations).map((r) => r.userId)).toEqual(['z', 'a', 'b']);
     expect(compareRecommendations({ score: 1, userId: 'a' }, { score: 1, userId: 'a' })).toBe(0);
+    expect(
+      compareRecommendations({ score: 1, userId: 'a' }, { score: 1, userId: 'b' }),
+    ).toBeLessThan(0);
+    expect(
+      compareRecommendations({ score: 1, userId: 'b' }, { score: 1, userId: 'a' }),
+    ).toBeGreaterThan(0);
   });
 
   it('levelInRole falls back to beginner for a role the profile does not list', () => {

@@ -18,18 +18,19 @@ import type { Person } from './support/slice3-world';
  * skeleton (titles carry the FR ids for scripts/trace-fr.mjs); the step bodies are in
  * support/slice4-steps.ts, the locators in support/slice4-ui.ts, the shared state in slice4-world.ts.
  *
- * Two browser contexts: A (creates the team, leads it) and B (stands in the queue, is auto-added,
- * excluded, applies). Both sign in through the GitHub double (requirements of the e2e stack: see the
+ * Three browser contexts: A (creates the team, leads it), B (stands in the queue, is auto-added,
+ * excluded, applies) and C (leads a second team). All sign in through the GitHub double (requirements of the e2e stack: see the
  * header of slice2.spec.ts and slice3.spec.ts).
  *
  * Extra requirements of this scenario:
  *   - the worker runs `matching-auto-add` every minute (architecture 6.4) and `matching-recompute`
  *     5 s after the events (6.3); there is no test-only endpoint in the e2e stack (api and worker run
- *     as `development`), so step 4 waits for the scheduled run instead of calling one;
- *   - the Playwright timeout of step 4 is raised for that wait.
+ *     as `development`), so step 4 runs one `matching-auto-add` pass through the worker CLI
+ *     (`docker compose exec worker node dist/cli/run-job.js matching-auto-add`, support/stack.ts);
+ *   - a third browser context C leads a second team, created in the world setup of step 7.
  */
 
-const PEOPLE: PersonKey[] = ['a', 'b'];
+const PEOPLE: PersonKey[] = ['a', 'b', 'c'];
 
 function queueTests(): void {
   test('FR-TEAM-01, FR-TEAM-02: A creates a team with an open Backend seat', async () => {
@@ -54,9 +55,8 @@ function queueTests(): void {
 
 function autoAddTests(): void {
   test('FR-MATCH-05, FR-MATCH-06, FR-MATCH-07: the auto-add fires and B joins as an auto-added member', async () => {
-    test.setTimeout(240_000);
     await test.step(
-      'FR-MATCH-05: B becomes eligible, the scheduled matching-auto-add takes him in',
+      'FR-MATCH-05: B becomes eligible, one matching-auto-add run (worker CLI) takes him in',
       steps.autoAddFires,
     );
   });
@@ -77,7 +77,7 @@ function trialAndRecommendationTests(): void {
   });
   test('FR-MATCH-02, FR-TEAM-29: B opens the recommended teams and applies for the seat', async () => {
     await test.step(
-      'FR-MATCH-02: the recommended team with the explanation, "Подать заявку", the request is pending (axe)',
+      'FR-MATCH-02, FR-MATCH-08: the other team is recommended, the excluding one is not; "Подать заявку", the request is pending (axe)',
       steps.bAppliesFromTheRecommendations,
     );
   });

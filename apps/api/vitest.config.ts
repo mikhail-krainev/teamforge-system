@@ -14,6 +14,8 @@ export default defineConfig({
         'src/**/*.test.ts',
         'src/main.ts',
         'src/worker.ts',
+        // Entry point of the one-off job CLI: bootstrap only; its argument handling is run-job-args.ts.
+        'src/cli/run-job.ts',
         // Process entry points of the resume sandbox: bootstrap only (they start on import), covered
         // by the docker e2e stack; their logic lives in run-child.ts, parsers.ts and protocol.ts.
         'src/resume-worker/main.ts',

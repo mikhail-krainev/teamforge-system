@@ -100,15 +100,15 @@ export function utcOffsetHours(timeZone: string, at: Date): number | null {
   } catch {
     return null;
   }
-  const value = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const field: Partial<Record<Intl.DateTimeFormatPartTypes, string>> = {};
+  for (const part of parts) field[part.type] = part.value;
   const local = Date.UTC(
-    value('year'),
-    value('month') - 1,
-    value('day'),
-    value('hour'),
-    value('minute'),
-    value('second'),
+    Number(field.year),
+    Number(field.month) - 1,
+    Number(field.day),
+    Number(field.hour),
+    Number(field.minute),
+    Number(field.second),
   );
   const instant = Math.floor(at.getTime() / 1000) * 1000;
   return (local - instant) / 3_600_000;
@@ -119,12 +119,10 @@ export function levelSteps(level: Level, base: Level): number {
   return LEVELS.indexOf(level) - LEVELS.indexOf(base);
 }
 
-const LEVEL_SCORES = [1, 0.75, 0.5] as const;
-
 /** 1.0 at the seat minimum, 0.75 one step above, 0.5 two steps above; 0 below the minimum. */
 export function levelScore(level: Level, minLevel: Level): number {
   const steps = levelSteps(level, minLevel);
-  return steps < 0 ? 0 : (LEVEL_SCORES[steps] ?? 0);
+  return steps < 0 ? 0 : 1 - steps * 0.25;
 }
 
 /** Share of the seat stack the candidate has; 1.0 when the seat names no stack. */

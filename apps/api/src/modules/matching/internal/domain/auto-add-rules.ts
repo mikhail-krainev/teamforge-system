@@ -25,22 +25,15 @@ export function matchPossibleAt(openedAt: Date | null, addedAt: Date): Date {
   return openedAt === null || openedAt < addedAt ? addedAt : openedAt;
 }
 
-function compareKeys(a: readonly number[], b: readonly number[]): number {
-  for (const [index, left] of a.entries()) {
-    const right = b[index] ?? 0;
-    if (left !== right) return left - right;
-  }
-  return 0;
+type SortKey = readonly [window: number, priority: number, negScore: number, openedAt: number];
+
+function compareKeys(a: SortKey, b: SortKey): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3] - b[3];
 }
 
-function keyOf(pair: AutoAddPair): number[] {
+function keyOf(pair: AutoAddPair): SortKey {
   const possible = matchPossibleAt(pair.openedAt, pair.addedAt);
-  return [
-    windowOf(possible),
-    pair.priority,
-    -pair.score,
-    (pair.openedAt ?? possible).getTime(),
-  ];
+  return [windowOf(possible), pair.priority, -pair.score, (pair.openedAt ?? possible).getTime()];
 }
 
 /**

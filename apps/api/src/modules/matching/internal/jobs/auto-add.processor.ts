@@ -1,5 +1,6 @@
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { CliJobs } from '../../../../platform/queues/cli-jobs.js';
 import { RepeatingJobs } from '../../../../platform/queues/maintenance-tasks.js';
 import { type JobProcessor, ProcessorRegistry } from '../../../../platform/queues/queue-workers.js';
 import { AUTO_ADD_WINDOW_MS } from '../domain/auto-add-rules.js';
@@ -22,12 +23,15 @@ export class AutoAddProcessor implements JobProcessor, OnModuleInit {
   constructor(
     @Inject(ProcessorRegistry) private readonly registry: ProcessorRegistry,
     @Inject(RepeatingJobs) private readonly repeating: RepeatingJobs,
+    @Inject(CliJobs) private readonly cliJobs: CliJobs,
     @Inject(AutoAddService) private readonly autoAdd: AutoAddService,
     @Inject(PinoLogger) private readonly logger: PinoLogger,
   ) {}
 
   onModuleInit(): void {
     this.registry.register(this);
+    // `run-job matching-auto-add`: one run now, for operators and the e2e stack (no HTTP door).
+    this.cliJobs.register(AUTO_ADD_JOB, () => this.autoAdd.run());
     // The worker upserts the schedule at start; the API process must not wait for Redis at boot.
     this.repeating.register({
       queue: AUTO_ADD_QUEUE,
