@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { crc32, deflateRawSync } from 'node:zlib';
 import type { UploadFile } from './clients.js';
 import { resumeBytes } from './profiles.js';
@@ -126,7 +126,8 @@ export function zipFile(options: { name?: string; entries?: number } = {}): Uplo
   let offset = 0;
   for (let i = 0; i < (options.entries ?? 1); i += 1) {
     const name = Buffer.from(`file-${i}.txt`);
-    const raw = Buffer.from(`${nonce()}\n${'содержимое архива\n'.repeat(120)}`);
+    // random bytes do not compress, so the archive stays above the 1 KiB minimum of a file
+    const raw = Buffer.concat([Buffer.from(`${nonce()}\n`), randomBytes(1500)]);
     const packed = deflateRawSync(raw);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);

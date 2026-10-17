@@ -100,6 +100,7 @@ describeInfra(
           'invitation-cleanup',
           'matching-recompute-all',
           'max-duration-scan',
+          'orphan-artifact-objects',
           'orphan-objects',
           'outbox-cleanup',
           'resume-stuck-scan',
