@@ -63,6 +63,8 @@ export const checklistItem = workspaceSchema.table(
     altRoles: text('alt_roles').array().notNull(),
     status: text('status').notNull(),
     assigneeUserId: uuid('assignee_user_id'),
+    /** The member who left while carrying the item (FR-TEAM-11); cleared when the lead names a new executor. */
+    unassignedFromUserId: uuid('unassigned_from_user_id'),
     roleCode: text('role_code'),
     fallbackUsed: boolean('fallback_used').notNull().default(false),
     linkUrl: text('link_url'),
@@ -87,5 +89,8 @@ export const checklistItem = workspaceSchema.table(
     index('checklist_item_assignee_idx')
       .on(t.assigneeUserId)
       .where(sql`${t.status} = 'open'`),
+    index('checklist_item_orphan_idx')
+      .on(t.teamId, t.unassignedFromUserId)
+      .where(sql`${t.unassignedFromUserId} IS NOT NULL`),
   ],
 );

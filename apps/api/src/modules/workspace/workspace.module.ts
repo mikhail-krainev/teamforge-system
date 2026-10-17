@@ -1,5 +1,15 @@
 import { Global, Module } from '@nestjs/common';
-import { TEAM_LIFECYCLE_PORT } from '../teams/public.js';
+import { DEPARTURE_ITEMS_PORT, TEAM_LIFECYCLE_PORT } from '../teams/public.js';
+import { StageTransitionController } from './internal/controllers/stage-transition.controller.js';
+import { StageTransitionService } from './internal/services/stage-transition.service.js';
+import { ItemController } from './internal/controllers/item.controller.js';
+import { RouteMembersConsumer } from './internal/events/route-members.consumer.js';
+import { ItemRepository } from './internal/repositories/item.repository.js';
+import { DepartureItemsService } from './internal/services/departure-items.service.js';
+import { FallbackService } from './internal/services/fallback.service.js';
+import { ItemAssignService } from './internal/services/item-assign.service.js';
+import { ItemGate } from './internal/services/item-gate.js';
+import { ItemService } from './internal/services/item.service.js';
 import { StageController } from './internal/controllers/stage.controller.js';
 import { RouteRepository } from './internal/repositories/route.repository.js';
 import { RouteQueryService } from './internal/services/route-query.service.js';
@@ -14,16 +24,25 @@ import { NotificationService } from './internal/services/notification.service.js
 /**
  * Workspace module. S3-10: notifications (list, read marks, event handlers, e-mail) and the
  * WebSocket gateway with its Redis relay. S5-04: the route of a project (stages, checklist) and
- * the `TeamLifecyclePort` that opens it. Item writes and files arrive in S5-05 and S5-06.
+ * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. Files arrive in S5-06.
  *
  * Global because teams injects `TEAM_LIFECYCLE_PORT` and may not import workspace (architecture
  * 2.2): this module is the one place where the port is bound.
  */
 @Global()
 @Module({
-  controllers: [NotificationController, StageController],
+  controllers: [NotificationController, StageController, ItemController, StageTransitionController],
   providers: [
     RouteRepository,
+    ItemRepository,
+    ItemGate,
+    StageTransitionService,
+    ItemService,
+    ItemAssignService,
+    FallbackService,
+    RouteMembersConsumer,
+    DepartureItemsService,
+    { provide: DEPARTURE_ITEMS_PORT, useExisting: DepartureItemsService },
     RouteQueryService,
     TeamLifecycleService,
     { provide: TEAM_LIFECYCLE_PORT, useExisting: TeamLifecycleService },
@@ -33,6 +52,6 @@ import { NotificationService } from './internal/services/notification.service.js
     RealtimeRelayConsumer,
     RealtimeGateway,
   ],
-  exports: [TEAM_LIFECYCLE_PORT],
+  exports: [TEAM_LIFECYCLE_PORT, DEPARTURE_ITEMS_PORT],
 })
 export class WorkspaceModule {}

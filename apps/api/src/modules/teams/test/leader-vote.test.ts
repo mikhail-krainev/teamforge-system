@@ -466,6 +466,23 @@ describeInfra('S3 teams: the leader vote (FR-TEAM-14..21)', ['db', 'redis'], () 
       await fireTimer(world, 'suspension-expire', { teamId: f.team.id });
       expect((await teamRow(world, f.team.id)).status).toBe('archived');
     });
+
+    it('FR-WORK-18: leaving `suspended` adds the time spent suspended to suspended_total_seconds and clears suspended_at', async () => {
+      const f = await leaderVote(world, { phase: 'offering' });
+      for (const m of f.eligible) {
+        await world.as(m).post(`${base(f)}/offer-responses`, { accept: false });
+      }
+      const [before] = await world.sql<{ total: number; since: Date | null }[]>`
+        SELECT suspended_total_seconds AS total, suspended_at AS since FROM teams.team WHERE id = ${f.team.id}`;
+      expect(before?.total).toBe(0);
+      expect(before?.since).not.toBeNull();
+      clock.advance(15 * DAY);
+      await fireTimer(world, 'suspension-expire', { teamId: f.team.id });
+      const [after] = await world.sql<{ total: number; since: Date | null }[]>`
+        SELECT suspended_total_seconds AS total, suspended_at AS since FROM teams.team WHERE id = ${f.team.id}`;
+      expect(after?.since).toBeNull();
+      expect(after?.total).toBe(15 * 86_400);
+    });
   });
 
   it('FR-WORK-08: a ballot repeated with its key replays the stored 201 and counts once', async () => {

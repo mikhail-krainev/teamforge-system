@@ -193,7 +193,16 @@ export interface TeamLifecyclePort {
   }): Promise<void>;
 }
 
+/**
+ * Implemented by workspace (FR-TEAM-13): the checklist items that stayed without an executor when
+ * the given members left, per member. A member without such items is absent from the map.
+ */
+export interface DepartureItemsPort {
+  unassignedItemIds(teamId: TeamId, userIds: UserId[]): Promise<Map<UserId, string[]>>;
+}
+
 export const TEAMS_API = Symbol('TEAMS_API');
+export const DEPARTURE_ITEMS_PORT = Symbol('DEPARTURE_ITEMS_PORT');
 export const DEFICIT_PORT = Symbol('DEFICIT_PORT');
 export const TEAM_LIFECYCLE_PORT = Symbol('TEAM_LIFECYCLE_PORT');
 

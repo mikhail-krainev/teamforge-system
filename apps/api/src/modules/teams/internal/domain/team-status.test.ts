@@ -6,6 +6,7 @@ import {
   maxDurationReached,
   extendedPlannedEnd,
   plannedEnd,
+  settledSuspension,
   startError,
   statusBlock,
   transitionError,
@@ -122,5 +123,59 @@ describe('FR-WORK-12, FR-WORK-18: planned end moves by the time spent suspended'
       suspendedTotalSeconds: 0,
     };
     expect(extendedPlannedEnd(team, T0)).toBeNull();
+  });
+});
+
+describe('FR-WORK-18: leaving suspended settles suspended_total_seconds', () => {
+  const since = new Date(T0.getTime() - 3 * DAY);
+
+  it('resuming or archiving adds the whole suspension and clears suspended_at', () => {
+    for (const next of ['active', 'forming', 'archived']) {
+      expect(
+        settledSuspension({ suspendedAt: since, suspendedTotalSeconds: 100 }, next, T0),
+      ).toEqual({
+        suspendedAt: null,
+        suspendedTotalSeconds: 100 + 3 * 86_400,
+      });
+    }
+  });
+
+  it('a vote does not end the suspension, and a team that never was suspended has nothing to settle', () => {
+    expect(
+      settledSuspension({ suspendedAt: since, suspendedTotalSeconds: 0 }, 'voting', T0),
+    ).toBeUndefined();
+    expect(
+      settledSuspension({ suspendedAt: since, suspendedTotalSeconds: 0 }, 'suspended', T0),
+    ).toBeUndefined();
+    expect(
+      settledSuspension({ suspendedAt: null, suspendedTotalSeconds: 5 }, 'active', T0),
+    ).toBeUndefined();
+  });
+
+  it('a clock that went backwards adds nothing', () => {
+    expect(
+      settledSuspension({ suspendedAt: T0, suspendedTotalSeconds: 7 }, 'active', since)
+        ?.suspendedTotalSeconds,
+    ).toBe(7);
+  });
+
+  it('the settled total moves the planned end (FR-WORK-12)', () => {
+    const settled = settledSuspension(
+      { suspendedAt: since, suspendedTotalSeconds: 0 },
+      'active',
+      T0,
+    );
+    const planned = new Date(T0.getTime() + 10 * DAY);
+    expect(
+      extendedPlannedEnd(
+        {
+          plannedEndAt: planned,
+          status: 'active',
+          suspendedAt: null,
+          suspendedTotalSeconds: settled?.suspendedTotalSeconds ?? 0,
+        },
+        T0,
+      ),
+    ).toEqual(new Date(planned.getTime() + 3 * DAY));
   });
 });

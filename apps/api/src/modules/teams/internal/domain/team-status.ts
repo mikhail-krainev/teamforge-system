@@ -108,3 +108,21 @@ export function maxDurationReached(
     team.startedAt.getTime() + MAX_PROJECT_DAYS * DAY_MS + team.suspendedTotalSeconds * 1000;
   return now.getTime() >= limit;
 }
+
+/**
+ * FR-WORK-18: a team that leaves `suspended` for good (resumed, archived) adds the time it spent
+ * suspended to `suspended_total_seconds` and clears `suspended_at`. `voting` is not the end: a vote
+ * on a suspended team returns to `suspended` and the same suspension goes on. `undefined` when
+ * there is nothing to settle.
+ */
+export function settledSuspension(
+  team: { suspendedAt: Date | null; suspendedTotalSeconds: number },
+  nextStatus: string,
+  at: Date,
+): { suspendedAt: null; suspendedTotalSeconds: number } | undefined {
+  if (team.suspendedAt === null || nextStatus === 'suspended' || nextStatus === 'voting') {
+    return undefined;
+  }
+  const spent = Math.max(0, Math.floor((at.getTime() - team.suspendedAt.getTime()) / 1000));
+  return { suspendedAt: null, suspendedTotalSeconds: team.suspendedTotalSeconds + spent };
+}
