@@ -30,7 +30,12 @@ export function toSeatDto(row: SeatWithHolder): SeatDto {
 
 export function toTeamDto(
   row: TeamRow,
-  parts: { playbookVersion: string; seats: SeatDto[]; members: MemberDto[] },
+  parts: {
+    playbookVersion: string;
+    seats: SeatDto[];
+    members: MemberDto[];
+    plannedEndAt: Date | null;
+  },
 ): TeamDto {
   return {
     id: row.id,
@@ -45,7 +50,7 @@ export function toTeamDto(
     status: row.status as TeamDto['status'],
     statusReason: row.statusReason,
     startedAt: isoOrNull(row.startedAt),
-    plannedEndAt: isoOrNull(row.plannedEndAt),
+    plannedEndAt: isoOrNull(parts.plannedEndAt),
     completedAt: isoOrNull(row.completedAt),
     releaseUrl: row.releaseUrl,
     memberCount: row.memberCount,

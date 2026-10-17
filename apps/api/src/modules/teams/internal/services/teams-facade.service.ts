@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gt, inArray, isNull, lt, sql, type SQL } from 'drizzle-orm';
+import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError, InvariantError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
@@ -20,19 +21,21 @@ import type {
   TeamsApi,
   UserId,
 } from '../../public.js';
+import { extendedPlannedEnd } from '../domain/team-status.js';
 import { membership, seat, seatAssignment, team } from '../schema/teams.js';
 import { JoinService } from './join.service.js';
 
 type TeamRow = typeof team.$inferSelect;
 
-function toView(row: TeamRow): TeamLockView {
+function toView(row: TeamRow, now: Date): TeamLockView {
   return {
     teamId: row.id,
     status: row.status as TeamStatus,
     leadUserId: row.leadUserId,
     memberCount: row.memberCount,
     startedAt: row.startedAt,
-    plannedEndAt: row.plannedEndAt,
+    plannedEndAt: extendedPlannedEnd(row, now),
+    suspendedAt: row.suspendedAt,
     playbookId: row.playbookId,
     productType: row.productTypeCode,
   };
@@ -43,13 +46,14 @@ function toView(row: TeamRow): TeamLockView {
 export class TeamsFacade implements TeamsApi {
   constructor(
     @Inject(TxRunner) private readonly tx: TxRunner,
+    @Inject(Clock) private readonly clock: Clock,
     @Inject(LockService) private readonly locks: LockService,
     @Inject(JoinService) private readonly joins: JoinService,
   ) {}
 
   async getTeamView(teamId: TeamId): Promise<TeamLockView | null> {
     const rows = await this.tx.tx.select().from(team).where(eq(team.id, teamId));
-    return rows[0] === undefined ? null : toView(rows[0]);
+    return rows[0] === undefined ? null : toView(rows[0], this.clock.now());
   }
 
   async getRoster(teamId: TeamId): Promise<RosterMember[]> {

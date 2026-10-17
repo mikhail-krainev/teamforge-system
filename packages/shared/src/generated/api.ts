@@ -2250,7 +2250,17 @@ export interface components {
             /** Format: date-time */
             publishedAt?: string | null;
         };
-        Playbook: components["schemas"]["PlaybookSummary"] & {
+        Playbook: {
+            /** Format: uuid */
+            id: string;
+            productTypeCode: string;
+            title: string;
+            version: string;
+            /** @enum {string} */
+            status: "draft" | "published";
+            totalDays: number;
+            /** Format: date-time */
+            publishedAt?: string | null;
             stages: components["schemas"]["PlaybookStage"][];
         };
         PlaybookSummaryPage: {

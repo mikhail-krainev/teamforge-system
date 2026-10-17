@@ -38,13 +38,17 @@ export class StartService {
   }
 
   /**
-   * Reference read before BEGIN (architecture 3.4: no foreign module under a lock). The facade
-   * only knows the latest published playbook; when the team pinned an older one the planned end
-   * falls back to the C-06 maximum until workspace plans the stages (slice 5).
+   * Reference read before BEGIN (architecture 3.4: no foreign module under a lock). The pinned
+   * playbook is immutable once published, so its length is the planned length of the project
+   * (FR-WORK-12); an unreadable playbook falls back to the C-06 maximum.
    */
   private async pinnedPlaybookDays(row: TeamRow): Promise<number | null> {
-    const latest = await this.playbooks.getLatestPublished(row.productTypeCode);
-    return latest?.id === row.playbookId ? latest.totalDays : null;
+    try {
+      return (await this.playbooks.getDefinition(row.playbookId)).totalDays;
+    } catch (error) {
+      if (error instanceof DomainError && error.status === 404) return null;
+      throw error;
+    }
   }
 
   private async startInTx(

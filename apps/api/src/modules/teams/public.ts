@@ -62,7 +62,10 @@ export interface TeamLockView {
   leadUserId: UserId | null;
   memberCount: number;
   startedAt: Date | null;
+  /** Fixed at the start and moved by the time spent `suspended` (FR-WORK-12, -18). */
   plannedEndAt: Date | null;
+  /** Set while the team is `suspended`. */
+  suspendedAt: Date | null;
   playbookId: PlaybookId;
   productType: ProductTypeCode;
 }

@@ -4,6 +4,7 @@ import {
   TEAM_STATUSES,
   canTransition,
   maxDurationReached,
+  extendedPlannedEnd,
   plannedEnd,
   startError,
   statusBlock,
@@ -91,5 +92,35 @@ describe('FR-TEAM-27: team status machine', () => {
     expect(
       maxDurationReached({ status: 'suspended', startedAt: T0, suspendedTotalSeconds: 0 }, late),
     ).toBe(false);
+  });
+});
+
+describe('FR-WORK-12, FR-WORK-18: planned end moves by the time spent suspended', () => {
+  const base = { plannedEndAt: new Date(T0.getTime() + 28 * DAY), suspendedTotalSeconds: 0 };
+
+  it('stays as fixed at the start while the team works', () => {
+    const team = { ...base, status: 'active', suspendedAt: null };
+    expect(extendedPlannedEnd(team, new Date(T0.getTime() + 5 * DAY))).toEqual(base.plannedEndAt);
+  });
+
+  it('adds the closed suspensions and the running one', () => {
+    const team = {
+      ...base,
+      status: 'suspended',
+      suspendedAt: new Date(T0.getTime() + 2 * DAY),
+      suspendedTotalSeconds: 3 * 86_400,
+    };
+    const now = new Date(T0.getTime() + 5 * DAY);
+    expect(extendedPlannedEnd(team, now)?.getTime()).toBe(base.plannedEndAt.getTime() + 6 * DAY);
+  });
+
+  it('is null before the start', () => {
+    const team = {
+      plannedEndAt: null,
+      status: 'forming',
+      suspendedAt: null,
+      suspendedTotalSeconds: 0,
+    };
+    expect(extendedPlannedEnd(team, T0)).toBeNull();
   });
 });
