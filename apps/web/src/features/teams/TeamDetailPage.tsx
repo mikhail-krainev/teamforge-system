@@ -155,6 +155,11 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
     <div className="stack">
       <h1>{data.name}</h1>
       {canManage ? <p className="muted">{t('teams.detail.youAreLead')}</p> : null}
+      {data.status !== 'forming' ? (
+        <p>
+          <Link href={`/teams/${data.id}/route`}>{t('teams.detail.route')}</Link>
+        </p>
+      ) : null}
       <Summary team={data} typeName={typeName} />
       <MembersSection teamId={data.id} members={data.members} canManage={canManage} />
       <SeatsSection team={data} roles={roles.data ?? []} canManage={canManage} />
