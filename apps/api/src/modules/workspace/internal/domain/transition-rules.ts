@@ -1,4 +1,5 @@
 import type { UnmetCondition } from '../../../../platform/errors/domain-error.js';
+import type { AutoCheckFailure } from './auto-check-rules.js';
 
 /** C-08, AF-10: a stage cannot be closed sooner than this after it opened. */
 export const MIN_STAGE_MS = 24 * 3_600_000;
@@ -17,13 +18,29 @@ export interface TransitionFacts {
   items: readonly TransitionItem[];
   /** Step keys of the done, required items whose review is not passed (S5-07). */
   unpassedStepKeys: readonly string[];
+  /** Done, required items whose blocking automatic checks fail (S5-09). */
+  autoCheckFailures?: readonly AutoCheckFailure[];
   openedAt: Date | null;
   now: Date;
 }
 
+/** The `AUTO_CHECKS_FAILED` condition: which items fail which blocking check (S5-09). */
+function autoChecksFailed(failures: readonly AutoCheckFailure[]): UnmetCondition | undefined {
+  if (failures.length === 0) return undefined;
+  return {
+    code: 'AUTO_CHECKS_FAILED',
+    message: 'Автоматическая проверка не пройдена: исправьте ссылку или файл',
+    data: {
+      itemIds: failures.map((f) => f.itemId),
+      stepKeys: failures.map((f) => f.stepKey),
+      checks: Object.fromEntries(failures.map((f) => [f.stepKey, f.checks])),
+    },
+  };
+}
+
 /**
  * The conditions of closing a stage (architecture 11.3, FR-WORK-10), in the order of the contract's
- * `UnmetCode`. Being late is not a condition. The automatic checks (`AUTO_CHECKS_FAILED`) join in S5-09.
+ * `UnmetCode`. Being late is not a condition.
  */
 export function unmetConditions(facts: TransitionFacts): UnmetCondition[] {
   const unmet: UnmetCondition[] = [];
@@ -63,6 +80,8 @@ export function unmetConditions(facts: TransitionFacts): UnmetCondition[] {
       data: { earliestAt: earliest?.toISOString() ?? null },
     });
   }
+  const failed = autoChecksFailed(facts.autoCheckFailures ?? []);
+  if (failed !== undefined) unmet.push(failed);
   return unmet;
 }
 

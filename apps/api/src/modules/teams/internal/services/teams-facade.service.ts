@@ -36,6 +36,7 @@ function toView(row: TeamRow, now: Date): TeamLockView {
     startedAt: row.startedAt,
     plannedEndAt: extendedPlannedEnd(row, now),
     suspendedAt: row.suspendedAt,
+    suspendedTotalSeconds: row.suspendedTotalSeconds,
     playbookId: row.playbookId,
     productType: row.productTypeCode,
   };

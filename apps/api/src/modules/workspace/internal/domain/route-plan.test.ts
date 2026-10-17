@@ -5,6 +5,7 @@ import {
   isOverdue,
   ongoingSuspensionMs,
   stageDueAt,
+  stageSuspensionMs,
 } from './route-plan.js';
 
 const DAY = 86_400_000;
@@ -83,6 +84,24 @@ describe('stage dates (FR-WORK-12, -18)', () => {
     expect(ongoingSuspensionMs({ status: 'suspended', suspendedAt: since }, now)).toBe(2 * DAY);
     expect(ongoingSuspensionMs({ status: 'active', suspendedAt: since }, now)).toBe(0);
     expect(ongoingSuspensionMs({ status: 'suspended', suspendedAt: null }, now)).toBe(0);
+  });
+
+  it('the open stage is moved by the finished suspensions not yet in its due date plus the running one', () => {
+    const now = new Date('2026-03-05T00:00:00Z');
+    const since = new Date('2026-03-03T00:00:00Z');
+    const team = { status: 'suspended', suspendedAt: since, suspendedTotalSeconds: 5 * 86_400 };
+    // 5 days of finished suspensions, 3 already applied to this stage, and 2 days running now.
+    expect(stageSuspensionMs(team, 3 * 86_400, now)).toBe(2 * DAY + 2 * DAY);
+    expect(
+      stageSuspensionMs({ ...team, status: 'active', suspendedAt: null }, 3 * 86_400, now),
+    ).toBe(2 * DAY);
+    expect(
+      stageSuspensionMs({ ...team, status: 'active', suspendedAt: null }, 5 * 86_400, now),
+    ).toBe(0);
+    // A stage that opened after the suspensions has them applied: nothing is added twice.
+    expect(
+      stageSuspensionMs({ ...team, status: 'active', suspendedAt: null }, 9 * 86_400, now),
+    ).toBe(0);
   });
 
   it('the open stage is late after its due date or after the planned end of the project', () => {

@@ -182,7 +182,7 @@ export class ArtifactService {
     // The link is checked by the storage against the real time, so the real clock signs it.
     const signedAt = new Date();
     return {
-      url: this.storage.signedDownloadUrl(file.storageKey, signedAt),
+      url: await this.storage.signedDownloadUrl(file.storageKey, signedAt),
       expiresAt: new Date(signedAt.getTime() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString(),
     };
   }

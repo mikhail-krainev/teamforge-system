@@ -1,7 +1,7 @@
 import type { Schema } from 'shared';
 import type { StepDefinition } from '../../../playbooks/public.js';
 import { isReviewPassed } from '../domain/review-rules.js';
-import { effectiveDueAt, isOverdue } from '../domain/route-plan.js';
+import { effectiveDueAt, isOverdue, stageSuspensionMs } from '../domain/route-plan.js';
 import type {
   FileRow,
   ItemRow,
@@ -18,12 +18,19 @@ type ReviewStateDto = Schema<'ReviewState'>;
 const iso = (value: Date): string => value.toISOString();
 const isoOrNull = (value: Date | null): string | null => (value === null ? null : iso(value));
 
-/** A stage of the route with its dates; `suspensionMs` and `plannedEndAt` come from the team (FR-WORK-12, -18). */
+/** A stage of the route with its dates; the suspension facts and `plannedEndAt` come from the team (FR-WORK-12, -18). */
 export function toStageDto(
   row: StageRow,
-  context: { now: Date; suspensionMs: number; plannedEndAt: Date | null },
+  context: {
+    now: Date;
+    team: { status: string; suspendedAt: Date | null; suspendedTotalSeconds: number };
+    plannedEndAt: Date | null;
+  },
 ): ProjectStageDto {
-  const due = effectiveDueAt(row, context.suspensionMs);
+  const due = effectiveDueAt(
+    row,
+    stageSuspensionMs(context.team, row.suspendedAppliedSeconds, context.now),
+  );
   return {
     ordinal: row.ordinal,
     key: row.stageKey,

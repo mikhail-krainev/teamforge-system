@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { codesAt, expectReplayOf, fireAll, tally, winnerOf } from '../fixtures/concurrency.js';
 import { expectOk } from '../fixtures/teams.js';
@@ -66,20 +67,54 @@ describeInfra('Playbooks: parallel upload and publication (FR-PLAY-03)', ['db', 
     expectReplayOf(winner, await publishPlaybookAs(world, admin, id, { key: winner.key }));
   });
 
-  it('10 uploads of DIFFERENT versions at once all succeed and each stores its own stages (no mix-up of rows between drafts)', async () => {
-    const versions = Array.from({ length: 10 }, (_, i) => `32.${i}.0`);
+  it('10 uploads at once, each into its OWN product type, all succeed and each stores its own stages (no mix-up of rows between drafts)', async () => {
+    // A version must be greater than the latest one of its product type (architecture 11, loader),
+    // so ten different versions of ONE type cannot all win when they arrive in any order (next test).
+    // The type codes are unique per run, so the case does not depend on what an earlier run stored.
+    const run = randomUUID().replaceAll('-', '').slice(0, 8);
+    const types = Array.from({ length: 10 }, (_, i) => `race_${run}_${i}`);
     const fired = await fireAll(10, (i, key) =>
-      uploadPlaybookText(world, admin, miniPlaybookYaml({ version: versions[i] ?? '32.99.0' }), {
-        key,
-      }),
+      uploadPlaybookText(
+        world,
+        admin,
+        miniPlaybookYaml({ version: `32.${i}.0`, productType: types[i] ?? 'race_unused' }),
+        { key },
+      ),
     );
     expect(tally(fired)).toEqual({ 201: 10 });
+    const rows = await world.sql<
+      { type: string; version: string; stages: number; steps: number }[]
+    >`
+      SELECT p.product_type_code AS type, p.version,
+             (SELECT count(*)::int FROM playbooks.stage s WHERE s.playbook_id = p.id) AS stages,
+             (SELECT count(*)::int FROM playbooks.step t WHERE t.playbook_id = p.id) AS steps
+        FROM playbooks.playbook p WHERE p.product_type_code LIKE ${`race_${run}_%`}`;
+    expect(rows).toHaveLength(10);
+    for (const row of rows) expect([row.stages, row.steps]).toEqual([3, 10]);
+    expect(new Set(rows.map((r) => r.type)).size).toBe(10);
+  });
+
+  it('10 uploads of DIFFERENT versions into ONE type at once: every answer is 201 or 409 PLAYBOOK_VERSION_NOT_GREATER, and the stored drafts are exactly the 201s, each complete', async () => {
+    const run = randomUUID().replaceAll('-', '').slice(0, 8);
+    const type = `race_one_${run}`;
+    const fired = await fireAll(10, (i, key) =>
+      uploadPlaybookText(
+        world,
+        admin,
+        miniPlaybookYaml({ version: `33.${i}.0`, productType: type }),
+        { key },
+      ),
+    );
+    const counts = tally(fired);
+    expect(Object.keys(counts).every((status) => status === '201' || status === '409')).toBe(true);
+    expect(counts[201] ?? 0).toBeGreaterThanOrEqual(1);
+    expect(codesAt(fired, 409).every((code) => code === 'PLAYBOOK_VERSION_NOT_GREATER')).toBe(true);
     const rows = await world.sql<{ version: string; stages: number; steps: number }[]>`
       SELECT p.version,
              (SELECT count(*)::int FROM playbooks.stage s WHERE s.playbook_id = p.id) AS stages,
              (SELECT count(*)::int FROM playbooks.step t WHERE t.playbook_id = p.id) AS steps
-        FROM playbooks.playbook p WHERE p.version LIKE '32.%'`;
-    expect(rows).toHaveLength(10);
+        FROM playbooks.playbook p WHERE p.product_type_code = ${type} ORDER BY p.version`;
+    expect(rows).toHaveLength(counts[201] ?? 0);
     for (const row of rows) expect([row.stages, row.steps]).toEqual([3, 10]);
   });
 });

@@ -3,10 +3,14 @@ import type { Body } from 'shared';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
-import { jobId } from '../../../../platform/queues/job-id.js';
 import { QueuesService } from '../../../../platform/queues/queues.service.js';
 import { RateLimiter } from '../../../../platform/ratelimit/rate-limiter.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
+import {
+  CHECK_ITEM_LINK_JOB,
+  LINK_CHECK_QUEUE,
+  linkCheckJobId,
+} from '../../../../link-checker/protocol.js';
 import { PROFILES_API, type ProfilesApi } from '../../../profiles/public.js';
 import { WORKSPACE_MODULE } from '../../public.js';
 import {
@@ -24,12 +28,10 @@ import { RouteQueryService } from './route-query.service.js';
 
 type Patch = Body<'updateChecklistItem'>;
 
-/** The queue that checks a saved link (architecture 13.12); the checker itself arrives with S5-09. */
-export const LINK_CHECK_QUEUE = 'link-check';
-
 interface Saved {
   version: number;
-  linkToCheck: boolean;
+  /** The link that was saved and waits for the `link-checker` (architecture 13.12). */
+  linkToCheck: string | undefined;
 }
 
 /**
@@ -68,7 +70,9 @@ export class ItemService {
       if (error instanceof VersionConflict) throw await this.gate.conflict(teamId, itemId);
       throw error;
     }
-    if (saved.linkToCheck) await this.enqueueLinkCheck(teamId, itemId, saved.version);
+    if (saved.linkToCheck !== undefined) {
+      await this.enqueueLinkCheck(teamId, itemId, saved.version, saved.linkToCheck);
+    }
     return this.query.getItem(teamId, itemId);
   }
 
@@ -102,7 +106,10 @@ export class ItemService {
       aggregateId: itemId,
       payload: { teamId, itemId, version: row.version },
     });
-    return { version: row.version, linkToCheck: typeof body.linkUrl === 'string' };
+    return {
+      version: row.version,
+      linkToCheck: typeof body.linkUrl === 'string' ? body.linkUrl : undefined,
+    };
   }
 
   private changesOf(item: ItemRow, body: Patch, userId: string, now: Date): ItemChanges {
@@ -136,6 +143,11 @@ export class ItemService {
     changes: ItemChanges,
   ): Promise<void> {
     const finalStatus = changes.status ?? item.status;
+    // The blocking part of `link_https` (FR-PLAY-08): a link the link-checker refused cannot close the item.
+    const linkKept = changes.linkStatus === undefined && item.linkUrl !== null;
+    if (changes.status === 'done' && linkKept && item.linkStatus === 'rejected') {
+      throw new DomainError('LINK_REJECTED', 422);
+    }
     const needsFiles = finalStatus === 'done' && item.kind === 'artifact';
     const merged: ItemFacts = {
       kind: item.kind,
@@ -160,13 +172,21 @@ export class ItemService {
     });
   }
 
-  /** After the commit: a repeated add with the same id is a no-op; the S5-09 sweep repairs a lost job. */
-  private async enqueueLinkCheck(teamId: string, itemId: string, version: number): Promise<void> {
+  /**
+   * After the commit: a repeated add with the same id is a no-op; the sweep of `link-check-sweep`
+   * repairs a lost job. The job carries the address because the link-checker reads no database.
+   */
+  private async enqueueLinkCheck(
+    teamId: string,
+    itemId: string,
+    version: number,
+    url: string,
+  ): Promise<void> {
     await this.queues.add(
       LINK_CHECK_QUEUE,
-      'check-item-link',
-      { teamId, itemId, version },
-      { jobId: jobId('item-link', itemId, version) },
+      CHECK_ITEM_LINK_JOB,
+      { teamId, itemId, version, url },
+      { jobId: linkCheckJobId(itemId, version) },
     );
   }
 }

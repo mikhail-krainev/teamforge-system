@@ -66,6 +66,8 @@ export interface TeamLockView {
   plannedEndAt: Date | null;
   /** Set while the team is `suspended`. */
   suspendedAt: Date | null;
+  /** Time of the finished suspensions; the running one is not in it (FR-WORK-18). */
+  suspendedTotalSeconds: number;
   playbookId: PlaybookId;
   productType: ProductTypeCode;
 }

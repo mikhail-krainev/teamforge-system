@@ -28,6 +28,11 @@ export const projectStage = workspaceSchema.table(
     status: text('status').notNull(),
     openedAt: tstz('opened_at'),
     dueAt: tstz('due_at'),
+    /**
+     * How much of `teams.team.suspended_total_seconds` is already part of `due_at` (FR-WORK-18): the
+     * deadline of an open stage moves by the time the team spent suspended, once, when it works again.
+     */
+    suspendedAppliedSeconds: integer('suspended_applied_seconds').notNull().default(0),
     closedAt: tstz('closed_at'),
     closedBy: uuid('closed_by'),
     version: integer('version').notNull().default(1),
@@ -89,6 +94,10 @@ export const checklistItem = workspaceSchema.table(
     index('checklist_item_assignee_idx')
       .on(t.assigneeUserId)
       .where(sql`${t.status} = 'open'`),
+    /** The sweep that repairs a lost link check (S5-09) reads the links still waiting for an answer. */
+    index('checklist_item_link_unchecked_idx')
+      .on(t.updatedAt)
+      .where(sql`${t.linkStatus} = 'unchecked'`),
     index('checklist_item_orphan_idx')
       .on(t.teamId, t.unassignedFromUserId)
       .where(sql`${t.unassignedFromUserId} IS NOT NULL`),

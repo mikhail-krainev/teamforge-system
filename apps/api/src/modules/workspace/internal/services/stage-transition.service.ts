@@ -1,17 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Body, Ok } from 'shared';
 import { Clock } from '../../../../platform/clock/clock.js';
-import { DomainError } from '../../../../platform/errors/domain-error.js';
+import { DomainError, type UnmetCondition } from '../../../../platform/errors/domain-error.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { PLAYBOOKS_API, type PlaybooksApi } from '../../../playbooks/public.js';
-import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
+import { TEAMS_API, type TeamLockView, type TeamsApi } from '../../../teams/public.js';
 import { WORKSPACE_MODULE } from '../../public.js';
 import { stageDueAt, type RoleHolder } from '../domain/route-plan.js';
+import { autoCheckFailuresOf } from '../domain/auto-check-rules.js';
 import { nextOrdinal, unmetConditions } from '../domain/transition-rules.js';
 import { ItemRepository } from '../repositories/item.repository.js';
-import { RouteRepository } from '../repositories/route.repository.js';
+import { RouteRepository, type StageRow } from '../repositories/route.repository.js';
 import { TransitionRepository } from '../repositories/transition.repository.js';
 import { assertTeamWritable } from './item-gate.js';
 import { ReviewService } from './review.service.js';
@@ -19,8 +20,6 @@ import { itemRowOf } from './team-lifecycle.service.js';
 
 /** `project_stage.ordinal` is a smallint: a larger number cannot exist. */
 const MAX_ORDINAL = 32_767;
-
-type PlaybookId = Parameters<PlaybooksApi['getDefinition']>[0];
 
 /**
  * transitionStage (FR-WORK-10, CC-5, architecture 11.3): lock #4 `team`, then #8 `project_stage FOR
@@ -68,13 +67,7 @@ export class StageTransitionService {
     if (stage.status !== 'open') throw new DomainError('STAGE_NOT_OPEN', 409);
 
     const now = this.clock.now();
-    const rows = await this.route.listItems(teamId, stage.id);
-    const unmet = unmetConditions({
-      items: rows,
-      unpassedStepKeys: await this.reviews.unpassedStepKeys(teamId, stage.id, team.playbookId),
-      openedAt: stage.openedAt,
-      now,
-    });
+    const unmet = await this.unmetOf(team, stage, now);
     if (unmet.length > 0) throw new DomainError('STAGE_TRANSITION_BLOCKED', 409, { unmet });
 
     if (!(await this.transitions.closeStage(stage.id, now, leadId))) {
@@ -87,24 +80,48 @@ export class StageTransitionService {
     );
     const following = stages.find((s) => s.ordinal === followingOrdinal);
     if (following !== undefined) {
-      await this.openNext(team.playbookId, teamId, following, now);
+      await this.openNext(team, teamId, following, now);
       events.push(this.stageEvent('stage_opened', teamId, following.id, following.ordinal));
     }
     await this.outbox.publishMany(events);
     return { closedOrdinal: from, openedOrdinal: following?.ordinal ?? null };
   }
 
+  /** The conditions of closing the stage (architecture 11.3), read under the locks of the transition. */
+  private async unmetOf(team: TeamLockView, stage: StageRow, now: Date): Promise<UnmetCondition[]> {
+    const rows = await this.route.listItems(team.teamId, stage.id);
+    const definition = await this.playbooks.getDefinition(team.playbookId);
+    const steps = definition.stages.find((s) => s.key === stage.stageKey)?.steps ?? [];
+    const checksOf = new Map(steps.map((step) => [step.key, step.autoChecks]));
+    const files = await this.route.listFiles(
+      team.teamId,
+      rows.map((row) => row.id),
+    );
+    const withFiles = rows.map((row) => ({
+      ...row,
+      filesCount: files.filter((file) => file.checklistItemId === row.id).length,
+    }));
+    return unmetConditions({
+      items: rows,
+      unpassedStepKeys: await this.reviews.unpassedStepKeys(team.teamId, stage.id, team.playbookId),
+      autoCheckFailures: autoCheckFailuresOf(withFiles, (key) => checksOf.get(key) ?? []),
+      openedAt: stage.openedAt,
+      now,
+    });
+  }
+
   /** Opens the next stage and creates its checklist; executors are chosen by role as at the start (FR-WORK-02). */
   private async openNext(
-    playbookId: PlaybookId,
+    team: TeamLockView,
     teamId: string,
     next: { id: string; stageKey: string; durationDays: number },
     now: Date,
   ): Promise<void> {
-    if (!(await this.transitions.openStage(next.id, now, stageDueAt(now, next.durationDays)))) {
+    const due = stageDueAt(now, next.durationDays);
+    if (!(await this.transitions.openStage(next.id, now, due, team.suspendedTotalSeconds))) {
       throw new DomainError('STAGE_NOT_OPEN', 409);
     }
-    const definition = await this.playbooks.getDefinition(playbookId);
+    const definition = await this.playbooks.getDefinition(team.playbookId);
     const steps = definition.stages.find((s) => s.key === next.stageKey)?.steps ?? [];
     const roster = await this.teams.getRoster(teamId);
     const members: RoleHolder[] = roster.map((m) => ({

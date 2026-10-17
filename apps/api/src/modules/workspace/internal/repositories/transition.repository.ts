@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { participationConfirm } from '../schema/release.js';
 import { projectStage } from '../schema/stage.js';
@@ -27,18 +27,50 @@ export class TransitionRepository {
     return rows.length === 1;
   }
 
-  async openStage(stageId: string, openedAt: Date, dueAt: Date): Promise<boolean> {
+  /** `suspendedAppliedSeconds` is the team's finished suspension time at the opening: it is not counted for this stage. */
+  async openStage(
+    stageId: string,
+    openedAt: Date,
+    dueAt: Date,
+    suspendedAppliedSeconds: number,
+  ): Promise<boolean> {
     const rows = await this.tx.tx
       .update(projectStage)
       .set({
         status: 'open',
         openedAt,
         dueAt,
+        suspendedAppliedSeconds,
         version: sql`${projectStage.version} + 1`,
       })
       .where(and(eq(projectStage.id, stageId), eq(projectStage.status, 'pending')))
       .returning({ id: projectStage.id });
     return rows.length === 1;
+  }
+
+  /**
+   * FR-WORK-18: the open stage gets the finished suspension time it has not got yet, once. One
+   * conditional UPDATE: a repeat, a parallel run or an older total changes nothing (the applied
+   * counter only grows). Returns the number of stages moved.
+   */
+  async applySuspension(teamId: string, totalSeconds: number): Promise<number> {
+    const rows = await this.tx.tx
+      .update(projectStage)
+      .set({
+        dueAt: sql`${projectStage.dueAt} + (${totalSeconds} - ${projectStage.suspendedAppliedSeconds}) * interval '1 second'`,
+        suspendedAppliedSeconds: totalSeconds,
+        version: sql`${projectStage.version} + 1`,
+      })
+      .where(
+        and(
+          eq(projectStage.teamId, teamId),
+          eq(projectStage.status, 'open'),
+          isNotNull(projectStage.dueAt),
+          lt(projectStage.suspendedAppliedSeconds, totalSeconds),
+        ),
+      )
+      .returning({ id: projectStage.id });
+    return rows.length;
   }
 
   /** Idempotent: the first confirmation stays (who and when), a repeat changes nothing. */

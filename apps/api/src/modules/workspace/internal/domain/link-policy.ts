@@ -56,3 +56,17 @@ export function isStorableLink(raw: string): boolean {
   if (!host.includes('.')) return false;
   return !BLOCKED_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
+
+export type LinkStatus = 'ok' | 'broken' | 'rejected';
+
+/**
+ * What the answer of the link-checker makes of a saved link (FR-WORK-04, FR-PLAY-08 `link_https`):
+ * an answer of 2xx is `ok`; a refusal of the SSRF policy (address, scheme, port) is `rejected`, which
+ * blocks the item (the blocking part of the check); anything else is only a warning, `broken`.
+ */
+export function linkStatusOf(outcome: { ok: boolean; reason: string | null }): LinkStatus {
+  if (outcome.ok) return 'ok';
+  return outcome.reason === 'BLOCKED_ADDRESS' || outcome.reason === 'BLOCKED_PORT'
+    ? 'rejected'
+    : 'broken';
+}

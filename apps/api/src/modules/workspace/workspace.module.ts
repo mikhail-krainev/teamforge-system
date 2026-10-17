@@ -14,7 +14,12 @@ import { ArtifactRepository } from './internal/repositories/artifact.repository.
 import { ArtifactService } from './internal/services/artifact.service.js';
 import { ArtifactStorage } from '../../platform/storage/artifact-storage.js';
 import { ItemController } from './internal/controllers/item.controller.js';
+import { LinkCheckSweep } from './internal/jobs/link-check-sweep.js';
+import { LinkCheckRepository } from './internal/repositories/link-check.repository.js';
+import { LinkResultService } from './internal/services/link-result.service.js';
 import { RouteMembersConsumer } from './internal/events/route-members.consumer.js';
+import { StepSignalsConsumer } from './internal/events/step-signals.consumer.js';
+import { StageSuspensionConsumer } from './internal/events/stage-suspension.consumer.js';
 import { ItemRepository } from './internal/repositories/item.repository.js';
 import { DepartureItemsService } from './internal/services/departure-items.service.js';
 import { FallbackService } from './internal/services/fallback.service.js';
@@ -37,7 +42,7 @@ import { NotificationService } from './internal/services/notification.service.js
 /**
  * Workspace module. S3-10: notifications (list, read marks, event handlers, e-mail) and the
  * WebSocket gateway with its Redis relay. S5-04: the route of a project (stages, checklist) and
- * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer.
+ * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer. S5-09: the verdict of the `link-checker` on saved links and the sweep that repairs a lost check.
  *
  * Global because teams injects `TEAM_LIFECYCLE_PORT` and may not import workspace (architecture
  * 2.2): this module is the one place where the port is bound.
@@ -70,6 +75,11 @@ import { NotificationService } from './internal/services/notification.service.js
     ItemAssignService,
     FallbackService,
     RouteMembersConsumer,
+    StageSuspensionConsumer,
+    StepSignalsConsumer,
+    LinkCheckRepository,
+    LinkResultService,
+    LinkCheckSweep,
     DepartureItemsService,
     { provide: DEPARTURE_ITEMS_PORT, useExisting: DepartureItemsService },
     RouteQueryService,

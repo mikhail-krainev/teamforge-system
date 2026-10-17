@@ -92,6 +92,27 @@ export class ArtifactRepository {
     return rows[0];
   }
 
+  /**
+   * `sha_dedup` (AF-06): in how many OTHER projects a live file with exactly these bytes was stored
+   * BEFORE this one (by time, then id). Only the later upload is the copy, so a pair of equal files
+   * raises one signal, not two, whatever order the events are handled in (`artifact_file_sha_idx`).
+   */
+  async countEarlierInOtherTeams(teamId: string, fileId: string, sha256: Buffer): Promise<number> {
+    const rows = await this.tx.tx
+      .select({ n: sql<number>`count(DISTINCT ${artifactFile.teamId})::int` })
+      .from(artifactFile)
+      .where(
+        and(
+          eq(artifactFile.sha256, sha256),
+          isNull(artifactFile.deletedAt),
+          sql`${artifactFile.teamId} <> ${teamId}`,
+          sql`(${artifactFile.createdAt}, ${artifactFile.id}) < (
+            SELECT f.created_at, f.id FROM workspace.artifact_file f WHERE f.id = ${fileId})`,
+        ),
+      );
+    return rows[0]?.n ?? 0;
+  }
+
   /** Keys that a live row still points to: the rest are orphans of the bucket (deleted files are removed by event). */
   async referencedKeys(keys: string[]): Promise<Set<string>> {
     if (keys.length === 0) return new Set();

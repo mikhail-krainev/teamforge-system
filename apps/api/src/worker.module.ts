@@ -6,6 +6,7 @@ import { MaintenanceProcessor } from './platform/outbox/maintenance.processor.js
 import { OutboxRelayLoop } from './platform/outbox/outbox-relay-loop.js';
 import { PlatformModule, type PlatformOptions } from './platform/platform.module.js';
 import { QueueWorkers } from './platform/queues/queue-workers.js';
+import { ResultListenerRunner } from './platform/queues/result-listeners.js';
 
 /** Background application (process `worker`): BullMQ processors, outbox relay, schedulers. */
 @Module({})
@@ -14,7 +15,13 @@ export class WorkerModule {
     return {
       module: WorkerModule,
       imports: [PlatformModule.forRoot(config, { http: false, ...options }), ...DOMAIN_MODULES],
-      providers: [EventsProcessor, MaintenanceProcessor, QueueWorkers, OutboxRelayLoop],
+      providers: [
+        EventsProcessor,
+        MaintenanceProcessor,
+        QueueWorkers,
+        ResultListenerRunner,
+        OutboxRelayLoop,
+      ],
     };
   }
 }

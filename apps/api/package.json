@@ -11,6 +11,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
+    "start:link-checker": "node dist/link-checker/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -26,6 +27,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",
+    "@aws-sdk/s3-request-presigner": "3.1150.0",
     "@fastify/websocket": "11.3.4",
     "@nestjs-cls/transactional": "4.0.1",
     "@nestjs-cls/transactional-adapter-drizzle-orm": "2.0.1",

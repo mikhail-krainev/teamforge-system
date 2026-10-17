@@ -49,6 +49,38 @@ describe('unmetConditions (FR-WORK-10)', () => {
     expect(unmet[0]?.data).toMatchObject({ itemIds: ['i1'] });
   });
 
+  it('FR-PLAY-08: a blocking automatic check that failed is AUTO_CHECKS_FAILED, last, with the items and the checks', () => {
+    const unmet = unmetConditions({
+      items: [item({})],
+      unpassedStepKeys: ['b'],
+      autoCheckFailures: [{ itemId: 'i1', stepKey: 'a', checks: ['link_https'] }],
+      openedAt: OPENED,
+      now: OPENED,
+    });
+    expect(unmet.map((u) => u.code)).toEqual([
+      'REVIEW_NOT_PASSED',
+      'MIN_TIME_NOT_ELAPSED',
+      'AUTO_CHECKS_FAILED',
+    ]);
+    expect(unmet.at(-1)?.data).toEqual({
+      itemIds: ['i1'],
+      stepKeys: ['a'],
+      checks: { a: ['link_https'] },
+    });
+  });
+
+  it('no failures, no AUTO_CHECKS_FAILED', () => {
+    expect(
+      codes({
+        items: [item({})],
+        unpassedStepKeys: [],
+        autoCheckFailures: [],
+        openedAt: OPENED,
+        now: AFTER,
+      }),
+    ).toEqual([]);
+  });
+
   it('one millisecond short of 24 hours is still too early', () => {
     expect(
       codes({

@@ -20,6 +20,9 @@ export default defineConfig({
         // by the docker e2e stack; their logic lives in run-child.ts, parsers.ts and protocol.ts.
         'src/resume-worker/main.ts',
         'src/resume-worker/child.ts',
+        // Entry point of the link-checker process: bootstrap only (it starts on import); its logic is in
+        // env.ts, link-check-worker.ts and ssrf-client.ts.
+        'src/link-checker/main.ts',
         // Barrel re-exports and type-only files hold no runtime logic.
         'src/**/index.ts',
         'src/**/*.types.ts',

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { uuidv7 } from 'uuidv7';
+import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import {
   PLAYBOOKS_API,
   type PlaybooksApi,
@@ -11,6 +12,7 @@ import {
   type TeamLifecyclePort,
   type TeamsApi,
 } from '../../../teams/public.js';
+import { WORKSPACE_MODULE } from '../../public.js';
 import { chooseExecutor, stageDueAt, type RoleHolder } from '../domain/route-plan.js';
 import { RouteRepository } from '../repositories/route.repository.js';
 import type { checklistItem } from '../schema/stage.js';
@@ -57,6 +59,7 @@ export class TeamLifecycleService implements TeamLifecyclePort {
     @Inject(PLAYBOOKS_API) private readonly playbooks: PlaybooksApi,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
     @Inject(RouteRepository) private readonly route: RouteRepository,
+    @Inject(OutboxService) private readonly outbox: OutboxService,
   ) {}
 
   async onProjectStarted(input: {
@@ -98,5 +101,12 @@ export class TeamLifecycleService implements TeamLifecyclePort {
         .sort((a, b) => a.ordinal - b.ordinal)
         .map((step) => itemRowOf(input.teamId, firstId, step, members, input.startedAt)),
     );
+    // Architecture 4: stage 1 opens with the project, like every later stage opens with a transition.
+    await this.outbox.publish({
+      module: WORKSPACE_MODULE,
+      type: 'stage_opened',
+      aggregateId: firstId,
+      payload: { teamId: input.teamId, stageId: firstId, ordinal: first.ordinal },
+    });
   }
 }

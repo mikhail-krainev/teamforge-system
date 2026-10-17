@@ -7,7 +7,6 @@ import {
   type StepDefinition,
 } from '../../../playbooks/public.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
-import { ongoingSuspensionMs } from '../domain/route-plan.js';
 import { ItemRepository } from '../repositories/item.repository.js';
 import { RouteRepository, type ItemRow, type StageRow } from '../repositories/route.repository.js';
 import { toItemDto, toStageDto, type ChecklistItemDto, type ProjectStageDto } from './route-dto.js';
@@ -38,7 +37,7 @@ export class RouteQueryService {
     const now = this.clock.now();
     const context = {
       now,
-      suspensionMs: ongoingSuspensionMs(team, now),
+      team,
       plannedEndAt: team.plannedEndAt,
     };
     return {

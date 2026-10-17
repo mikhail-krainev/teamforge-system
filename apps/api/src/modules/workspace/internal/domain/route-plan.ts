@@ -73,6 +73,20 @@ export function ongoingSuspensionMs(
   return Math.max(0, now.getTime() - team.suspendedAt.getTime());
 }
 
+/**
+ * How far the due date stored for an open stage is behind the clock of the team (FR-WORK-18): the
+ * finished suspensions its date does not contain yet (`applied` is the part it does) and the one
+ * running now. The stored date catches up when the status change is processed (`due_at` shift).
+ */
+export function stageSuspensionMs(
+  team: { status: string; suspendedAt: Date | null; suspendedTotalSeconds: number },
+  appliedSeconds: number,
+  now: Date,
+): number {
+  const pendingSeconds = Math.max(0, team.suspendedTotalSeconds - appliedSeconds);
+  return pendingSeconds * 1000 + ongoingSuspensionMs(team, now);
+}
+
 /** Due date shown for a stage: the open stage is moved by the current suspension. */
 export function effectiveDueAt(stage: StageTimes, suspensionMs: number): Date | null {
   if (stage.dueAt === null) return null;

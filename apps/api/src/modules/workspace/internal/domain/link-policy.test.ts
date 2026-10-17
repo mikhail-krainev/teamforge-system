@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isStorableLink } from './link-policy.js';
+import { isStorableLink, linkStatusOf } from './link-policy.js';
 
 describe('isStorableLink (SEC-05 at saving)', () => {
   it.each([
@@ -56,5 +56,30 @@ describe('isStorableLink (SEC-05 at saving)', () => {
     '',
   ])('%s is not https', (link) => {
     expect(isStorableLink(link)).toBe(false);
+  });
+});
+
+describe('linkStatusOf (the answer of the link-checker)', () => {
+  it('2xx is ok', () => {
+    expect(linkStatusOf({ ok: true, reason: null })).toBe('ok');
+  });
+
+  it.each(['BLOCKED_ADDRESS', 'BLOCKED_PORT'])(
+    '%s is rejected: the blocking part of link_https',
+    (reason) => {
+      expect(linkStatusOf({ ok: false, reason })).toBe('rejected');
+    },
+  );
+
+  it.each([
+    'HTTP_STATUS',
+    'TIMEOUT',
+    'TLS_ERROR',
+    'DNS_ERROR',
+    'TOO_MANY_REDIRECTS',
+    'TOO_SMALL',
+    'PLACEHOLDER_TITLE',
+  ])('%s is only a warning: broken', (reason) => {
+    expect(linkStatusOf({ ok: false, reason })).toBe('broken');
   });
 });
