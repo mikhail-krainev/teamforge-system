@@ -24,12 +24,14 @@ function start(): void {
     request: createHttpsHop(),
     selfPublicIps: env.selfPublicIps,
     timeoutMs: env.timeoutMs,
+    totalTimeoutMs: env.totalTimeoutMs,
   });
   const worker = startLinkCheckWorker({
     connection,
     prefix: env.queuePrefix,
     checker,
     concurrency: env.concurrency,
+    totalTimeoutMs: env.totalTimeoutMs,
     onError: (error) => log('error', 'worker error', { error: error.message }),
   });
   const stop = (): void => {

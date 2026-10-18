@@ -11,6 +11,7 @@ describe('loadLinkCheckerEnv', () => {
       selfPublicIps: [],
       concurrency: 5,
       timeoutMs: 10_000,
+      totalTimeoutMs: 30_000,
     });
     expect(
       loadLinkCheckerEnv({
@@ -57,5 +58,26 @@ describe('loadLinkCheckerEnv', () => {
     expect(() => loadLinkCheckerEnv({ ...BASE, QUEUE_PREFIX: 'Bad Prefix' })).toThrow(
       /QUEUE_PREFIX/,
     );
+  });
+
+  it('fails closed in production: SELF_PUBLIC_IPS must name the public addresses of the server', () => {
+    expect(() => loadLinkCheckerEnv({ ...BASE, NODE_ENV: 'production' })).toThrow(
+      /SELF_PUBLIC_IPS/,
+    );
+    expect(() =>
+      loadLinkCheckerEnv({ ...BASE, NODE_ENV: 'production', SELF_PUBLIC_IPS: ' , ' }),
+    ).toThrow(/SELF_PUBLIC_IPS/);
+    expect(
+      loadLinkCheckerEnv({ ...BASE, NODE_ENV: 'production', SELF_PUBLIC_IPS: '203.0.114.7' })
+        .selfPublicIps,
+    ).toEqual(['203.0.114.7']);
+    expect(loadLinkCheckerEnv({ ...BASE, NODE_ENV: 'development' }).selfPublicIps).toEqual([]);
+  });
+
+  it('takes the total deadline of one check, with a default above the time of a hop', () => {
+    expect(loadLinkCheckerEnv(BASE).totalTimeoutMs).toBe(30_000);
+    expect(
+      loadLinkCheckerEnv({ ...BASE, LINK_CHECK_TOTAL_TIMEOUT_MS: '45000' }).totalTimeoutMs,
+    ).toBe(45_000);
   });
 });

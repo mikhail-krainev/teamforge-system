@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { normalizeHostname } from './host.js';
 import { isForbiddenAddress, ownAddressSet } from './ip-policy.js';
 
 /**
@@ -47,12 +48,30 @@ export interface LinkCheckerDeps {
   request(hop: Hop): Promise<HopResponse>;
   /** Public addresses of this server: a published service must not be reachable through a check. */
   selfPublicIps?: readonly string[];
+  /** Time of one hop (DNS or request). */
   timeoutMs?: number;
+  /** Time of the whole check, redirects included. */
+  totalTimeoutMs?: number;
+}
+
+/** Asks for the right to check a domain: 0 when it may be checked now, else the milliseconds to wait. */
+export interface CheckOptions {
+  throttle?(hostname: string): Promise<number>;
+}
+
+/** A domain reached by a redirect was checked a moment ago (C-46): the whole check is to be run again later. */
+export class DomainBusy extends Error {
+  constructor(readonly waitMs: number) {
+    super('domain busy');
+    this.name = 'DomainBusy';
+  }
 }
 
 export const HTTPS_PORT = 443;
 export const MAX_REDIRECTS = 3;
 export const DEFAULT_TIMEOUT_MS = 10_000;
+/** One deadline for the chain of hops: 4 requests of 10 s each would hold a worker for minutes. */
+export const TOTAL_TIMEOUT_MS = 30_000;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const TLS_ERROR_PATTERN = /CERT|TLS|SSL|SELF_SIGNED|UNABLE_TO_VERIFY|EPROTO|ALTNAME/i;
@@ -107,8 +126,8 @@ function targetOf(raw: string, base?: URL): Target {
   if (url.port !== '' && url.port !== String(HTTPS_PORT)) {
     return { ok: false, outcome: failure('BLOCKED_PORT') };
   }
-  const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '');
-  if (hostname === '') return { ok: false, outcome: failure('BLOCKED_ADDRESS') };
+  const hostname = normalizeHostname(url.hostname);
+  if (hostname === undefined) return { ok: false, outcome: failure('BLOCKED_ADDRESS') };
   return { ok: true, url, hostname };
 }
 
@@ -116,13 +135,22 @@ interface Context {
   deps: LinkCheckerDeps;
   own: ReadonlySet<string>;
   timeoutMs: number;
+  /** Absolute end of the whole check (`Date.now()`). */
+  deadlineAt: number;
 }
+
+/** The time one hop may take: its own limit, never past the deadline of the check. */
+const hopTimeout = ({ timeoutMs, deadlineAt }: Context): number =>
+  Math.min(timeoutMs, deadlineAt - Date.now());
 
 /** The address to connect to, or the outcome that stops the check. */
 async function verifiedAddress(
-  { deps, own, timeoutMs }: Context,
+  context: Context,
   hostname: string,
 ): Promise<{ ip: string } | LinkCheckOutcome> {
+  const { deps, own } = context;
+  const timeoutMs = hopTimeout(context);
+  if (timeoutMs <= 0) return failure('TIMEOUT');
   if (isIP(hostname) !== 0) {
     return isForbiddenAddress(hostname, own) ? failure('BLOCKED_ADDRESS') : { ip: hostname };
   }
@@ -149,8 +177,10 @@ async function hopOnce(
 ): Promise<HopResponse | LinkCheckOutcome> {
   const address = await verifiedAddress(context, hostname);
   if ('ok' in address) return address;
+  const timeoutMs = hopTimeout(context);
+  if (timeoutMs <= 0) return failure('TIMEOUT');
   try {
-    return await withTimeout(context.timeoutMs, (signal) =>
+    return await withTimeout(timeoutMs, (signal) =>
       context.deps.request({
         ip: address.ip,
         port: HTTPS_PORT,
@@ -165,12 +195,21 @@ async function hopOnce(
   }
 }
 
-async function follow(context: Context, raw: string): Promise<LinkCheckOutcome> {
+async function follow(
+  context: Context,
+  raw: string,
+  options: CheckOptions,
+): Promise<LinkCheckOutcome> {
   let current = targetOf(raw);
   const visited = new Set<string>();
   for (let redirects = 0; ; redirects += 1) {
     if (!current.ok) return current.outcome;
     visited.add(current.url.href);
+    // The first hop is paused by the caller before the check starts; a hop reached by a redirect is paused here.
+    if (redirects > 0 && options.throttle !== undefined) {
+      const wait = await options.throttle(current.hostname);
+      if (wait > 0) throw new DomainBusy(wait);
+    }
     const answer = await hopOnce(context, current.url, current.hostname);
     if ('ok' in answer) return answer;
     if (answer.status >= 200 && answer.status < 300) {
@@ -188,12 +227,13 @@ async function follow(context: Context, raw: string): Promise<LinkCheckOutcome> 
 }
 
 export function createLinkChecker(deps: LinkCheckerDeps): {
-  check(url: string): Promise<LinkCheckOutcome>;
+  check(url: string, options?: CheckOptions): Promise<LinkCheckOutcome>;
 } {
-  const context: Context = {
-    deps,
-    own: ownAddressSet(deps.selfPublicIps ?? []),
-    timeoutMs: deps.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  const own = ownAddressSet(deps.selfPublicIps ?? []);
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const totalMs = deps.totalTimeoutMs ?? TOTAL_TIMEOUT_MS;
+  return {
+    check: (raw, options = {}) =>
+      follow({ deps, own, timeoutMs, deadlineAt: Date.now() + totalMs }, raw, options),
   };
-  return { check: (raw) => follow(context, raw) };
 }

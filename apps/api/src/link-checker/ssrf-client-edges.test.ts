@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isForbiddenAddress } from './ip-policy.js';
-import { createLinkChecker, type Hop, type HopResponse } from './ssrf-client.js';
+import { createLinkChecker, DomainBusy, type Hop, type HopResponse } from './ssrf-client.js';
 
 /*
  * S5-14: edges of the SSRF client that the scenarios of slice 5 do not reach: what a failing resolver or
@@ -14,6 +14,7 @@ interface Setup {
   resolve?: (hostname: string) => Promise<string[]>;
   responses?: (HopResponse | (() => Promise<HopResponse>))[];
   timeoutMs?: number;
+  totalTimeoutMs?: number;
 }
 
 function checker(setup: Setup = {}) {
@@ -31,6 +32,7 @@ function checker(setup: Setup = {}) {
       return typeof next === 'function' ? next() : Promise.resolve(next);
     },
     ...(setup.timeoutMs === undefined ? {} : { timeoutMs: setup.timeoutMs }),
+    ...(setup.totalTimeoutMs === undefined ? {} : { totalTimeoutMs: setup.totalTimeoutMs }),
   });
   return { hops, lookups, check: client.check };
 }
@@ -240,4 +242,57 @@ describe('S5-14: IPv6 spellings of forbidden addresses', () => {
       expect(isForbiddenAddress(address)).toBe(false);
     },
   );
+});
+
+describe('S5 audit L1/L2: the throttle of every hop and one deadline for the whole check', () => {
+  const redirect = (location: string): HopResponse => ({ status: 302, location });
+
+  it('a redirect to a domain that is busy stops the check with DomainBusy and no request goes there', async () => {
+    const c = checker({ responses: [redirect('https://Busy.Example.test./next')] });
+    const asked: string[] = [];
+    const throttle = (hostname: string) => {
+      asked.push(hostname);
+      return Promise.resolve(hostname === 'busy.example.test' ? 4_000 : 0);
+    };
+    await expect(c.check('https://first.example.test/', { throttle })).rejects.toEqual(
+      new DomainBusy(4_000),
+    );
+    // The first hop is the worker's business; every later hop is asked, in one spelling.
+    expect(asked).toEqual(['busy.example.test']);
+    expect(c.hops.map((h) => h.servername)).toEqual(['first.example.test']);
+  });
+
+  it('every redirect hop asks the throttle once; free domains pass', async () => {
+    const c = checker({
+      responses: [
+        redirect('https://b.example.test/'),
+        redirect('https://c.example.test/'),
+        { status: 200 },
+      ],
+    });
+    const asked: string[] = [];
+    const result = await c.check('https://a.example.test/', {
+      throttle: (hostname) => {
+        asked.push(hostname);
+        return Promise.resolve(0);
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(asked).toEqual(['b.example.test', 'c.example.test']);
+  });
+
+  it('the total deadline ends a slow chain with TIMEOUT even when each hop is within its own time', async () => {
+    const slow = (n: number) => () =>
+      new Promise<HopResponse>((resolve) =>
+        setTimeout(() => resolve(redirect(`https://next.example.test/p${n}`)), 40),
+      );
+    const c = checker({
+      timeoutMs: 1_000,
+      totalTimeoutMs: 100,
+      responses: [slow(1), slow(2), slow(3), slow(4)],
+    });
+    const result = await c.check('https://a.example.test/');
+    expect(result).toEqual({ ok: false, reason: 'TIMEOUT', httpStatus: null });
+    expect(c.hops.length).toBeLessThan(4);
+  });
 });

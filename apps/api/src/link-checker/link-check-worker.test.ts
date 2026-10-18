@@ -10,7 +10,7 @@ import {
   LINK_CHECK_QUEUE,
   type LinkCheckResult,
 } from './protocol.js';
-import type { LinkCheckOutcome } from './ssrf-client.js';
+import { DomainBusy, TOTAL_TIMEOUT_MS, type LinkCheckOutcome } from './ssrf-client.js';
 
 /*
  * The consumer of the `link-check` queue (S5-09): result of a check as the job result, the per-domain
@@ -35,6 +35,7 @@ function startHarness(options: {
   redisUrl: string;
   outcome?: (url: string) => LinkCheckOutcome;
   domainIntervalMs?: number;
+  busyOnce?: boolean;
 }): Harness {
   const seen: string[] = [];
   const consumer = new Redis(options.redisUrl, { maxRetriesPerRequest: null });
@@ -51,6 +52,8 @@ function startHarness(options: {
     checker: {
       check: (url) => {
         seen.push(url);
+        if (options.busyOnce === true && seen.length === 1)
+          return Promise.reject(new DomainBusy(300));
         return Promise.resolve(options.outcome ? options.outcome(url) : OK);
       },
     },
@@ -154,6 +157,56 @@ describeInfra('link-checker: Redis ACL and the pause per domain (C-46)', ['redis
     expect(Date.now() - started).toBeLessThan(1_000);
     const second = await run(h, `https://${unique}.example.test/two`);
     expect(second.outcome.ok).toBe(true);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1_000);
+  }, 30_000);
+});
+
+describeInfra(
+  'link-checker: a busy redirect domain and the lock of a long check',
+  ['redis'],
+  () => {
+    const prefix = uniqueQueuePrefix();
+    let h: Harness;
+
+    beforeAll(async () => {
+      h = startHarness({ prefix, redisUrl: process.env.REDIS_URL ?? '', busyOnce: true });
+      await h.events.waitUntilReady();
+    });
+
+    afterAll(async () => {
+      if (h) await h.close();
+    });
+
+    it('a check that meets a busy domain on a redirect is delayed and run again, not failed', async () => {
+      const result = await run(h, 'https://example.test/redirecting');
+      expect(result.outcome).toEqual(OK);
+      expect(h.seen).toHaveLength(2);
+    });
+
+    it('the lock of a job outlasts the deadline of a check, so a slow check is not taken for a stalled one', () => {
+      expect(h.worker.opts.lockDuration).toBeGreaterThan(TOTAL_TIMEOUT_MS);
+    });
+  },
+);
+
+describeInfra('link-checker: one spelling of a host for the pause', ['redis'], () => {
+  const prefix = uniqueQueuePrefix();
+  let h: Harness;
+  const unique = randomUUID().slice(0, 8);
+
+  beforeAll(async () => {
+    h = startHarness({ prefix, redisUrl: process.env.REDIS_URL ?? '', domainIntervalMs: 1_500 });
+    await h.events.waitUntilReady();
+  });
+
+  afterAll(async () => {
+    if (h) await h.close();
+  });
+
+  it('a trailing dot and capitals do not give a second slot to the same domain', async () => {
+    const started = Date.now();
+    await run(h, `https://${unique}.example.test/one`);
+    await run(h, `https://${unique.toUpperCase()}.Example.test./two`);
     expect(Date.now() - started).toBeGreaterThanOrEqual(1_000);
   }, 30_000);
 });
