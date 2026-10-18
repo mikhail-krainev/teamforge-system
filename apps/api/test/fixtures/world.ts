@@ -76,7 +76,9 @@ export class World {
     const db = await createTestDatabase();
     const mail = await SmtpSink.start();
     const queuePrefix = uniqueQueuePrefix();
-    const github = options.github ? await startGithubServer() : undefined;
+    const github = options.github
+      ? await startGithubServer(options.clock ? { clock: options.clock } : {})
+      : undefined;
     const env: Record<string, string | undefined> = {
       DATABASE_POOL_MAX: '30',
       SMTP_URL: mail.smtpUrl,
@@ -103,6 +105,7 @@ export class World {
     const testApp = await createTestApp(common, options.customizeApp);
     const worker = options.worker === false ? undefined : await createTestWorker(common);
     const resume = options.resumeWorker ? startFakeResumeWorker(queuePrefix) : undefined;
+    if (github) github.app.callbackUrl = `${testApp.config.APP_ORIGIN}/api/v1/github/setup`;
     return new World(db, testApp, mail, queuePrefix, options, github, resume, worker?.context, []);
   }
 
