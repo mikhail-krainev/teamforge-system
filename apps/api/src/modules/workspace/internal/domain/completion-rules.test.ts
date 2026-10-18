@@ -186,6 +186,60 @@ describe('release addresses (AF-02)', () => {
   });
 });
 
+describe('release addresses, edge cases (AF-02, S6-12)', () => {
+  it.each([
+    'https://EXAMPLE.COM/',
+    'https://example.com./app',
+    'https://example.com:8443/app',
+    'https://user:pass@example.net/',
+    'https://www.example.org',
+    'https://a.b.example.net/x',
+    'http://localhost:3000',
+    'https://localhost./',
+    'https://app.localhost/',
+  ])('%s is a template address', (address) => {
+    expect(isTemplateAddress(address)).toBe(true);
+  });
+
+  it.each([
+    'https://example.com.evil.test/',
+    'https://evil.test/example.com',
+    'https://evil.test/?next=https://example.com',
+    'https://example.com@evil.test/',
+    'https://myexample.org/',
+    'https://my-localhost.test/',
+    'https://xn--80akhbyknj4f.test/',
+    'not an address',
+    '',
+  ])('%s is not', (address) => {
+    expect(isTemplateAddress(address)).toBe(false);
+  });
+
+  it('the repeat check is blind to the scheme, the case of host and path, the query and the slashes, but not to the path itself', () => {
+    const held = ['https://App.Example.test/Docs'];
+    for (const same of [
+      'http://app.example.test/docs',
+      'https://APP.example.TEST/DOCS/',
+      'https://app.example.test/docs///',
+      'https://app.example.test/docs?utm_source=x#top',
+      'https://app.example.test./docs',
+    ]) {
+      expect(isReleaseAddressRepeated(same, held), same).toBe(true);
+    }
+    for (const other of [
+      'https://app.example.test/docs/v2',
+      'https://app.example.test/',
+      'https://www.app.example.test/docs',
+    ]) {
+      expect(isReleaseAddressRepeated(other, held), other).toBe(false);
+    }
+  });
+
+  it('an address that cannot be read is never "repeated"', () => {
+    expect(isReleaseAddressRepeated('::::', ['::::'])).toBe(false);
+  });
+});
+
 describe('overdueDaysOf (FR-WORK-12)', () => {
   it('rounds up, never below zero', () => {
     const planned = new Date('2026-03-01T00:00:00Z');
