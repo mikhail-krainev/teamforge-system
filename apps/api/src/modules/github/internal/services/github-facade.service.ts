@@ -3,7 +3,13 @@ import { uuidv7 } from 'uuidv7';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { InvariantError } from '../../../../platform/errors/domain-error.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
-import type { GithubApi, RepoExistsResult, RepoLinkView } from '../../public.js';
+import type {
+  GithubApi,
+  GithubContributionSource,
+  RepoExistsResult,
+  RepoLinkView,
+} from '../../public.js';
+import { ItemRepository } from '../webhook/item.repository.js';
 import { repoCheck } from '../schema/repo.js';
 import { RepoInspectionService } from './repo-inspection.service.js';
 import { RepoLinkRepository } from './repo-link.repository.js';
@@ -18,6 +24,7 @@ export class GithubFacade implements GithubApi {
     @Inject(Clock) private readonly clock: Clock,
     @Inject(RepoLinkRepository) private readonly links: RepoLinkRepository,
     @Inject(RepoInspectionService) private readonly inspection: RepoInspectionService,
+    @Inject(ItemRepository) private readonly items: ItemRepository,
   ) {}
 
   async getRepoLink(teamId: string): Promise<RepoLinkView | null> {
@@ -52,9 +59,21 @@ export class GithubFacade implements GithubApi {
     return result;
   }
 
+  async isContributionSourceStanding(
+    source: GithubContributionSource,
+    repositoryId: number,
+    number: number,
+  ): Promise<boolean | null> {
+    const item = await this.items.find(repositoryId, source, number);
+    if (item === undefined) return null;
+    return source === 'pr' ? item.merged : item.state === 'closed';
+  }
+
   async markRepositoryCompleted(teamId: string): Promise<void> {
     if (!this.tx.isActive()) {
-      throw new InvariantError('markRepositoryCompleted must run inside the completion transaction');
+      throw new InvariantError(
+        'markRepositoryCompleted must run inside the completion transaction',
+      );
     }
     await this.links.markCompleted(teamId);
   }

@@ -73,4 +73,38 @@ export class InstallationRepository {
       .limit(1);
     return rows.length === 1;
   }
+
+  async exists(installationId: number): Promise<boolean> {
+    const rows = await this.tx.tx
+      .select({ installationId: ghInstallation.installationId })
+      .from(ghInstallation)
+      .where(eq(ghInstallation.installationId, installationId))
+      .limit(1);
+    return rows.length === 1;
+  }
+
+  /** The state GitHub reported for the installation (a delivery that GitHub itself confirmed). */
+  async setStatus(
+    installationId: number,
+    status: 'active' | 'suspended' | 'deleted',
+    now: Date,
+  ): Promise<void> {
+    await this.tx.tx
+      .update(ghInstallation)
+      .set({ status, updatedAt: now })
+      .where(eq(ghInstallation.installationId, installationId));
+  }
+
+  /** SEC-02: an installation that is gone or suspended opens nothing to anybody; the rows stay as history. */
+  async revokeGrants(installationId: number, now: Date): Promise<void> {
+    await this.tx.tx
+      .update(installationGrant)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(installationGrant.installationId, installationId),
+          isNull(installationGrant.revokedAt),
+        ),
+      );
+  }
 }

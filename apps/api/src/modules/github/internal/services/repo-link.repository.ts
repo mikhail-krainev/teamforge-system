@@ -35,6 +35,27 @@ export class RepoLinkRepository {
     return row;
   }
 
+  /** The active link of a repository (webhooks are bound to the team through it, SEC-06). */
+  async findActiveByRepository(repositoryId: number): Promise<RepoLinkRow | undefined> {
+    const [row] = await this.tx.tx
+      .select()
+      .from(repoLink)
+      .where(and(eq(repoLink.repositoryId, repositoryId), eq(repoLink.status, 'active')))
+      .limit(1);
+    return row;
+  }
+
+  async findActiveByInstallation(installationId: number): Promise<RepoLinkRow[]> {
+    return this.tx.tx
+      .select()
+      .from(repoLink)
+      .where(and(eq(repoLink.installationId, installationId), eq(repoLink.status, 'active')));
+  }
+
+  async updateFullName(id: string, fullName: string): Promise<void> {
+    await this.tx.tx.update(repoLink).set({ fullName }).where(eq(repoLink.id, id));
+  }
+
   /** CC-9: a `23505` on `repo_link_repository_uq` (another team holds it) surfaces as 409 REPO_TAKEN. */
   async insert(link: NewRepoLink): Promise<RepoLinkRow> {
     const [row] = await this.tx.tx

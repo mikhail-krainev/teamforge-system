@@ -32,8 +32,72 @@ export interface GithubApi {
    * the result in `repo_check` (kind `exists`). A GitHub failure rejects; nothing is recorded.
    */
   checkRepositoryExists(teamId: TeamId): Promise<RepoExistsResult>;
+  /**
+   * Whether the issue is closed or the pull request merged now, as the last event or the sync left it;
+   * `null` for an item that is not known. Handlers of contribution events reconcile against it:
+   * deliveries of events are not ordered (architecture 4).
+   */
+  isContributionSourceStanding(
+    source: GithubContributionSource,
+    repositoryId: number,
+    number: number,
+  ): Promise<boolean | null>;
   /** @requiresTx Called in the completion transaction (T6, AF-01): the repository stays taken for good. */
   markRepositoryCompleted(teamId: TeamId): Promise<void>;
 }
 
 export const GITHUB_API = Symbol('GITHUB_API');
+
+/** The source of a contribution that GitHub gives (`github.contribution_detected`, architecture 3.7). */
+export type GithubContributionSource = 'issue' | 'pr';
+
+/** `ref` of a contribution of GitHub: `issue:<repositoryId>#<number>` or `pr:<repositoryId>#<number>`. */
+export function contributionRef(
+  source: GithubContributionSource,
+  repositoryId: number,
+  number: number,
+): string {
+  return `${source}:${repositoryId}#${number}`;
+}
+
+/** The parts of a `ref` made by `contributionRef`, or `null` for any other text. */
+export function parseContributionRef(
+  ref: string,
+): { source: GithubContributionSource; repositoryId: number; number: number } | null {
+  const match = /^(issue|pr):(\d+)#(\d+)$/.exec(ref);
+  if (match === null) return null;
+  return {
+    source: match[1] as GithubContributionSource,
+    repositoryId: Number(match[2]),
+    number: Number(match[3]),
+  };
+}
+
+/**
+ * Payload of `github.contribution_detected` (version 1). The people are listed as users of the
+ * platform who are members of the team; the work itself is named by `ref`.
+ */
+export interface ContributionDetectedPayload {
+  v: 1;
+  teamId: TeamId;
+  repositoryId: number;
+  source: GithubContributionSource;
+  ref: string;
+  number: number;
+  title: string;
+  url: string;
+  userIds: string[];
+  labels: string[];
+  /** When it happened on GitHub (informational: the server time `receivedAt` is what counts, AF-23). */
+  occurredAt: string;
+  receivedAt: string;
+}
+
+/** Payload of `github.contribution_revoked` (an issue was reopened). */
+export interface ContributionRevokedPayload {
+  v: 1;
+  teamId: TeamId;
+  repositoryId: number;
+  source: GithubContributionSource;
+  ref: string;
+}

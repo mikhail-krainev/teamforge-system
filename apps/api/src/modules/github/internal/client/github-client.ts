@@ -62,6 +62,17 @@ const repositoriesPage = z.object({
 const repositoryDetailSchema = repositorySchema.extend({ archived: z.boolean().default(false) });
 const contributorSchema = z.object({ id: z.number().int(), contributions: z.number().int() });
 
+const appInstallationSchema = z.object({
+  id: z.number().int(),
+  suspended_at: z.string().nullish(),
+});
+
+/** The installation as `GET /app/installations/{id}` shows it to the App itself. */
+export interface AppInstallation {
+  id: number;
+  suspended: boolean;
+}
+
 /** A repository as `GET /repositories/{id}` shows it: the facts a binding is decided by. */
 export type RepositoryDetail = z.infer<typeof repositoryDetailSchema>;
 /** A contributor of a repository (anonymous ones, which have no numeric id, are left out). */
@@ -209,6 +220,26 @@ export class GithubClient {
         octokit.request('GET /repositories/{repository_id}', { repository_id: repositoryId }),
       );
       return parseOrUnavailable(repositoryDetailSchema, response.data);
+    } catch (error) {
+      if (error instanceof GithubError && error.kind === 'not_found') return null;
+      throw error;
+    }
+  }
+
+  /**
+   * `GET /app/installations/{id}` with the App JWT: what GitHub says about the installation now, or
+   * `null` when it is gone. Webhooks that would destroy something are checked against it (SEC-06).
+   */
+  async getAppInstallation(installationId: number): Promise<AppInstallation | null> {
+    const jwt = await this.call(async () => (await this.auth()({ type: 'app' })).token);
+    try {
+      const response = await this.call(() =>
+        this.octokit(jwt).request('GET /app/installations/{installation_id}', {
+          installation_id: installationId,
+        }),
+      );
+      const parsed = parseOrUnavailable(appInstallationSchema, response.data);
+      return { id: parsed.id, suspended: parsed.suspended_at != null };
     } catch (error) {
       if (error instanceof GithubError && error.kind === 'not_found') return null;
       throw error;
