@@ -174,9 +174,12 @@ async function hopOnce(
   context: Context,
   url: URL,
   hostname: string,
+  beforeRequest?: () => Promise<void>,
 ): Promise<HopResponse | LinkCheckOutcome> {
   const address = await verifiedAddress(context, hostname);
   if ('ok' in address) return address;
+  // The throttle comes after the address is judged: a forbidden target must not take a slot of a domain.
+  await beforeRequest?.();
   const timeoutMs = hopTimeout(context);
   if (timeoutMs <= 0) return failure('TIMEOUT');
   try {
@@ -202,15 +205,19 @@ async function follow(
 ): Promise<LinkCheckOutcome> {
   let current = targetOf(raw);
   const visited = new Set<string>();
+  // Hosts whose slot this check already holds: the first one is taken by the caller before the check starts.
+  const heldHosts = new Set<string>(current.ok ? [current.hostname] : []);
   for (let redirects = 0; ; redirects += 1) {
     if (!current.ok) return current.outcome;
     visited.add(current.url.href);
-    // The first hop is paused by the caller before the check starts; a hop reached by a redirect is paused here.
-    if (redirects > 0 && options.throttle !== undefined) {
-      const wait = await options.throttle(current.hostname);
+    const { hostname } = current;
+    const takeSlot = async (): Promise<void> => {
+      if (options.throttle === undefined || heldHosts.has(hostname)) return;
+      const wait = await options.throttle(hostname);
       if (wait > 0) throw new DomainBusy(wait);
-    }
-    const answer = await hopOnce(context, current.url, current.hostname);
+      heldHosts.add(hostname);
+    };
+    const answer = await hopOnce(context, current.url, hostname, takeSlot);
     if ('ok' in answer) return answer;
     if (answer.status >= 200 && answer.status < 300) {
       return { ok: true, reason: null, httpStatus: answer.status };

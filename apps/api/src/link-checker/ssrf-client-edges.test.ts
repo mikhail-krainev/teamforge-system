@@ -281,6 +281,56 @@ describe('S5 audit L1/L2: the throttle of every hop and one deadline for the who
     expect(asked).toEqual(['b.example.test', 'c.example.test']);
   });
 
+  it('a redirect to the same host as the first hop is not throttled: the slot was taken by this check', async () => {
+    const c = checker({ responses: [redirect('https://A.Example.test./next'), { status: 200 }] });
+    const asked: string[] = [];
+    const result = await c.check('https://a.example.test/', {
+      throttle: (hostname) => {
+        asked.push(hostname);
+        return Promise.resolve(4_000);
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(asked).toEqual([]);
+    expect(c.hops).toHaveLength(2);
+  });
+
+  it('a host met twice on the chain asks the throttle once', async () => {
+    const c = checker({
+      responses: [
+        redirect('https://b.example.test/'),
+        redirect('https://a.example.test/other'),
+        redirect('https://b.example.test/again'),
+        { status: 200 },
+      ],
+    });
+    const asked: string[] = [];
+    const result = await c.check('https://a.example.test/', {
+      throttle: (hostname) => {
+        asked.push(hostname);
+        return Promise.resolve(0);
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(asked).toEqual(['b.example.test']);
+  });
+
+  it('the address of a redirect is verified before the throttle: a forbidden target takes no slot', async () => {
+    const c = checker({
+      resolve: (hostname) => Promise.resolve([hostname === 'evil.example.test' ? '10.0.0.5' : PUBLIC_IP]),
+      responses: [redirect('https://evil.example.test/')],
+    });
+    const asked: string[] = [];
+    const result = await c.check('https://a.example.test/', {
+      throttle: (hostname) => {
+        asked.push(hostname);
+        return Promise.resolve(0);
+      },
+    });
+    expect(result).toEqual({ ok: false, reason: 'BLOCKED_ADDRESS', httpStatus: null });
+    expect(asked).toEqual([]);
+  });
+
   it('the total deadline ends a slow chain with TIMEOUT even when each hop is within its own time', async () => {
     const slow = (n: number) => () =>
       new Promise<HopResponse>((resolve) =>
