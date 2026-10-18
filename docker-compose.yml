@@ -337,7 +337,7 @@ services:
     environment:
       REDIS_LINKCHECK_URL: redis://linkcheck:${REDIS_LINKCHECK_PASSWORD:?run "pnpm run env:init" first}@redis:6379
       QUEUE_PREFIX: ${QUEUE_PREFIX:-bull}
-      # Same switch as the other services; in production the process refuses to start without SELF_PUBLIC_IPS.
+      # Same switch as the other services; outside development and test the process refuses to start without SELF_PUBLIC_IPS.
       NODE_ENV: ${APP_NODE_ENV:-production}
       SELF_PUBLIC_IPS: ${SELF_PUBLIC_IPS:-}
     depends_on:

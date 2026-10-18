@@ -1842,7 +1842,7 @@ Redis, скользящее окно (Lua-скрипт, атомарно), кл�
 | `REDIS_URL` | api, worker | сессии, кэш, BullMQ, pub/sub; у каждого процесса свой ACL-пользователь (`api`, `worker`), имя и пароль в URL обязательны (13.16) |
 | `REDIS_LINKCHECK_URL` | link-checker | основной Redis, ACL-пользователь `linkcheck` только на ключи `bull:link-check:*` |
 | `REDIS_RESUME_URL` | worker (пользователь `resume_producer`), resume-worker (пользователь `resume`) | отдельный экземпляр `redis-resume`, только очередь `resume-parse` |
-| `SELF_PUBLIC_IPS`, `TRUSTED_PROXY_CIDRS` | link-checker; api | запрещённые адреса SSRF-клиента (публичные IP VPS, 13.12); адреса Caddy и web для `trustProxy` (13.6). `SELF_PUBLIC_IPS` обязателен при `NODE_ENV=production`: без него `link-checker` не стартует (fail closed) |
+| `SELF_PUBLIC_IPS`, `TRUSTED_PROXY_CIDRS` | link-checker; api | запрещённые адреса SSRF-клиента (публичные IP VPS, 13.12); адреса Caddy и web для `trustProxy` (13.6). `SELF_PUBLIC_IPS` (IP-адреса через запятую, каждый проверяется) обязателен при любом `NODE_ENV`, кроме `development` и `test` (в том числе при пустом или опечатанном): без него `link-checker` не стартует (fail closed) |
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET_RESUMES`, `S3_BUCKET_ARTIFACTS`, `FILES_PUBLIC_ORIGIN` | api, worker | хранилище |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_ORIGIN` | api | Better Auth, CSRF |
 | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` (необязательные) | api | вход; по умолчанию равны `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` (7.1), задаются только при переходе на отдельное OAuth App |

@@ -22,6 +22,7 @@ import {
   stagesOf,
   submitReview,
   transition,
+  uploadFile,
   type ChecklistItemDto,
   type RouteFixture,
   type UnmetDto,
@@ -120,6 +121,30 @@ describeInfra(
         );
         expect(await reviewAnswerCount(world, item.id)).toBe(0);
         expect(await riskCount(world, item.id)).toBe(0);
+      });
+
+      it('files cannot be added or removed while the item is done, so a review never judges a replaced file: only reopening (which drops the review) allows it', async () => {
+        const t = await routeTeam(world);
+        const item = await reviewedSpec(t);
+        const files = (await itemOf(t, 'mini_spec')).files;
+        const fileId = files[0]?.id;
+        if (fileId === undefined) throw new Error('the spec item has no file');
+        expectProblem(
+          'uploadArtifactFile',
+          await uploadFile(world, t.backend, t.team.id, item.id),
+          409,
+          'INVALID_STATE',
+        );
+        expectProblem(
+          'deleteArtifactFile',
+          await world
+            .as(t.backend)
+            .delete(`/v1/teams/${t.team.id}/checklist-items/${item.id}/files/${fileId}`),
+          409,
+          'INVALID_STATE',
+        );
+        expect(await reviewAnswerCount(world, item.id)).toBe(3);
+        expect(await riskCount(world, item.id)).toBe(1);
       });
 
       it('a write that changes neither the link nor the status keeps the review', async () => {
