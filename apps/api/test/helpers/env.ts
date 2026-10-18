@@ -1,3 +1,5 @@
+import { processKey } from '../fakes/github-app-types.js';
+
 /** Environment values for tests. Secrets are random-looking test constants, never real ones. */
 export const TEST_SECRET = 'k3Jd9sLq0Zx7Vb2Nm5Ra8Tw1Yp4Hc6Ug';
 export const TEST_ENCRYPTION_KEY =
@@ -23,6 +25,11 @@ export function validEnv(overrides: Record<string, string | undefined> = {}): No
     IP_HASH_SALT: TEST_SECRET,
     SMTP_URL: 'smtp://127.0.0.1:1025',
     MAIL_FROM: 'Teamforge <no-reply@localhost>',
+    // The GitHub App group is complete in every test environment, so production-mode tests start too.
+    GITHUB_APP_ID: '424242',
+    GITHUB_APP_SLUG: 'teamforge-test',
+    GITHUB_APP_PRIVATE_KEY: processKey().privateKeyPem,
+    GITHUB_WEBHOOK_SECRET: 'test-github-webhook-secret-0001',
   };
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) delete env[key];

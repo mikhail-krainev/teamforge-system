@@ -37,6 +37,55 @@ describe('S2SEC-04: RATE_LIMIT_EXEMPT_LOOPBACK', () => {
   });
 });
 
+describe('S6-03: GitHub App settings are validated at startup', () => {
+  const GROUP = [
+    'GITHUB_APP_ID',
+    'GITHUB_APP_SLUG',
+    'GITHUB_APP_PRIVATE_KEY',
+    'GITHUB_WEBHOOK_SECRET',
+  ] as const;
+  const empty = Object.fromEntries(GROUP.map((name) => [name, undefined]));
+
+  it('may be absent as a whole outside production (GitHub is then off)', () => {
+    expect(issuesOf(validEnv(empty))).toEqual([]);
+    expect(loadConfig(validEnv(empty), 'api').GITHUB_APP_ID).toBeUndefined();
+  });
+
+  it('is required in production: every missing name is reported, no values', () => {
+    const production = { NODE_ENV: 'production', APP_ORIGIN: 'https://teamforge.example' };
+    expect(issuesOf(validEnv({ ...production, ...empty }))).toEqual(
+      GROUP.map((name) => ({ name, reason: 'missing' })),
+    );
+    expect(issuesOf(validEnv(production))).toEqual([]);
+  });
+
+  it('is all or nothing: one value alone refuses to start and names the missing ones', () => {
+    expect(issuesOf(validEnv({ ...empty, GITHUB_APP_ID: '12345' }))).toEqual([
+      { name: 'GITHUB_APP_SLUG', reason: 'missing' },
+      { name: 'GITHUB_APP_PRIVATE_KEY', reason: 'missing' },
+      { name: 'GITHUB_WEBHOOK_SECRET', reason: 'missing' },
+    ]);
+  });
+
+  it.each([
+    ['GITHUB_APP_ID', 'abc'],
+    ['GITHUB_APP_ID', '0'],
+    ['GITHUB_APP_SLUG', 'Not A Slug!'],
+    [
+      'GITHUB_APP_PRIVATE_KEY',
+      '-----BEGIN RSA PRIVATE KEY-----\nnot a key\n-----END RSA PRIVATE KEY-----',
+    ],
+    ['GITHUB_WEBHOOK_SECRET', 'short'],
+  ])('rejects an invalid %s', (name, value) => {
+    expect(issuesOf(validEnv({ [name]: value }))).toEqual([{ name, reason: 'invalid' }]);
+  });
+
+  it('accepts the private key with escaped newlines (an .env file cannot hold line breaks)', () => {
+    const escaped = (validEnv().GITHUB_APP_PRIVATE_KEY ?? '').trim().replaceAll('\n', '\\n');
+    expect(issuesOf(validEnv({ GITHUB_APP_PRIVATE_KEY: escaped }))).toEqual([]);
+  });
+});
+
 describe('loadConfig', () => {
   it('accepts a complete environment and freezes the result', () => {
     const config = loadConfig(validEnv(), 'api');
