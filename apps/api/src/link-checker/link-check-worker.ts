@@ -49,58 +49,12 @@ export function startLinkCheckWorker(
   const interval = options.domainIntervalMs ?? DOMAIN_INTERVAL_MS;
   const maxThrottleMs = options.maxThrottleMs ?? MAX_THROTTLE_AGE_MS;
 
-  /**
-   * Milliseconds to wait before this domain may be checked again, 0 when it may be checked now. The slot
-   * is `SET key owner NX PX`: a job that comes back after a delay finds its own slot and keeps it, so a
-   * check that waited for the host of a redirect is not blocked by the slot it took for the first host.
-   */
-  async function pauseFor(rawHostname: string, owner: string): Promise<number> {
-    const hostname = normalizeHostname(rawHostname) ?? rawHostname;
-    const key = `${options.prefix}:${LINK_CHECK_QUEUE}:domain:${hostname}`;
-    if (interval <= 0) return 0;
-    for (let attempt = 0; attempt < SLOT_ATTEMPTS; attempt += 1) {
-      const taken = await options.connection.set(key, owner, 'PX', interval, 'NX');
-      if (taken === 'OK') return 0;
-      const holder = await options.connection.get(key);
-      if (holder === owner) return 0;
-      // The slot expired between the two commands: take it on the next round.
-      if (holder !== null) return Math.max(1_000, await options.connection.pttl(key));
-    }
-    return 1_000;
-  }
+  const claim = (hostname: string, owner: string): Promise<number> =>
+    claimSlot(options, interval, hostname, owner);
 
   const worker = new Worker<unknown, LinkCheckResult>(
     LINK_CHECK_QUEUE,
-    async (job, token) => {
-      const parsed = linkCheckJobSchema.safeParse(job.data);
-      if (!parsed.success) throw new UnrecoverableError('malformed link-check job');
-      const { teamId, itemId, version, url } = parsed.data;
-      const owner = job.id ?? `${itemId}_${version}`;
-      const timedOutResult = (): LinkCheckResult => ({
-        teamId,
-        itemId,
-        version,
-        url,
-        outcome: { ok: false, reason: 'TIMEOUT', httpStatus: null },
-      });
-      const hostname = hostnameOf(url);
-      const wait = hostname === undefined ? 0 : await pauseFor(hostname, owner);
-      if (wait > 0) {
-        // The first host is held by another check: the same limit on waiting as for a redirect host.
-        await deferBusyJob(job, token, parsed.data, wait, maxThrottleMs);
-        return timedOutResult();
-      }
-      try {
-        const outcome = await options.checker.check(url, {
-          throttle: (host) => pauseFor(host, owner),
-        });
-        return { teamId, itemId, version, url, outcome };
-      } catch (error) {
-        if (!(error instanceof DomainBusy)) throw error;
-        await deferBusyJob(job, token, parsed.data, error.waitMs, maxThrottleMs);
-        return timedOutResult();
-      }
-    },
+    (job, token) => processJob(options, claim, maxThrottleMs, job, token),
     {
       connection: options.connection,
       prefix: options.prefix,
@@ -110,6 +64,69 @@ export function startLinkCheckWorker(
   );
   worker.on('error', (error) => options.onError?.(error));
   return worker;
+}
+
+/**
+ * Milliseconds to wait before this domain may be checked again, 0 when it may be checked now. The slot
+ * is `SET key owner NX PX`: a job that comes back after a delay finds its own slot and keeps it, so a
+ * check that waited for the host of a redirect is not blocked by the slot it took for the first host.
+ */
+async function claimSlot(
+  options: LinkCheckWorkerOptions,
+  interval: number,
+  rawHostname: string,
+  owner: string,
+): Promise<number> {
+  const hostname = normalizeHostname(rawHostname) ?? rawHostname;
+  const key = `${options.prefix}:${LINK_CHECK_QUEUE}:domain:${hostname}`;
+  if (interval <= 0) return 0;
+  for (let attempt = 0; attempt < SLOT_ATTEMPTS; attempt += 1) {
+    const taken = await options.connection.set(key, owner, 'PX', interval, 'NX');
+    if (taken === 'OK') return 0;
+    const holder = await options.connection.get(key);
+    if (holder === owner) return 0;
+    // The slot expired between the two commands: take it on the next round.
+    if (holder !== null) return Math.max(1_000, await options.connection.pttl(key));
+  }
+  return 1_000;
+}
+
+/** One job of the queue: the slot of the first host, the check, and the delay or the give-up on a busy domain. */
+async function processJob(
+  options: LinkCheckWorkerOptions,
+  claim: (hostname: string, owner: string) => Promise<number>,
+  maxThrottleMs: number,
+  job: Job,
+  token: string | undefined,
+): Promise<LinkCheckResult> {
+  const parsed = linkCheckJobSchema.safeParse(job.data);
+  if (!parsed.success) throw new UnrecoverableError('malformed link-check job');
+  const { teamId, itemId, version, url } = parsed.data;
+  const owner = job.id ?? `${itemId}_${version}`;
+  const timedOutResult = (): LinkCheckResult => ({
+    teamId,
+    itemId,
+    version,
+    url,
+    outcome: { ok: false, reason: 'TIMEOUT', httpStatus: null },
+  });
+  const hostname = hostnameOf(url);
+  const wait = hostname === undefined ? 0 : await claim(hostname, owner);
+  if (wait > 0) {
+    // The first host is held by another check: the same limit on waiting as for a redirect host.
+    await deferBusyJob(job, token, parsed.data, wait, maxThrottleMs);
+    return timedOutResult();
+  }
+  try {
+    const outcome = await options.checker.check(url, {
+      throttle: (host) => claim(host, owner),
+    });
+    return { teamId, itemId, version, url, outcome };
+  } catch (error) {
+    if (!(error instanceof DomainBusy)) throw error;
+    await deferBusyJob(job, token, parsed.data, error.waitMs, maxThrottleMs);
+    return timedOutResult();
+  }
 }
 
 /**
