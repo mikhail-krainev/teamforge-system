@@ -32,8 +32,8 @@ export class StartService {
   async start(userId: string, teamId: string): Promise<TeamDto> {
     const row = await this.teams.find(teamId);
     if (row === undefined) throw new DomainError('NOT_FOUND', 404);
-    const playbookDays = await this.pinnedPlaybookDays(row);
-    await this.tx.run(() => this.startInTx(userId, teamId, playbookDays));
+    const pinned = { playbookId: row.playbookId, days: await this.pinnedPlaybookDays(row) };
+    await this.tx.run(() => this.startInTx(userId, teamId, pinned));
     return this.view.team(teamId, userId);
   }
 
@@ -54,13 +54,18 @@ export class StartService {
   private async startInTx(
     userId: string,
     teamId: string,
-    playbookDays: number | null,
+    pinned: { playbookId: string; days: number | null },
   ): Promise<void> {
     const locked = await this.leadLock.lock(teamId, userId);
     const refusal = startError(locked.status);
     if (refusal !== undefined) throw new DomainError(refusal, 409);
     const row = await this.teams.find(teamId);
     if (row === undefined) throw new DomainError('NOT_FOUND', 404);
+    // A forming team can be rebound (a stub moved to a real playbook) between the reference read and the
+    // lock. Published playbooks are immutable and take no lock, so the one extra read in the transaction
+    // is harmless; a second transaction is not allowed under one Idempotency-Key.
+    const playbookDays =
+      row.playbookId === pinned.playbookId ? pinned.days : await this.pinnedPlaybookDays(row);
     const now = this.clock.now();
     await this.teams.update(teamId, {
       status: 'active',
