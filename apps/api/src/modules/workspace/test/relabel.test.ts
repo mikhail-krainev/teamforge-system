@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { expectProblem, expectReplayed } from '../../../../test/fixtures/assertions.js';
 import {
   feedOk,
