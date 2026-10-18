@@ -1,10 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { pdfFile } from '../../../../test/fixtures/artifact-files.js';
 import { expectProblem } from '../../../../test/fixtures/assertions.js';
 import { startFakeLinkChecker, type FakeLinkChecker } from '../../../../test/fakes/link-checker.js';
 import { expectOk } from '../../../../test/fixtures/teams.js';
 import {
   advanceStage,
+  assign,
+  doneWithFile,
+  doneWithLink,
   clockOf,
   completeStageOne,
   itemOf,
@@ -19,6 +22,8 @@ import {
 } from '../../../../test/fixtures/workspace.js';
 import { itemRow } from '../../../../test/fixtures/workspace-db.js';
 import type { World } from '../../../../test/fixtures/world.js';
+import { LINK_CHECK_QUEUE } from '../../../link-checker/protocol.js';
+import { QueuesService } from '../../../platform/queues/queues.service.js';
 import { FakeClock } from '../../../../test/helpers/clock.js';
 import { describeInfra, waitFor } from '../../../../test/helpers/infra.js';
 import { startWorld } from './support.js';
@@ -200,6 +205,82 @@ describeInfra(
         await waitForStatus(board.id, 'broken');
         const result = await advanceStage(fx, 1);
         expect(result).toEqual({ closedOrdinal: 1, openedOrdinal: 2 });
+      });
+    });
+
+    describe('submission either: the way that was used is checked (S5 review H1)', () => {
+      /** The optional `either` step (file_ok + link_https) made obligatory, executor: the frontend member. */
+      const eitherRequired = async (fx: RouteFixture): Promise<void> => {
+        const item = await itemOf(fx, 'mini_optional');
+        await world.sql`UPDATE workspace.checklist_item SET required = true WHERE id = ${item.id}`;
+        const fresh = await itemOf(fx, 'mini_optional');
+        expectOk(
+          'assignChecklistItem',
+          await assign(world, fx.lead, fx.team.id, fresh, fx.frontend.id),
+          200,
+        );
+      };
+
+      it('one link and no file: the transition goes through', async () => {
+        checker.respondWith(() => OK);
+        const fx = await routeTeam(world);
+        await completeStageOne(fx);
+        await eitherRequired(fx);
+        await doneWithLink(fx, 'mini_optional', fx.frontend, 1, 'https://example.test/notes');
+        const result = await advanceStage(fx, 1);
+        expect(result).toEqual({ closedOrdinal: 1, openedOrdinal: 2 });
+      });
+
+      it('one file and no link: the transition goes through', async () => {
+        const fx = await routeTeam(world);
+        await completeStageOne(fx);
+        await eitherRequired(fx);
+        await doneWithFile(fx, 'mini_optional', fx.frontend);
+        const result = await advanceStage(fx, 1);
+        expect(result).toEqual({ closedOrdinal: 1, openedOrdinal: 2 });
+      });
+
+      it('a link the policy rejected and no file still blocks with AUTO_CHECKS_FAILED', async () => {
+        checker.respondWith(() => OK);
+        const fx = await routeTeam(world);
+        await completeStageOne(fx);
+        await eitherRequired(fx);
+        await world.sql`
+          UPDATE workspace.checklist_item
+             SET link_url = 'https://example.test/internal', link_status = 'rejected', status = 'done'
+           WHERE id = ${(await itemOf(fx, 'mini_optional')).id}`;
+        waitMinimumStageTime(world);
+        const problem = expectProblem(
+          'transitionStage',
+          await transition(world, fx.lead, fx.team.id, 1),
+          409,
+          'STAGE_TRANSITION_BLOCKED',
+        );
+        const unmet = (problem as unknown as { unmet: UnmetDto[] }).unmet;
+        expect(unmet.map((u) => u.code)).toContain('AUTO_CHECKS_FAILED');
+      });
+    });
+
+    describe('a queue that fails after the commit (S5 review L3)', () => {
+      it('the save answers 200, the link waits as `unchecked`, and the sweep checks it later', async () => {
+        const fx = await routeTeam(world);
+        const queues = world.app.get(QueuesService);
+        const original = queues.add.bind(queues);
+        const add = vi
+          .spyOn(queues, 'add')
+          .mockImplementation((queue, ...rest) =>
+            queue === LINK_CHECK_QUEUE
+              ? Promise.reject(new Error('redis is down'))
+              : original(queue, ...rest),
+          );
+        try {
+          const saved = await saveBoardLink(fx, 'https://example.test/queue-down');
+          expect(add.mock.calls.filter(([queue]) => queue === LINK_CHECK_QUEUE)).toHaveLength(1);
+          expect(saved).toMatchObject({ linkStatus: 'unchecked' });
+          expect(await linkStatusOf(saved.id)).toBe('unchecked');
+        } finally {
+          add.mockRestore();
+        }
       });
     });
 

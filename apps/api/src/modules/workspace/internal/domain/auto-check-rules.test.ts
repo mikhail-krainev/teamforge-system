@@ -7,6 +7,7 @@ import {
 
 const artifact = (over: Partial<AutoCheckFacts> = {}): AutoCheckFacts => ({
   kind: 'artifact',
+  submission: null,
   linkUrl: null,
   linkStatus: 'none',
   heldOn: null,
@@ -17,6 +18,52 @@ const artifact = (over: Partial<AutoCheckFacts> = {}): AutoCheckFacts => ({
 });
 
 describe('failedBlockingChecks (FR-PLAY-08: file_ok, ritual_fields, link_https)', () => {
+  describe('submission either: the way the executor used is the one that is checked', () => {
+    const both = ['file_ok', 'link_https'];
+    const either = (over: Partial<AutoCheckFacts>) => artifact({ submission: 'either', ...over });
+
+    it('one file and no link passes', () => {
+      expect(failedBlockingChecks(both, either({ filesCount: 1 }))).toEqual([]);
+    });
+
+    it('one link and no file passes', () => {
+      expect(
+        failedBlockingChecks(
+          both,
+          either({ linkUrl: 'https://a.example.test/', linkStatus: 'ok' }),
+        ),
+      ).toEqual([]);
+    });
+
+    it('a rejected link with no file still fails link_https', () => {
+      expect(
+        failedBlockingChecks(
+          both,
+          either({ linkUrl: 'https://a.example.test/', linkStatus: 'rejected' }),
+        ),
+      ).toEqual(['link_https']);
+    });
+
+    it('a rejected link is rescued by a file', () => {
+      expect(
+        failedBlockingChecks(
+          both,
+          either({ linkUrl: 'https://a.example.test/', linkStatus: 'rejected', filesCount: 1 }),
+        ),
+      ).toEqual([]);
+    });
+
+    it('neither a file nor a link fails both', () => {
+      expect(failedBlockingChecks(both, either({}))).toEqual(['file_ok', 'link_https']);
+    });
+
+    it('a step of submission file keeps file_ok strict', () => {
+      expect(failedBlockingChecks(['file_ok'], artifact({ submission: 'file' }))).toEqual([
+        'file_ok',
+      ]);
+    });
+  });
+
   it('file_ok fails without a stored file and passes with one', () => {
     expect(failedBlockingChecks(['file_ok'], artifact())).toEqual(['file_ok']);
     expect(failedBlockingChecks(['file_ok'], artifact({ filesCount: 1 }))).toEqual([]);
