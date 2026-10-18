@@ -289,6 +289,58 @@ describeInfra(
   },
 );
 
+describeInfra(
+  'link-checker: a redirect to a busy host does not block the retry on the slot the job holds (review M2/M3)',
+  ['redis'],
+  () => {
+    const prefix = uniqueQueuePrefix();
+    let h: Harness;
+    let redis: Redis;
+    const unique = randomUUID().slice(0, 8);
+    const keyOf = (host: string): string => `${prefix}:${LINK_CHECK_QUEUE}:domain:${host}`;
+
+    beforeAll(async () => {
+      redis = new Redis(process.env.REDIS_URL ?? '', { maxRetriesPerRequest: null });
+      const checker = createLinkChecker({
+        resolve: () => Promise.resolve(['93.184.216.34']),
+        request: (hop) =>
+          Promise.resolve(
+            hop.host.startsWith('a-')
+              ? { status: 302, location: `https://b-${unique}.example.test/final` }
+              : { status: 200 },
+          ),
+      });
+      h = startHarness({
+        prefix,
+        redisUrl: process.env.REDIS_URL ?? '',
+        domainIntervalMs: 60_000,
+        maxThrottleMs: 2_000,
+        checker,
+      });
+      await h.events.waitUntilReady();
+    });
+
+    afterAll(async () => {
+      redis?.disconnect();
+      if (h) await h.close();
+    });
+
+    it('A -> B with B busy: the retry reuses the slot of A that the job holds and succeeds once B is free', async () => {
+      await redis.set(keyOf(`b-${unique}.example.test`), 'another-job', 'PX', 1_500);
+      const result = await run(h, `https://a-${unique}.example.test/start`);
+      expect(result.outcome).toEqual(OK);
+    }, 20_000);
+
+    it('a first host held by another job ends as a TIMEOUT within the limit, not an endless wait (M3)', async () => {
+      await redis.set(keyOf(`held-${unique}.example.test`), 'another-job', 'PX', 60_000);
+      const started = Date.now();
+      const result = await run(h, `https://held-${unique}.example.test/page`);
+      expect(result.outcome).toEqual({ ok: false, reason: 'TIMEOUT', httpStatus: null });
+      expect(Date.now() - started).toBeLessThan(8_000);
+    }, 20_000);
+  },
+);
+
 describeInfra('link-checker: one spelling of a host for the pause', ['redis'], () => {
   const prefix = uniqueQueuePrefix();
   let h: Harness;

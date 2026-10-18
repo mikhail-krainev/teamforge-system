@@ -17,6 +17,8 @@ import {
 /** C-46: at most one check per domain per minute. */
 export const DOMAIN_INTERVAL_MS = 60_000;
 const DEFAULT_CONCURRENCY = 5;
+const SLOT_ATTEMPTS = 3;
+const MIN_DELAY_MS = 1_000;
 /** The lock of a job outlasts the deadline of a check, or a slow check would be taken for a stalled one. */
 const LOCK_MARGIN_MS = 30_000;
 /** A job that keeps meeting a busy domain is given up this long after the first busy answer: a `TIMEOUT`, a warning only. */
@@ -47,14 +49,24 @@ export function startLinkCheckWorker(
   const interval = options.domainIntervalMs ?? DOMAIN_INTERVAL_MS;
   const maxThrottleMs = options.maxThrottleMs ?? MAX_THROTTLE_AGE_MS;
 
-  /** Milliseconds to wait before this domain may be checked again, 0 when it may be checked now. */
-  async function pauseFor(rawHostname: string): Promise<number> {
+  /**
+   * Milliseconds to wait before this domain may be checked again, 0 when it may be checked now. The slot
+   * is `SET key owner NX PX`: a job that comes back after a delay finds its own slot and keeps it, so a
+   * check that waited for the host of a redirect is not blocked by the slot it took for the first host.
+   */
+  async function pauseFor(rawHostname: string, owner: string): Promise<number> {
     const hostname = normalizeHostname(rawHostname) ?? rawHostname;
     const key = `${options.prefix}:${LINK_CHECK_QUEUE}:domain:${hostname}`;
     if (interval <= 0) return 0;
-    const taken = await options.connection.set(key, '1', 'PX', interval, 'NX');
-    if (taken === 'OK') return 0;
-    return Math.max(1_000, await options.connection.pttl(key));
+    for (let attempt = 0; attempt < SLOT_ATTEMPTS; attempt += 1) {
+      const taken = await options.connection.set(key, owner, 'PX', interval, 'NX');
+      if (taken === 'OK') return 0;
+      const holder = await options.connection.get(key);
+      if (holder === owner) return 0;
+      // The slot expired between the two commands: take it on the next round.
+      if (holder !== null) return Math.max(1_000, await options.connection.pttl(key));
+    }
+    return 1_000;
   }
 
   const worker = new Worker<unknown, LinkCheckResult>(
@@ -63,23 +75,30 @@ export function startLinkCheckWorker(
       const parsed = linkCheckJobSchema.safeParse(job.data);
       if (!parsed.success) throw new UnrecoverableError('malformed link-check job');
       const { teamId, itemId, version, url } = parsed.data;
+      const owner = job.id ?? `${itemId}_${version}`;
+      const timedOutResult = (): LinkCheckResult => ({
+        teamId,
+        itemId,
+        version,
+        url,
+        outcome: { ok: false, reason: 'TIMEOUT', httpStatus: null },
+      });
       const hostname = hostnameOf(url);
-      const wait = hostname === undefined ? 0 : await pauseFor(hostname);
+      const wait = hostname === undefined ? 0 : await pauseFor(hostname, owner);
       if (wait > 0) {
-        await job.moveToDelayed(Date.now() + wait, token);
-        throw new DelayedError();
+        // The first host is held by another check: the same limit on waiting as for a redirect host.
+        await deferBusyJob(job, token, parsed.data, wait, maxThrottleMs);
+        return timedOutResult();
       }
       try {
-        const outcome = await options.checker.check(url, { throttle: pauseFor });
+        const outcome = await options.checker.check(url, {
+          throttle: (host) => pauseFor(host, owner),
+        });
         return { teamId, itemId, version, url, outcome };
       } catch (error) {
         if (!(error instanceof DomainBusy)) throw error;
-        const timedOut = await deferBusyJob(job, token, parsed.data, error.waitMs, maxThrottleMs);
-        if (timedOut) {
-          const outcome: LinkCheckOutcome = { ok: false, reason: 'TIMEOUT', httpStatus: null };
-          return { teamId, itemId, version, url, outcome };
-        }
-        throw new DelayedError();
+        await deferBusyJob(job, token, parsed.data, error.waitMs, maxThrottleMs);
+        return timedOutResult();
       }
     },
     {
@@ -94,8 +113,8 @@ export function startLinkCheckWorker(
 }
 
 /**
- * A check met a busy domain: runs it again later, or reports that the time allowed for waiting (counted
- * from the first busy answer, kept in the job data) has run out. Throws `DelayedError` after moving the job.
+ * A check met a busy domain: moves the job and throws `DelayedError`, or just returns when the time allowed
+ * for waiting (counted from the first busy answer, kept in the job data) has run out.
  */
 async function deferBusyJob(
   job: Job,
@@ -103,11 +122,17 @@ async function deferBusyJob(
   data: LinkCheckJobData,
   waitMs: number,
   maxThrottleMs: number,
-): Promise<boolean> {
+): Promise<void> {
   const firstBusyAt = data.firstBusyAt ?? Date.now();
-  if (Date.now() - firstBusyAt > maxThrottleMs) return true;
+  const age = Date.now() - firstBusyAt;
+  if (age > maxThrottleMs) return;
   if (data.firstBusyAt === undefined) await job.updateData({ ...data, firstBusyAt });
-  await job.moveToDelayed(Date.now() + Math.max(1_000, waitMs), token);
+  // Never sleep past the limit, so the last look at the domain happens right after it.
+  const delay = Math.min(
+    Math.max(MIN_DELAY_MS, waitMs),
+    Math.max(MIN_DELAY_MS, maxThrottleMs - age + 1),
+  );
+  await job.moveToDelayed(Date.now() + delay, token);
   throw new DelayedError();
 }
 
