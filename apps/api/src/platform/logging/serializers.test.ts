@@ -53,6 +53,19 @@ describe('log serializers (SEC-07)', () => {
     expect(serializeErr(new Error('no url here: a?b=c'))['message']).toBe('no url here: a?b=c');
   });
 
+  it('masks userinfo of any URL in a message, a stack and the causes (https://user:pass@host)', () => {
+    const inner = new Error('connect to https://alice:hunter2@files.example.test/doc failed');
+    const outer = new Error('fetch failed', { cause: inner });
+    outer.stack = `Error: fetch failed\n    at run (https://bob:pw9@host.test/x.js:1:1)`;
+    const serialized = serializeErr(outer);
+    const text = JSON.stringify(serialized);
+    for (const secret of ['alice', 'hunter2', 'bob', 'pw9']) expect(text).not.toContain(secret);
+    expect(text).toContain('https://[redacted]@files.example.test/doc');
+    expect(serializeErr(new Error('mail a@b.test and https://host.test/p@q'))['message']).toBe(
+      'mail a@b.test and https://host.test/p@q',
+    );
+  });
+
   it('redacts the fields listed in architecture 13.4', () => {
     expect(REDACT_PATHS).toEqual(
       expect.arrayContaining([
