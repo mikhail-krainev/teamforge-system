@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { forbiddenVariables, loadLinkCheckerEnv, LinkCheckerEnvError } from './env.js';
 
-const BASE = { REDIS_LINKCHECK_URL: 'redis://linkcheck:secret@redis:6379' };
+const BASE = { REDIS_LINKCHECK_URL: 'redis://linkcheck:secret@redis:6379', NODE_ENV: 'test' };
 
 describe('loadLinkCheckerEnv', () => {
   it('takes the Redis user, the prefix, own addresses and limits, with defaults', () => {
@@ -72,6 +72,33 @@ describe('loadLinkCheckerEnv', () => {
         .selfPublicIps,
     ).toEqual(['203.0.114.7']);
     expect(loadLinkCheckerEnv({ ...BASE, NODE_ENV: 'development' }).selfPublicIps).toEqual([]);
+  });
+
+  it('fails closed when NODE_ENV is missing or anything but development and test', () => {
+    const { NODE_ENV: _omitted, ...withoutNodeEnv } = BASE;
+    for (const env of [
+      withoutNodeEnv,
+      { ...BASE, NODE_ENV: 'staging' },
+      { ...BASE, NODE_ENV: 'Production' },
+      { ...BASE, NODE_ENV: '' },
+    ]) {
+      expect(() => loadLinkCheckerEnv(env)).toThrow(/SELF_PUBLIC_IPS/);
+    }
+    expect(
+      loadLinkCheckerEnv({ ...withoutNodeEnv, SELF_PUBLIC_IPS: '203.0.114.7' }).selfPublicIps,
+    ).toEqual(['203.0.114.7']);
+  });
+
+  it('refuses a SELF_PUBLIC_IPS entry that is not an IP address, naming the variable only', () => {
+    for (const bad of ['203.0.114.7, not-an-ip', 'example.com', '10.0.0', '203.0.114.7/32', '1.2.3.4:80']) {
+      const env = { ...BASE, SELF_PUBLIC_IPS: bad };
+      expect(() => loadLinkCheckerEnv(env), bad).toThrow(LinkCheckerEnvError);
+      expect(() => loadLinkCheckerEnv(env), bad).toThrow(/SELF_PUBLIC_IPS/);
+    }
+    expect(
+      loadLinkCheckerEnv({ ...BASE, NODE_ENV: 'production', SELF_PUBLIC_IPS: '2a01:4f8::1' })
+        .selfPublicIps,
+    ).toEqual(['2a01:4f8::1']);
   });
 
   it('takes the total deadline of one check, with a default above the time of a hop', () => {

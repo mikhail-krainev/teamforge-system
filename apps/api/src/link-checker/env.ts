@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { z } from 'zod';
 
 /**
@@ -60,10 +61,15 @@ export function loadLinkCheckerEnv(env: NodeJS.ProcessEnv): LinkCheckerEnv {
     .split(',')
     .map((ip) => ip.trim())
     .filter((ip) => ip !== '');
-  // Fail closed: without its own public addresses the checker cannot refuse a request to a service of this server.
-  if (parsed.data.NODE_ENV === 'production' && own.length === 0) {
+  if (own.some((ip) => isIP(ip) === 0)) {
+    throw new LinkCheckerEnvError('Invalid link-checker environment: SELF_PUBLIC_IPS');
+  }
+  // Fail closed: without its own public addresses the checker cannot refuse a request to a service of this
+  // server, so every environment but the two local ones (a missing or misspelled NODE_ENV included) needs them.
+  const isLocalEnvironment = ['development', 'test'].includes(parsed.data.NODE_ENV ?? '');
+  if (!isLocalEnvironment && own.length === 0) {
     throw new LinkCheckerEnvError(
-      'Invalid link-checker environment: SELF_PUBLIC_IPS (required in production)',
+      'Invalid link-checker environment: SELF_PUBLIC_IPS (required outside development and test)',
     );
   }
   return {
