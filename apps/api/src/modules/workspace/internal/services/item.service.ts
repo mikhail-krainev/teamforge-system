@@ -127,9 +127,11 @@ export class ItemService {
   }
 
   /**
-   * x-authz of updateChecklistItem: the fields of an item are written by its executor (any member
-   * while nobody is assigned, FR-WORK-02) or by the lead; the role of the contribution is the
-   * executor's own choice among the roles he holds (FR-WORK-17).
+   * x-authz of updateChecklistItem: the fields of an item are written by its executor or by the lead;
+   * the role of the contribution is the executor's own choice among the roles he holds (FR-WORK-17).
+   * While nobody is assigned (FR-WORK-02, -03): a step of `owner_role: any` is open to every member; any
+   * other step to the lead and to a holder of its role (an alternative role included), and a required step on
+   * the fallback to the lead alone, who names the executor (an optional one needs no executor).
    */
   private async assertMayWrite(
     leadUserId: string | null,
@@ -137,17 +139,32 @@ export class ItemService {
     userId: string,
     body: Patch,
   ): Promise<void> {
-    const isExecutor = item.assigneeUserId === null || item.assigneeUserId === userId;
+    const isExecutor =
+      item.assigneeUserId === userId ||
+      (item.assigneeUserId === null && (await this.mayTakeUp(item, userId)));
     if (!isExecutor && leadUserId !== userId) throw new DomainError('FORBIDDEN', 403);
-    if (typeof body.roleCode !== 'string') return;
+    if (body.roleCode === undefined) return;
     if (!isExecutor) throw new DomainError('FORBIDDEN', 403);
-    const roster = await this.teams.getRoster(item.teamId);
-    const held = roster.find((member) => member.userId === userId)?.roles ?? [];
-    if (!held.some((role) => role.roleCode === body.roleCode)) {
+    const held = await this.rolesHeldBy(item.teamId, userId);
+    if (typeof body.roleCode !== 'string' || !held.includes(body.roleCode)) {
       throw new DomainError('VALIDATION_FAILED', 422, {
         errors: [{ pointer: '/roleCode', message: 'The role is not held by the executor' }],
       });
     }
+  }
+
+  /** Nobody is assigned: may this member write the item as its prospective executor? */
+  private async mayTakeUp(item: ItemRow, userId: string): Promise<boolean> {
+    if (item.ownerRole === 'any') return true;
+    // An optional step on the fallback needs no executor (FR-WORK-02): it is advice, open to every member.
+    if (item.fallbackUsed) return !item.required;
+    const held = await this.rolesHeldBy(item.teamId, userId);
+    return held.some((role) => role === item.ownerRole || item.altRoles.includes(role));
+  }
+
+  private async rolesHeldBy(teamId: string, userId: string): Promise<string[]> {
+    const roster = await this.teams.getRoster(teamId);
+    return (roster.find((member) => member.userId === userId)?.roles ?? []).map((r) => r.roleCode);
   }
 
   private changesOf(item: ItemRow, body: Patch, userId: string, now: Date): ItemChanges {

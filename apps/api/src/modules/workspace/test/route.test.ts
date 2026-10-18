@@ -634,6 +634,86 @@ describeInfra(
         expect(good.roleCode).toBe('backend');
       });
 
+      it('FR-WORK-02: a step of a role without an executor is written by its holders and the lead, not by any member; owner_role any stays open to all', async () => {
+        const t = await startedTeamWithRoles(world, ['backend', 'backend', 'frontend']);
+        const spec = (await checklistOf(world, t.lead, t.teamId, 1)).find(
+          (i) => i.stepKey === 'mini_spec',
+        );
+        if (spec === undefined) throw new Error('mini_spec missing');
+        const [firstBackend, , frontend] = t.holders;
+        if (firstBackend === undefined || frontend === undefined) throw new Error('no holders');
+        const write = (who: typeof frontend, version: number, name: string) =>
+          patchItem(world, who, t.teamId, spec.id, {
+            version,
+            linkUrl: `https://example.test/${name}`,
+          });
+        expectProblem(
+          'updateChecklistItem',
+          await write(frontend, spec.version, 'f'),
+          403,
+          'FORBIDDEN',
+        );
+        const byHolder = expectOk<ChecklistItemDto>(
+          'updateChecklistItem',
+          await write(firstBackend, spec.version, 'b'),
+          200,
+        );
+        const byLead = expectOk<ChecklistItemDto>(
+          'updateChecklistItem',
+          await write(t.lead, byHolder.version, 'l'),
+          200,
+        );
+        expect(byLead.linkUrl).toBe('https://example.test/l');
+        const board = (await checklistOf(world, t.lead, t.teamId, 1)).find(
+          (i) => i.stepKey === 'mini_board',
+        );
+        if (board === undefined) throw new Error('mini_board missing');
+        expectOk(
+          'updateChecklistItem',
+          await patchItem(world, frontend, t.teamId, board.id, {
+            version: board.version,
+            linkUrl: 'https://example.test/any',
+          }),
+          200,
+        );
+      });
+
+      it('FR-WORK-03: a fallback step without an executor is written by the lead only', async () => {
+        const t = await routeTeam(world);
+        const charter = await itemOf(t, 'mini_charter');
+        expect(charter.fallbackUsed).toBe(true);
+        const refused = await patchItem(world, t.backend, t.team.id, charter.id, {
+          version: charter.version,
+          linkUrl: 'https://example.test/charter',
+        });
+        expectProblem('updateChecklistItem', refused, 403, 'FORBIDDEN');
+        expectOk(
+          'updateChecklistItem',
+          await patchItem(world, t.lead, t.team.id, charter.id, {
+            version: charter.version,
+            linkUrl: 'https://example.test/charter',
+          }),
+          200,
+        );
+      });
+
+      it('FR-WORK-17: only the executor picks the contribution role; anyone else is 403 (null is not in the contract: 400)', async () => {
+        const t = await routeTeam(world);
+        const spec = await itemOf(t, 'mini_spec');
+        expect(spec.assigneeUserId).toBe(t.backend.id);
+        const response = await patchItem(world, t.lead, t.team.id, spec.id, {
+          version: spec.version,
+          roleCode: 'backend',
+        });
+        expectProblem('updateChecklistItem', response, 403, 'FORBIDDEN');
+        const cleared = await patchItem(world, t.lead, t.team.id, spec.id, {
+          version: spec.version,
+          roleCode: null,
+        });
+        expectProblem('updateChecklistItem', cleared, 400, 'VALIDATION_FAILED');
+        expect((await itemOf(t, 'mini_spec')).version).toBe(spec.version);
+      });
+
       it('FR-WORK-07: unknown fields in the body are refused (additionalProperties: false); a foreign field like teamId is not applied', async () => {
         const t = await routeTeam(world);
         const board = await itemOf(t, 'mini_board');
