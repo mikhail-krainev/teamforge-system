@@ -59,6 +59,14 @@ const repositoriesPage = z.object({
   repositories: z.array(z.unknown()),
 });
 
+const repositoryDetailSchema = repositorySchema.extend({ archived: z.boolean().default(false) });
+const contributorSchema = z.object({ id: z.number().int(), contributions: z.number().int() });
+
+/** A repository as `GET /repositories/{id}` shows it: the facts a binding is decided by. */
+export type RepositoryDetail = z.infer<typeof repositoryDetailSchema>;
+/** A contributor of a repository (anonymous ones, which have no numeric id, are left out). */
+export type RepositoryContributor = z.infer<typeof contributorSchema>;
+
 /** An installation as `GET /user/installations` shows it to the user who authorized the App. */
 export type UserInstallation = z.infer<typeof userInstallationSchema>;
 /** A repository of an installation (the fields the lead chooses by). */
@@ -186,6 +194,43 @@ export class GithubClient {
       return repository.success ? [repository.data] : [];
     });
     return { items, hasMore: page * perPage < parsed.total_count };
+  }
+
+  /**
+   * `GET /repositories/{id}` with an installation token: `null` when the installation cannot see the
+   * repository (it is not on it, was removed or never existed), which is what a guessed id looks like.
+   */
+  async getRepository(
+    installationId: number,
+    repositoryId: number,
+  ): Promise<RepositoryDetail | null> {
+    try {
+      const response = await this.installationRequest(installationId, (octokit) =>
+        octokit.request('GET /repositories/{repository_id}', { repository_id: repositoryId }),
+      );
+      return parseOrUnavailable(repositoryDetailSchema, response.data);
+    } catch (error) {
+      if (error instanceof GithubError && error.kind === 'not_found') return null;
+      throw error;
+    }
+  }
+
+  /** First page (100) of `GET /repositories/{id}/contributors`; enough to tell a fork with own commits. */
+  async listContributors(
+    installationId: number,
+    repositoryId: number,
+  ): Promise<RepositoryContributor[]> {
+    const response = await this.installationRequest(installationId, (octokit) =>
+      octokit.request('GET /repositories/{repository_id}/contributors', {
+        repository_id: repositoryId,
+        per_page: PAGE_SIZE,
+      }),
+    );
+    if (!Array.isArray(response.data)) throw new GithubError('unavailable');
+    return response.data.flatMap((raw: unknown) => {
+      const parsed = contributorSchema.safeParse(raw);
+      return parsed.success ? [parsed.data] : [];
+    });
   }
 
   /**

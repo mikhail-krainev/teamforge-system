@@ -12,6 +12,7 @@ export interface ConstraintMapping {
 const registry = new Map<string, ConstraintMapping>([
   ['seat_assignment_active_seat_uq', { code: 'SEAT_TAKEN', status: 409 }],
   ['repo_link_repository_uq', { code: 'REPO_TAKEN', status: 409 }],
+  ['repo_link_team_active_uq', { code: 'INVALID_STATE', status: 409 }],
   ['search_application_active_uq', { code: 'APPLICATION_EXISTS', status: 409 }],
   ['leader_vote_open_uq', { code: 'VOTE_ALREADY_OPEN', status: 409 }],
   ['vote_ballot_pk', { code: 'ALREADY_VOTED', status: 409 }],
