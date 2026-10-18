@@ -97,6 +97,10 @@ export function sanitizeDatabaseError(err: unknown): (Error & { code?: string })
   return clean;
 }
 
+/** A URL in a message may carry a token in its query string or fragment (a user link, a signed link). */
+const URL_WITH_QUERY = /(https?:\/\/[^\s?#"'<>]*)[?#][^\s"'<>]*/gi;
+const redactUrlQueries = (text: string): string => text.replace(URL_WITH_QUERY, '$1?[redacted]');
+
 /** Error serializer without request/config details that HTTP clients attach (URLs, headers). */
 export function serializeErr(err: unknown): Record<string, unknown> {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -106,9 +110,9 @@ export function serializeErr(err: unknown): Record<string, unknown> {
   const withCode = err as Error & { code?: unknown };
   return {
     type: err.name,
-    message: err.message,
+    message: redactUrlQueries(err.message),
     code: typeof withCode.code === 'string' ? withCode.code : undefined,
-    stack: err.stack,
+    stack: err.stack === undefined ? undefined : redactUrlQueries(err.stack),
   };
 }
 

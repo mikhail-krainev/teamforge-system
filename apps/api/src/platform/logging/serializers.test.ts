@@ -38,6 +38,21 @@ describe('log serializers (SEC-07)', () => {
     expect(serialized).toMatchObject({ type: 'Error', message: 'failed' });
   });
 
+  it('cuts the query string and fragment of any URL in an error message or stack: user links carry tokens', () => {
+    const error = new Error(
+      'request to https://files.example.test/doc?X-Amz-Signature=SECRET&token=SECRET2#frag failed',
+    );
+    error.stack = `Error: ${error.message}\n    at run (file.ts:1:1)`;
+    const serialized = serializeErr(error);
+    const text = JSON.stringify(serialized);
+    expect(text).not.toContain('SECRET');
+    expect(text).not.toContain('frag');
+    expect(serialized['message']).toBe(
+      'request to https://files.example.test/doc?[redacted] failed',
+    );
+    expect(serializeErr(new Error('no url here: a?b=c'))['message']).toBe('no url here: a?b=c');
+  });
+
   it('redacts the fields listed in architecture 13.4', () => {
     expect(REDACT_PATHS).toEqual(
       expect.arrayContaining([

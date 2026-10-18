@@ -303,6 +303,14 @@ describeInfra(
         await waitForStatus(id, 'ok');
       });
 
+      it('a link left unchecked for half an hour (the enqueue failed long ago) is queued again and gets its verdict', async () => {
+        checker.respondWith(() => OK);
+        const fx = await routeTeam(world);
+        const id = await stuckLink(fx, 30 * 60_000);
+        await world.runMaintenance('link-check-sweep');
+        await waitForStatus(id, 'ok');
+      });
+
       it('a link that waited less than five minutes is left alone', async () => {
         const fx = await routeTeam(world);
         const before = checker.seen.length;
