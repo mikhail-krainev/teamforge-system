@@ -15,9 +15,9 @@ const SCAN_EVERY_MS = 15 * 60_000;
 const SCAN_BATCH = 200;
 
 /**
- * `stage-due-notify` (timers, architecture 8.3, FR-WORK-19): a day before the due date of the open
- * stage and again when it is past, every member hears about it once (`dedupe_key` per stage and
- * phase). Stage deadlines do not run while the team is suspended (FR-WORK-18): such a team is
+ * `stage-due-notify` (timers, architecture 8.3, FR-WORK-19): two days before the due date of the open
+ * stage (C-54), on the day of it and again when it is past, every member hears about it once
+ * (`dedupe_key` per stage and phase). Stage deadlines do not run while the team is suspended (FR-WORK-18): such a team is
  * skipped and gets its notice after it works again. Lateness is only a warning (FR-WORK-12).
  * It does not queue per-stage jobs, so there is nothing to lose in Redis; running it twice in a
  * row creates nothing new.
@@ -44,20 +44,26 @@ export class StageDueNotify implements OnModuleInit {
   }
 
   /** Returns the number of notifications created. */
-  async scan(): Promise<number> {
+  async scan(batchSize = SCAN_BATCH): Promise<number> {
     const now = this.clock.now();
-    const stages = await this.tx.run(() =>
-      this.transitions.dueBefore(new Date(now.getTime() + STAGE_DUE_SOON_MS), SCAN_BATCH),
-    );
+    const until = new Date(now.getTime() + STAGE_DUE_SOON_MS);
     let created = 0;
-    for (const stage of stages) {
-      try {
-        created += await this.tx.run(() => this.notify(stage, now));
-      } catch (error) {
-        this.logger.error({ err: error }, `stage-due-notify failed for stage ${stage.id}`);
+    let after: { dueAt: Date; id: string } | undefined;
+    // Walk every page: a page full of stages that are handled already must not hide the later ones.
+    for (;;) {
+      const cursor = after;
+      const stages = await this.tx.run(() => this.transitions.dueBefore(until, batchSize, cursor));
+      for (const stage of stages) {
+        try {
+          created += await this.tx.run(() => this.notify(stage, now));
+        } catch (error) {
+          this.logger.error({ err: error }, `stage-due-notify failed for stage ${stage.id}`);
+        }
       }
+      const last = stages.at(-1);
+      if (last === undefined || last.dueAt === null || stages.length < batchSize) return created;
+      after = { dueAt: last.dueAt, id: last.id };
     }
-    return created;
   }
 
   private async notify(

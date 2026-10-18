@@ -90,15 +90,21 @@ export function nextOrdinal(ordinals: readonly number[], from: number): number |
   return ordinals.filter((o) => o > from).sort((a, b) => a - b)[0];
 }
 
-/** Stages of a project whose end is near: the timer `stage-due-notify` tells the team (FR-WORK-19). */
-export const STAGE_DUE_SOON_MS = 24 * 3_600_000;
+/** C-54: a stage is announced two days before its deadline (FR-WORK-19). */
+export const STAGE_DUE_SOON_MS = 48 * 3_600_000;
 
-export type StageDuePhase = 'soon' | 'overdue';
+const DAY_MS = 24 * 3_600_000;
+
+/** `soon` two days before, `due_day` on the day of the deadline (UTC), `overdue` after it. */
+export type StageDuePhase = 'soon' | 'due_day' | 'overdue';
 
 /** `null` while there is time; a suspended team is frozen (FR-WORK-18) and never asks. */
 export function stageDuePhase(dueAt: Date, now: Date, teamStatus: string): StageDuePhase | null {
   if (teamStatus === 'suspended') return null;
   const left = dueAt.getTime() - now.getTime();
   if (left <= 0) return 'overdue';
+  // A deadline at 00:00 UTC closes the previous day, so that day is its day of the deadline.
+  const dueDayStart = Math.floor((dueAt.getTime() - 1) / DAY_MS) * DAY_MS;
+  if (now.getTime() >= dueDayStart) return 'due_day';
   return left <= STAGE_DUE_SOON_MS ? 'soon' : null;
 }

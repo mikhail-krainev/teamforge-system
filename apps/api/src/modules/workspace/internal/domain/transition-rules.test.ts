@@ -101,13 +101,20 @@ describe('nextOrdinal', () => {
   });
 });
 
-describe('stageDuePhase (FR-WORK-18, -19)', () => {
-  const due = new Date('2026-01-08T00:00:00Z');
-  it('is soon within a day, overdue after, silent before and while suspended', () => {
+describe('stageDuePhase (FR-WORK-18, -19, C-54)', () => {
+  const due = new Date('2026-01-08T10:00:00Z');
+  it('is soon within two days, due_day on the day of the deadline, overdue after, silent before and while suspended', () => {
+    expect(stageDuePhase(due, new Date('2026-01-06T12:00:00Z'), 'active')).toBe('soon');
     expect(stageDuePhase(due, new Date('2026-01-07T12:00:00Z'), 'active')).toBe('soon');
-    expect(stageDuePhase(due, new Date('2026-01-08T00:00:01Z'), 'active')).toBe('overdue');
+    expect(stageDuePhase(due, new Date('2026-01-08T00:00:00Z'), 'active')).toBe('due_day');
+    expect(stageDuePhase(due, new Date('2026-01-08T09:59:59Z'), 'active')).toBe('due_day');
+    expect(stageDuePhase(due, new Date('2026-01-08T10:00:01Z'), 'active')).toBe('overdue');
     expect(stageDuePhase(due, new Date('2026-01-05T00:00:00Z'), 'active')).toBeNull();
     expect(stageDuePhase(due, new Date('2026-01-09T00:00:00Z'), 'suspended')).toBeNull();
+  });
+
+  it('the warning starts 48 hours before the deadline (C-54)', () => {
+    expect(STAGE_DUE_SOON_MS).toBe(48 * 3_600_000);
   });
 });
 
@@ -245,14 +252,14 @@ describe('nextOrdinal and stageDuePhase: edges (S5-14)', () => {
     expect(nextOrdinal([2], 2)).toBeUndefined();
   });
 
-  it('the moment of the deadline is already overdue; exactly 24 hours before it is "soon"; a team that is voting still gets the reminder', () => {
+  it('the moment of the deadline is already overdue; exactly 48 hours before it is "soon"; a team that is voting still gets the reminder', () => {
     const due = new Date('2026-01-08T00:00:00Z');
     expect(stageDuePhase(due, due, 'active')).toBe('overdue');
     expect(stageDuePhase(due, new Date(due.getTime() - STAGE_DUE_SOON_MS), 'active')).toBe('soon');
     expect(
       stageDuePhase(due, new Date(due.getTime() - STAGE_DUE_SOON_MS - 1), 'active'),
     ).toBeNull();
-    expect(stageDuePhase(due, new Date('2026-01-07T12:00:00Z'), 'voting')).toBe('soon');
+    expect(stageDuePhase(due, new Date('2026-01-06T12:00:00Z'), 'voting')).toBe('soon');
   });
 
   it('a suspended team is frozen even when the stage is already overdue', () => {

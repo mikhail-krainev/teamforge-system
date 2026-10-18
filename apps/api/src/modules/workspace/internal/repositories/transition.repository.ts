@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNotNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNotNull, lt, lte, or, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { participationConfirm } from '../schema/release.js';
 import { projectStage } from '../schema/stage.js';
@@ -91,13 +91,28 @@ export class TransitionRepository {
     return found;
   }
 
-  /** Open stages that are due before `until`, by `project_stage_due_idx` (no locks). */
-  dueBefore(until: Date, limit: number): Promise<StageRow[]> {
+  /**
+   * Open stages that are due before `until`, by `project_stage_due_idx` (no locks). Keyset paging
+   * after `(dueAt, id)`: the caller walks all pages, so stages that were handled already (or that
+   * are skipped, like those of a suspended team) never hide the later ones.
+   */
+  dueBefore(until: Date, limit: number, after?: { dueAt: Date; id: string }): Promise<StageRow[]> {
     return this.tx.tx
       .select()
       .from(projectStage)
-      .where(and(eq(projectStage.status, 'open'), lte(projectStage.dueAt, until)))
-      .orderBy(asc(projectStage.dueAt))
+      .where(
+        and(
+          eq(projectStage.status, 'open'),
+          lte(projectStage.dueAt, until),
+          after === undefined
+            ? undefined
+            : or(
+                gt(projectStage.dueAt, after.dueAt),
+                and(eq(projectStage.dueAt, after.dueAt), gt(projectStage.id, after.id)),
+              ),
+        ),
+      )
+      .orderBy(asc(projectStage.dueAt), asc(projectStage.id))
       .limit(limit);
   }
 }
