@@ -30,6 +30,7 @@ export const NOTIFICATION_SOURCES = [
   'teams.lead_changed',
   'teams.vote_updated',
   'matching.auto_added',
+  'github.repo_unlinked',
 ] as const;
 
 /**

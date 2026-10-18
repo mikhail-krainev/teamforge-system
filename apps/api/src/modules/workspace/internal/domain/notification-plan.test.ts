@@ -33,6 +33,28 @@ describe('planNotifications (FR-WORK-19)', () => {
     expect(new Set(drafts.map((d) => d.dedupeKey)).size).toBe(1);
   });
 
+  it('FR-GH-07: an unlinked repository is told to the lead with the reason code, but not when the lead did it himself', async () => {
+    const drafts = await plan('github.repo_unlinked', {
+      teamId: TEAM,
+      repositoryId: 7,
+      reason: 'installation_deleted',
+    });
+    expect(drafts).toEqual([
+      {
+        userId: 'lead',
+        type: 'repo_unlinked',
+        dedupeKey: 'repo_unlinked:e1',
+        payload: { teamId: TEAM, reason: 'installation_deleted' },
+      },
+    ]);
+    expect(
+      await plan('github.repo_unlinked', { teamId: TEAM, repositoryId: 7, reason: 'lead' }),
+    ).toEqual([]);
+    expect(
+      await plan('github.repo_unlinked', { repositoryId: 7, reason: 'installation_deleted' }),
+    ).toEqual([]);
+  });
+
   it('a new lead is announced to everybody; a vote opens and closes for all members', async () => {
     expect(
       (await plan('teams.lead_changed', { teamId: TEAM, toUserId: 'a' })).map((d) => d.userId),

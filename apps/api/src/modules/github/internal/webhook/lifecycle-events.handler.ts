@@ -85,11 +85,10 @@ export class LifecycleEventsHandler {
     const link = await this.links.findActiveByRepository(repository.id);
     if (link?.installationId !== installation.id) return IGNORE;
     switch (action) {
+      // The name comes from GitHub now, not from the payload: deliveries are not ordered, and an older
+      // rename that arrives late must not bring the old name back.
       case 'renamed':
-        return apply(async () => {
-          await this.links.updateFullName(link.id, repository.full_name);
-          return [];
-        });
+        return this.refreshName(link, installation.id, repository.id);
       case 'deleted':
         if ((await this.fetchRepository(installation.id, repository.id)) !== null) {
           return this.notConfirmed(action);
@@ -98,15 +97,28 @@ export class LifecycleEventsHandler {
       case 'transferred': {
         const detail = await this.fetchRepository(installation.id, repository.id);
         if (detail === null) return apply(() => this.unlink([link], 'repository_transferred'));
-        return apply(async () => {
-          await this.links.updateFullName(link.id, detail.full_name);
-          return [];
-        });
+        return this.rename(link, detail);
       }
       // Archived or made private: the link stays, the final check of the project fails by itself.
       default:
         return apply(() => Promise.resolve([]));
     }
+  }
+
+  private async refreshName(
+    link: RepoLinkRow,
+    installationId: number,
+    repositoryId: number,
+  ): Promise<DeliveryPlan> {
+    const detail = await this.fetchRepository(installationId, repositoryId);
+    return detail === null ? this.notConfirmed('renamed') : this.rename(link, detail);
+  }
+
+  private rename(link: RepoLinkRow, detail: RepositoryDetail): DeliveryPlan {
+    return apply(async () => {
+      await this.links.updateFullName(link.id, detail.full_name);
+      return [];
+    });
   }
 
   /** The repository as the installation sees it; `null` when it is gone (or the whole installation is). */
