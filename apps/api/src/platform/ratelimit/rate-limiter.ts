@@ -26,6 +26,8 @@ export const RATE_LIMITS = {
   linkCheckTeam: { limit: 30, windowMs: HOUR },
   linkCheckUser: { limit: 30, windowMs: HOUR },
   githubWebhook: { limit: 600, windowMs: MINUTE },
+  /** Per source address, before the body is read (backlog: the addresses of GitHub are shared, so the limit is high). */
+  githubWebhookIp: { limit: 3000, windowMs: MINUTE },
   deletionCancel: { limit: 10, windowMs: HOUR },
   /** previewInvitation and acceptInvitation: token guesses per user (FR-TEAM-09). */
   invitationToken: { limit: 60, windowMs: 15 * MINUTE },

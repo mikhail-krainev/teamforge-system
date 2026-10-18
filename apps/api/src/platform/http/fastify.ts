@@ -5,6 +5,7 @@ import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
 import { registerMultipart } from './multipart.js';
 import { registerMultipartGate } from './multipart-gate.js';
+import { registerRawBodyGate } from './raw-body-gate.js';
 import { resolveRequestId } from './request-id.js';
 import { buildTrustProxy } from './trust-proxy.js';
 
@@ -61,6 +62,7 @@ export function configureHttpApp(app: NestFastifyApplication): void {
   const fastify = app.getHttpAdapter().getInstance();
   registerMultipart(fastify);
   registerMultipartGate(app, API_PREFIX);
+  registerRawBodyGate(app, API_PREFIX);
   fastify.addHook('onRequest', (request, reply, done) => {
     void reply.header('X-Request-Id', request.id);
     done();

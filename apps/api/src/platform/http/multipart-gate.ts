@@ -30,7 +30,7 @@ function optionalProvider<T>(app: NestFastifyApplication, token: symbol): T | un
 }
 
 /** Fastify route pattern of a contract operation: `/v1/x/{id}` -> `/api/v1/x/:id`. */
-function fastifyPath(prefix: string, spec: OperationSpec): string {
+export function fastifyPath(prefix: string, spec: OperationSpec): string {
   return `/${prefix}${spec.path}`.replaceAll(/\{([A-Za-z0-9_]+)\}/g, ':$1');
 }
 
