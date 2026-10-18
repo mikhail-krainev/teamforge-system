@@ -18,16 +18,26 @@ const reject = (status: 415 | 422, reason: string): ArtifactVerdict => ({
   reason,
 });
 
-/** Active content in a PDF dictionary: such a file is refused outright (SEC-15). */
-const PDF_ACTIVE_TOKENS = ['/JavaScript', '/JS ', '/JS(', '/Launch', '/EmbeddedFile', '/RichMedia'];
-const FORBIDDEN_ZIP_ENTRY = /(^|\/)vbaProject\.bin$|(^|\/)activeX\/|\/embeddings\/[^/]*\.bin$/i;
+/**
+ * Active content in a PDF dictionary: such a file is refused outright (SEC-15). Best effort: names
+ * inside compressed object streams are not seen, so this narrows the risk and does not remove it
+ * (the file is only ever served as an attachment with `nosniff`).
+ */
+const PDF_ACTIVE_NAMES =
+  /\/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|OpenAction|AA|XFA|URI)(?![^\s()<>[\]{}/%])/;
+
+/** A PDF name may spell any character as `#xx`: `/J#61vaScript` is `/JavaScript`. */
+const decodeNameEscapes = (text: string): string =>
+  text.replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
 
 function checkPdf(bytes: Buffer): ArtifactVerdict {
-  const text = bytes.toString('latin1');
-  return PDF_ACTIVE_TOKENS.some((token) => text.includes(token))
+  const text = decodeNameEscapes(bytes.toString('latin1'));
+  return PDF_ACTIVE_NAMES.test(text)
     ? reject(422, 'pdf_active_content')
     : { ok: true, mime: 'application/pdf' };
 }
+
+const FORBIDDEN_ZIP_ENTRY = /(^|\/)vbaProject\.bin$|(^|\/)activeX\/|\/embeddings\/[^/]*\.bin$/i;
 
 function checkZip(bytes: Buffer): ArtifactVerdict {
   const entries = readZipDirectory(bytes);
@@ -86,10 +96,12 @@ export function sniffArtifact(bytes: Buffer, filename: string): ArtifactVerdict 
   return checkText(bytes, filename);
 }
 
-/** The name is kept for display only: no path, no control characters, at most 255 characters. */
+/** The name is kept for display only: no path, no control or format characters (bidi, zero width), at most 255 characters. */
 export function safeFileName(name: string): string {
-  // eslint-disable-next-line no-control-regex
-  const base = (name.split(/[\\/]/).pop() ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  const base = (name.split(/[\\/]/).pop() ?? '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]|\p{Cf}/gu, '')
+    .trim();
   const cleaned = base === '' || base === '.' || base === '..' ? 'file' : base;
   return Array.from(cleaned).slice(0, 255).join('');
 }
