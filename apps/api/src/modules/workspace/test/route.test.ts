@@ -145,6 +145,18 @@ describeInfra(
           (await world.as(fx.lead).get(`/v1/teams/${fx.team.id}/stages/first/checklist`))
             .statusCode,
         ).toBe(400);
+        // The contract (integer, minimum 1, coerced by the validator) refuses everything that is not a whole number.
+        for (const bad of ['1.5', '-1', '0', 'NaN']) {
+          const response = await world
+            .as(fx.lead)
+            .get(`/v1/teams/${fx.team.id}/stages/${bad}/checklist`);
+          expect(response.statusCode, bad).toBe(400);
+        }
+        // A number that cannot be a smallint is simply an unknown stage.
+        const huge = await world
+          .as(fx.lead)
+          .get(`/v1/teams/${fx.team.id}/stages/99999999999999999999/checklist`);
+        expect(huge.statusCode).toBe(404);
       });
 
       it('FR-TEAM-10: a team that is still forming has no route: listStages -> 200 with no stages or 409 INVALID_STATE', async () => {
@@ -155,6 +167,19 @@ describeInfra(
         } else {
           expectProblem('listStages', response, 409, 'INVALID_STATE');
         }
+        expect(await stageRows(world, forming.team.id)).toEqual([]);
+      });
+    });
+
+    describe('a playbook without stages cannot start a project (S5 review M6)', () => {
+      it('a team pinned to the stub playbook 0.0.1 (no stages) fails to start with 500 and stays forming; no stage is created', async () => {
+        const forming = await routeTeam(world, { started: false });
+        await world.sql`
+          UPDATE teams.team SET playbook_id = '00000000-0000-7000-8000-0000000a0001'
+           WHERE id = ${forming.team.id}`;
+        const response = await world.as(forming.lead).post(`/v1/teams/${forming.team.id}/start`);
+        expect(response.statusCode, response.body).toBe(500);
+        expect((await teamRow(world, forming.team.id)).status).toBe('forming');
         expect(await stageRows(world, forming.team.id)).toEqual([]);
       });
     });

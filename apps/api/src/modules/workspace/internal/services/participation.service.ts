@@ -4,6 +4,7 @@ import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
+import { assertTeamWritable } from './item-gate.js';
 import { RouteRepository } from '../repositories/route.repository.js';
 import { TransitionRepository } from '../repositories/transition.repository.js';
 
@@ -36,6 +37,7 @@ export class ParticipationService {
     return this.tx.run(async () => {
       const team = await this.teams.lockTeam(teamId, 'share');
       if (team.leadUserId !== leadId) throw new DomainError('NOT_TEAM_LEAD', 403);
+      assertTeamWritable(team.status, true);
       const stage =
         body.stageOrdinal > MAX_ORDINAL
           ? undefined

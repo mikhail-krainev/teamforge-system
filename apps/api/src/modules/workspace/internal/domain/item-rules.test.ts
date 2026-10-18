@@ -37,12 +37,15 @@ describe('completionIssue', () => {
       outcome: 'Итоги встречи записаны полностью.',
     };
     expect(completionIssue(ritual, ctx)).toBeUndefined();
-    expect(completionIssue({ ...ritual, heldOn: '2026-10-18' }, ctx)?.code).toBe(
+    expect(completionIssue({ ...ritual, heldOn: '2026-10-19' }, ctx)?.code).toBe(
       'VALIDATION_FAILED',
     );
     expect(completionIssue({ ...ritual, heldOn: '2026-10-09' }, ctx)?.code).toBe(
       'VALIDATION_FAILED',
     );
+    // One day ahead of the server is the same day somewhere east of it (the lead's time zone, FR-WORK-06).
+    expect(heldOnIssue('2026-10-18', ctx)).toBeUndefined();
+    expect(heldOnIssue('2026-10-19', ctx)?.pointers).toEqual(['/heldOn']);
     expect(heldOnIssue('2026-10-10', ctx)).toBeUndefined();
     expect(heldOnIssue('2026-10-17', ctx)).toBeUndefined();
   });

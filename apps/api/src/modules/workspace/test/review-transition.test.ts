@@ -17,6 +17,7 @@ import {
   doneWithLink,
   itemOf,
   passReview,
+  patchItem,
   routeTeam,
   stagesOf,
   submitReview,
@@ -71,6 +72,70 @@ describeInfra(
     /** A spec item with its file, done; the reviewer is the frontend member (never the author). */
     const specDone = async (t: RouteFixture): Promise<ChecklistItemDto> =>
       doneWithFile(t, 'mini_spec', t.backend);
+
+    describe('a review belongs to the artifact it judged (FR-WORK-09)', () => {
+      const reviewedSpec = async (t: RouteFixture): Promise<ChecklistItemDto> => {
+        const done = await specDone(t);
+        const answered = expectOk<ChecklistItemDto>(
+          'submitReview',
+          await submitReview(world, t.frontend, t.team.id, done, [
+            { ordinal: 1, answer: true },
+            { ordinal: 2, answer: false },
+            { ordinal: 3, answer: true },
+          ]),
+          200,
+        );
+        expectOk('acceptReviewRisk', await acceptRisk(world, t.lead, t.team.id, answered, 2), 200);
+        const item = await itemOf(t, 'mini_spec');
+        expect(await reviewAnswerCount(world, item.id)).toBe(3);
+        expect(await riskCount(world, item.id)).toBe(1);
+        return item;
+      };
+
+      it('replacing the link drops the answers and the accepted risks', async () => {
+        const t = await routeTeam(world);
+        const item = await reviewedSpec(t);
+        expectOk(
+          'updateChecklistItem',
+          await patchItem(world, t.backend, t.team.id, item.id, {
+            version: item.version,
+            linkUrl: 'https://example.test/new-spec',
+          }),
+          200,
+        );
+        expect(await reviewAnswerCount(world, item.id)).toBe(0);
+        expect(await riskCount(world, item.id)).toBe(0);
+      });
+
+      it('returning the item to open drops the answers and the accepted risks', async () => {
+        const t = await routeTeam(world);
+        const item = await reviewedSpec(t);
+        expectOk(
+          'updateChecklistItem',
+          await patchItem(world, t.backend, t.team.id, item.id, {
+            version: item.version,
+            status: 'open',
+          }),
+          200,
+        );
+        expect(await reviewAnswerCount(world, item.id)).toBe(0);
+        expect(await riskCount(world, item.id)).toBe(0);
+      });
+
+      it('a write that changes neither the link nor the status keeps the review', async () => {
+        const t = await routeTeam(world);
+        const item = await reviewedSpec(t);
+        expectOk(
+          'updateChecklistItem',
+          await patchItem(world, t.backend, t.team.id, item.id, {
+            version: item.version,
+            roleCode: 'backend',
+          }),
+          200,
+        );
+        expect(await reviewAnswerCount(world, item.id)).toBe(3);
+      });
+    });
 
     describe('submitReview (FR-WORK-09)', () => {
       it('FR-WORK-09: a member who is not the author answers every point "yes" -> 200, the review is passed, the points are listed with their text', async () => {
@@ -524,6 +589,29 @@ describeInfra(
     });
 
     describe('confirmParticipation (FR-WORK-11)', () => {
+      it('FR-WORK-18: in a suspended team the confirmation is refused with 409 TEAM_STATUS_BLOCKS_ACTION; a completed team gives 409 INVALID_STATE; nothing is recorded', async () => {
+        const url = (t: RouteFixture) => `/v1/teams/${t.team.id}/participation-confirmations`;
+        const body = (t: RouteFixture) => ({ userId: t.frontend.id, stageOrdinal: 1 });
+        const suspended = await routeTeam(world);
+        await world.sql`UPDATE teams.team SET status = 'suspended' WHERE id = ${suspended.team.id}`;
+        expectProblem(
+          'confirmParticipation',
+          await world.as(suspended.lead).post(url(suspended), body(suspended)),
+          409,
+          'TEAM_STATUS_BLOCKS_ACTION',
+        );
+        const completed = await routeTeam(world);
+        await world.sql`UPDATE teams.team SET status = 'completed' WHERE id = ${completed.team.id}`;
+        expectProblem(
+          'confirmParticipation',
+          await world.as(completed.lead).post(url(completed), body(completed)),
+          409,
+          'INVALID_STATE',
+        );
+        expect(await participationCount(world, suspended.team.id, suspended.frontend.id)).toBe(0);
+        expect(await participationCount(world, completed.team.id, completed.frontend.id)).toBe(0);
+      });
+
       it('FR-WORK-11: the lead confirms the participation of a member in a stage -> 201 with who confirmed and when; one row', async () => {
         const t = await routeTeam(world);
         const response = await world

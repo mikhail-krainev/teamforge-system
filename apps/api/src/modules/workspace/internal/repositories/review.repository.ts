@@ -49,6 +49,12 @@ export class ReviewRepository {
     );
   }
 
+  /** The artifact changed (a new link) or was reopened: the answers and the accepted risks no longer judge it. */
+  async clear(itemId: string): Promise<void> {
+    await this.tx.tx.delete(reviewAnswer).where(eq(reviewAnswer.checklistItemId, itemId));
+    await this.tx.tx.delete(reviewRisk).where(eq(reviewRisk.checklistItemId, itemId));
+  }
+
   async answersOf(itemId: string): Promise<{ ordinal: number; answer: boolean }[]> {
     return this.tx.tx
       .select({ ordinal: reviewAnswer.ordinal, answer: reviewAnswer.answer })

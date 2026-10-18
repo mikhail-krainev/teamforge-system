@@ -22,19 +22,29 @@ export interface CompletionIssue {
 
 const present = (value: string | null): boolean => value !== null && value.trim() !== '';
 
-/** The day a ritual was held must lie between the day its stage opened and today (FR-WORK-06). */
+const DAY_MS = 86_400_000;
+
+/** The day after `day` (`YYYY-MM-DD`, UTC). */
+function nextDay(day: string): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * The day a ritual was held must lie between the day its stage opened and today (FR-WORK-06). The
+ * server counts days in UTC, so a member east of it can hold the meeting on "tomorrow": one day ahead is allowed.
+ */
 export function heldOnIssue(
   heldOn: string,
   context: { today: string; stageOpenedOn: string | null },
 ): CompletionIssue | undefined {
-  const late = heldOn > context.today;
+  const late = heldOn > nextDay(context.today);
   const early = context.stageOpenedOn !== null && heldOn < context.stageOpenedOn;
   if (!late && !early) return undefined;
   return {
     code: 'VALIDATION_FAILED',
     pointers: ['/heldOn'],
     message: late
-      ? 'The day of the ritual is in the future'
+      ? 'The day of the ritual is more than a day ahead'
       : 'The day of the ritual is before the stage',
   };
 }

@@ -16,6 +16,7 @@ import { expectOk, githubUser } from '../../../../test/fixtures/teams.js';
 import type { UserFixture } from '../../../../test/fixtures/index.js';
 import {
   itemOf,
+  patchItem,
   routeTeam,
   stagesOf,
   uploadFile,
@@ -325,6 +326,55 @@ describeInfra(
         expect(response.statusCode, response.body).toBe(403);
         expect(String(response.headers['content-type'])).toContain('application/problem+json');
         expect((await usageOf(world, a.team.id)).files).toBe(1);
+      });
+
+      describe('FR-WORK-17: the fields of an item belong to its executor or the lead', () => {
+        const fresh = () => itemOf(a, 'mini_spec');
+
+        it('a member who is not the executor cannot set the status, the link or the role -> 403 FORBIDDEN, nothing changes', async () => {
+          const item = await fresh();
+          for (const change of [
+            { status: 'done' },
+            { linkUrl: 'https://example.test/not-mine' },
+            { roleCode: 'frontend' },
+            { outcome: 'Чужие итоги, которые не должны сохраниться.' },
+          ]) {
+            const response = await patchItem(world, a.frontend, a.team.id, item.id, {
+              version: item.version,
+              ...change,
+            });
+            expectProblem('updateChecklistItem', response, 403, 'FORBIDDEN');
+          }
+          expect(await fresh()).toMatchObject({ version: item.version, status: 'open' });
+        });
+
+        it('the executor cannot take a role he does not hold -> 422; a role he holds is accepted', async () => {
+          const item = await fresh();
+          const refused = await patchItem(world, a.backend, a.team.id, item.id, {
+            version: item.version,
+            roleCode: 'frontend',
+          });
+          expectProblem('updateChecklistItem', refused, 422, 'VALIDATION_FAILED');
+          const accepted = await patchItem(world, a.backend, a.team.id, item.id, {
+            version: item.version,
+            roleCode: 'backend',
+          });
+          expect(accepted.statusCode, accepted.body).toBe(200);
+        });
+
+        it('the lead may write the link of an item assigned to another member, but cannot choose that member role', async () => {
+          const item = await fresh();
+          const link = await patchItem(world, a.lead, a.team.id, item.id, {
+            version: item.version,
+            linkUrl: 'https://example.test/lead-link',
+          });
+          expect(link.statusCode, link.body).toBe(200);
+          const role = await patchItem(world, a.lead, a.team.id, item.id, {
+            version: item.version + 1,
+            roleCode: 'frontend',
+          });
+          expectProblem('updateChecklistItem', role, 403, 'FORBIDDEN');
+        });
       });
 
       it('FR-AUTH-08: the administrator operations of the playbooks by a regular user -> 403 ADMIN_ONLY', async () => {

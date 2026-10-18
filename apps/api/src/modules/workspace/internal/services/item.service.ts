@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import type { Body } from 'shared';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
@@ -12,6 +13,7 @@ import {
   linkCheckJobId,
 } from '../../../../link-checker/protocol.js';
 import { PROFILES_API, type ProfilesApi } from '../../../profiles/public.js';
+import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
 import { WORKSPACE_MODULE } from '../../public.js';
 import {
   type CompletionIssue,
@@ -21,6 +23,7 @@ import {
 } from '../domain/item-rules.js';
 import { isStorableLink } from '../domain/link-policy.js';
 import { ItemRepository, type ItemChanges } from '../repositories/item.repository.js';
+import { ReviewRepository } from '../repositories/review.repository.js';
 import type { ItemRow, StageRow } from '../repositories/route.repository.js';
 import { ItemGate, VersionConflict } from './item-gate.js';
 import type { ChecklistItemDto } from './route-dto.js';
@@ -32,6 +35,12 @@ interface Saved {
   version: number;
   /** The link that was saved and waits for the `link-checker` (architecture 13.12). */
   linkToCheck: string | undefined;
+}
+
+/** A new link or a reopened item is another artifact than the one a review answered. */
+function changesJudgedArtifact(item: ItemRow, changes: ItemChanges): boolean {
+  const newLink = changes.linkUrl !== undefined && changes.linkUrl !== item.linkUrl;
+  return newLink || changes.status === 'open';
 }
 
 /**
@@ -48,9 +57,12 @@ export class ItemService {
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(QueuesService) private readonly queues: QueuesService,
     @Inject(PROFILES_API) private readonly profiles: ProfilesApi,
+    @Inject(TEAMS_API) private readonly teams: TeamsApi,
     @Inject(ItemGate) private readonly gate: ItemGate,
     @Inject(ItemRepository) private readonly items: ItemRepository,
+    @Inject(ReviewRepository) private readonly reviews: ReviewRepository,
     @Inject(RouteQueryService) private readonly query: RouteQueryService,
+    @Inject(PinoLogger) private readonly logger: PinoLogger,
   ) {}
 
   async update(
@@ -93,13 +105,15 @@ export class ItemService {
     itemId: string,
     body: Patch,
   ): Promise<Saved> {
-    const { item, stage } = await this.gate.open(teamId, itemId, { member: userId });
+    const { team, item, stage } = await this.gate.open(teamId, itemId, { member: userId });
+    await this.assertMayWrite(team.leadUserId, item, userId, body);
     if (item.version !== body.version) throw new VersionConflict();
     const now = this.clock.now();
     const changes = this.changesOf(item, body, userId, now);
     await this.checkResult(item, stage, body, changes);
     const row = await this.items.updateIfVersion(itemId, body.version, changes, now);
     if (row === undefined) throw new VersionConflict();
+    if (changesJudgedArtifact(item, changes)) await this.reviews.clear(itemId);
     await this.outbox.publish({
       module: WORKSPACE_MODULE,
       type: 'item_updated',
@@ -110,6 +124,30 @@ export class ItemService {
       version: row.version,
       linkToCheck: typeof body.linkUrl === 'string' ? body.linkUrl : undefined,
     };
+  }
+
+  /**
+   * x-authz of updateChecklistItem: the fields of an item are written by its executor (any member
+   * while nobody is assigned, FR-WORK-02) or by the lead; the role of the contribution is the
+   * executor's own choice among the roles he holds (FR-WORK-17).
+   */
+  private async assertMayWrite(
+    leadUserId: string | null,
+    item: ItemRow,
+    userId: string,
+    body: Patch,
+  ): Promise<void> {
+    const isExecutor = item.assigneeUserId === null || item.assigneeUserId === userId;
+    if (!isExecutor && leadUserId !== userId) throw new DomainError('FORBIDDEN', 403);
+    if (typeof body.roleCode !== 'string') return;
+    if (!isExecutor) throw new DomainError('FORBIDDEN', 403);
+    const roster = await this.teams.getRoster(item.teamId);
+    const held = roster.find((member) => member.userId === userId)?.roles ?? [];
+    if (!held.some((role) => role.roleCode === body.roleCode)) {
+      throw new DomainError('VALIDATION_FAILED', 422, {
+        errors: [{ pointer: '/roleCode', message: 'The role is not held by the executor' }],
+      });
+    }
   }
 
   private changesOf(item: ItemRow, body: Patch, userId: string, now: Date): ItemChanges {
@@ -182,11 +220,19 @@ export class ItemService {
     version: number,
     url: string,
   ): Promise<void> {
-    await this.queues.add(
-      LINK_CHECK_QUEUE,
-      CHECK_ITEM_LINK_JOB,
-      { teamId, itemId, version, url },
-      { jobId: linkCheckJobId(itemId, version) },
-    );
+    try {
+      await this.queues.add(
+        LINK_CHECK_QUEUE,
+        CHECK_ITEM_LINK_JOB,
+        { teamId, itemId, version, url },
+        { jobId: linkCheckJobId(itemId, version) },
+      );
+    } catch (error) {
+      // The write is committed: the client must not see a failure for it. `link-check-sweep` queues the check again.
+      this.logger.error(
+        { err: error, teamId, itemId },
+        'link check was not queued; the sweep will',
+      );
+    }
   }
 }
