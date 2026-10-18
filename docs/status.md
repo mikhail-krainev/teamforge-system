@@ -18,7 +18,8 @@
 ## Следующая фаза
 
 ПАУЗА 2026-10-17 (по просьбе пользователя). Срез 5 в `feat/playbooks`, PR не открыт. Готово: S5-01..S5-13 (backend, link-checker и compose-сервис, web), всё запушено. Тесты API: integration 2309/2312 (3 красных ssrf-links исправлены сервисом `link-checker` в compose, не перепрогнано), concurrency x5 зелёные.
-Осталось: S5-14 (дополнение тестов, начато агентом и прервано, правки могут быть незавершены), Playwright slice1-5 на полном стеке (не запускался), integration/coverage на полном стеке, ревью кода и аудит безопасности среза, PR, слияние. Затем срез 6 (`feat/workspace-github`), срез 7 (`feat/rewards`), фаза 7 (`docs/release.md`).
+S5-14 закончена 2026-10-18: Playwright slice1-5 на полном стеке 36/36 (3.3 мин), API vitest 2486/2492 (6 красных только `resume-worker/parsers.test.ts`, срез 2, локально Node 24, дочерний процесс даёт CORRUPTED; среза 5 не касается).
+Осталось: integration/coverage на полном стеке, ревью кода и аудит безопасности среза, PR, слияние. Затем срез 6 (`feat/workspace-github`), срез 7 (`feat/rewards`), фаза 7 (`docs/release.md`).
 Нужно: `gh` (brew install gh, gh auth login) для PR. Пользователь разрешил автослияние, моки вместо реальных секретов GitHub App, удаление слитых веток (сделано).
 Локально: pnpm-обёртка не запускается, использовать node_modules/.bin; SeaweedFS в тестах с `SEAWEEDFS_VOLUME_SIZE_MB=32`.
 Не сделано в S5-09: проверки `md_headings`, `min_files:N`, `ci_workflow`, `pr_cross_review`; `repo_*` придут в срезе 6; `sha_dedup` без подписчика до среза 7. `ChecklistItem` без кода причины проверки ссылки и без ключа шаблона (вопрос к контракту).
