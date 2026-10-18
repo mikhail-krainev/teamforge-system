@@ -88,6 +88,12 @@ const MAPPERS: Record<string, Mapper> = {
     if (itemId === undefined) return [];
     return onTeam(teamId, 'item.updated', { teamId, itemId, version: num(p['version']) });
   },
+  'workspace.contribution_recorded': (p) => {
+    const [teamId, contributionId] = [str(p['teamId']), str(p['contributionId'])];
+    return contributionId === undefined
+      ? []
+      : onTeam(teamId, 'contribution.recorded', { teamId, contributionId });
+  },
   'workspace.stage_opened': (p) => stageSignal('stage.opened', p),
   'workspace.stage_closed': (p) => stageSignal('stage.closed', p),
   'workspace.project_completed': (p) =>
