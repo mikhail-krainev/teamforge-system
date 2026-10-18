@@ -29,7 +29,8 @@ describe('webhook payload schemas (SEC-06)', () => {
   });
 
   it('requires what the worker relies on', () => {
-    const { number: _number, ...withoutNumber } = issue;
+    const withoutNumber: Record<string, unknown> = { ...issue };
+    delete withoutNumber['number'];
     expect(issuesEvent.safeParse({ ...envelope, issue: withoutNumber }).success).toBe(false);
     expect(issuesEvent.safeParse({ ...envelope, issue, installation: {} }).success).toBe(false);
     expect(
