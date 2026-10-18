@@ -1,9 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gt, isNotNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { participationConfirm } from '../schema/release.js';
 import { projectStage } from '../schema/stage.js';
 import type { StageRow } from './route.repository.js';
+
+/** Position after a stage in the order `(dueAt, id)`; `dueAt` is text with microseconds. */
+export interface DueCursor {
+  dueAt: string;
+  id: string;
+}
 
 export type ParticipationRow = typeof participationConfirm.$inferSelect;
 
@@ -92,27 +98,41 @@ export class TransitionRepository {
   }
 
   /**
-   * Open stages that are due before `until`, by `project_stage_due_idx` (no locks). Keyset paging
-   * after `(dueAt, id)`: the caller walks all pages, so stages that were handled already (or that
-   * are skipped, like those of a suspended team) never hide the later ones.
+   * Open stages due in `[since, until]`, by `project_stage_due_idx` (no locks). Keyset paging after
+   * `(dueAt, id)`: the caller walks all pages, so stages that were handled already (or that are
+   * skipped, like those of a suspended team) never hide the later ones. The cursor carries `dueAt` as
+   * text with its microseconds: a JavaScript `Date` would cut them, and the page would then repeat the
+   * row it ended on.
    */
-  dueBefore(until: Date, limit: number, after?: { dueAt: Date; id: string }): Promise<StageRow[]> {
-    return this.tx.tx
-      .select()
+  async dueBetween(
+    since: Date,
+    until: Date,
+    limit: number,
+    after?: DueCursor,
+  ): Promise<{ stages: StageRow[]; next: DueCursor | undefined }> {
+    const dueAtText = sql<string>`to_char(${projectStage.dueAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+    const rows = await this.tx.tx
+      .select({ stage: projectStage, dueAtText })
       .from(projectStage)
       .where(
         and(
           eq(projectStage.status, 'open'),
+          gte(projectStage.dueAt, since),
           lte(projectStage.dueAt, until),
           after === undefined
             ? undefined
-            : or(
-                gt(projectStage.dueAt, after.dueAt),
-                and(eq(projectStage.dueAt, after.dueAt), gt(projectStage.id, after.id)),
-              ),
+            : sql`(${projectStage.dueAt}, ${projectStage.id}) > (${after.dueAt}::timestamptz, ${after.id}::uuid)`,
         ),
       )
       .orderBy(asc(projectStage.dueAt), asc(projectStage.id))
       .limit(limit);
+    const last = rows.at(-1);
+    return {
+      stages: rows.map((row) => row.stage),
+      next:
+        last === undefined || rows.length < limit
+          ? undefined
+          : { dueAt: last.dueAtText, id: last.stage.id },
+    };
   }
 }

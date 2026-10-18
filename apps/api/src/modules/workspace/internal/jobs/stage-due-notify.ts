@@ -9,10 +9,16 @@ import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
 import { WORKSPACE_MODULE } from '../../public.js';
 import { STAGE_DUE_SOON_MS, stageDuePhase } from '../domain/transition-rules.js';
 import { NotificationRepository } from '../repositories/notification.repository.js';
-import { TransitionRepository } from '../repositories/transition.repository.js';
+import { TransitionRepository, type DueCursor } from '../repositories/transition.repository.js';
 
 const SCAN_EVERY_MS = 15 * 60_000;
 const SCAN_BATCH = 200;
+const DAY_MS = 24 * 3_600_000;
+/**
+ * A stage this many days past its due date is not announced any more: the scan must not grow without
+ * limit with every abandoned project. Lateness stays a warning in the interface (FR-WORK-12).
+ */
+export const STAGE_OVERDUE_NOTIFY_DAYS = 30;
 
 /**
  * `stage-due-notify` (timers, architecture 8.3, FR-WORK-19): two days before the due date of the open
@@ -48,11 +54,14 @@ export class StageDueNotify implements OnModuleInit {
     const now = this.clock.now();
     const until = new Date(now.getTime() + STAGE_DUE_SOON_MS);
     let created = 0;
-    let after: { dueAt: Date; id: string } | undefined;
+    const since = new Date(now.getTime() - STAGE_OVERDUE_NOTIFY_DAYS * DAY_MS);
+    let after: DueCursor | undefined;
     // Walk every page: a page full of stages that are handled already must not hide the later ones.
     for (;;) {
       const cursor = after;
-      const stages = await this.tx.run(() => this.transitions.dueBefore(until, batchSize, cursor));
+      const { stages, next } = await this.tx.run(() =>
+        this.transitions.dueBetween(since, until, batchSize, cursor),
+      );
       for (const stage of stages) {
         try {
           created += await this.tx.run(() => this.notify(stage, now));
@@ -60,9 +69,8 @@ export class StageDueNotify implements OnModuleInit {
           this.logger.error({ err: error }, `stage-due-notify failed for stage ${stage.id}`);
         }
       }
-      const last = stages.at(-1);
-      if (last === undefined || last.dueAt === null || stages.length < batchSize) return created;
-      after = { dueAt: last.dueAt, id: last.id };
+      if (next === undefined) return created;
+      after = next;
     }
   }
 

@@ -40,12 +40,7 @@ describe('sniffArtifact: active content in a PDF (SEC-15, best effort)', () => {
   });
 
   it('a name written with #xx escapes is the same name: /J#61vaScript, /Launc#68, /#41A', () => {
-    for (const body of [
-      '/J#61vaScript 5 0 R',
-      '/Launc#68 << >>',
-      '/#41A << >>',
-      '/#4AS (x)',
-    ]) {
+    for (const body of ['/J#61vaScript 5 0 R', '/Launc#68 << >>', '/#41A << >>', '/#4AS (x)']) {
       expect(sniffArtifact(pdf(body), 'a.pdf'), body).toMatchObject({
         ok: false,
         reason: 'pdf_active_content',
@@ -59,9 +54,9 @@ describe('sniffArtifact: active content in a PDF (SEC-15, best effort)', () => {
   });
 
   it('an open action that runs a script is still refused through /JavaScript', () => {
-    expect(
-      sniffArtifact(pdf('/OpenAction << /S /JavaScript /JS (x) >>'), 'a.pdf'),
-    ).toMatchObject({ ok: false });
+    expect(sniffArtifact(pdf('/OpenAction << /S /JavaScript /JS (x) >>'), 'a.pdf')).toMatchObject({
+      ok: false,
+    });
   });
 
   it('a longer name that only starts like a forbidden one does not match: /AAPL, /JSON, /URIs', () => {
