@@ -53,8 +53,44 @@ export class ContributionRepository {
     return changed.map((row) => row.id);
   }
 
+  /** The contribution of this member in this team; one of somebody else or of another team looks like a missing one. */
+  async findOwn(
+    teamId: string,
+    contributionId: string,
+    userId: string,
+  ): Promise<typeof contribution.$inferSelect | undefined> {
+    const [row] = await this.tx.tx
+      .select()
+      .from(contribution)
+      .where(
+        and(
+          eq(contribution.id, contributionId),
+          eq(contribution.teamId, teamId),
+          eq(contribution.userId, userId),
+        ),
+      );
+    return row;
+  }
+
+  /** The new label; a locked label (the project is completed, FR-WORK-17) never changes. */
+  async setRole(
+    contributionId: string,
+    roleCode: string,
+  ): Promise<typeof contribution.$inferSelect | undefined> {
+    const [row] = await this.tx.tx
+      .update(contribution)
+      .set({ roleCode })
+      .where(and(eq(contribution.id, contributionId), eq(contribution.roleLocked, false)))
+      .returning();
+    return row;
+  }
+
   /** The issue was reopened: its contributions stop counting. Returns the ids that changed. */
-  async deactivate(teamId: string, source: 'issue' | 'pr', ref: string): Promise<string[]> {
+  async deactivate(
+    teamId: string,
+    source: NewContribution['source'],
+    ref: string,
+  ): Promise<string[]> {
     const changed = await this.tx.tx
       .update(contribution)
       .set({ active: false })

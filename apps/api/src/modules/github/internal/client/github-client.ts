@@ -13,7 +13,7 @@ import {
 } from '../../../../platform/config/github-app-env.js';
 import { SecretBox } from '../../../../platform/crypto/secret-box.js';
 import { REDIS } from '../../../../platform/redis/redis.module.js';
-import { GithubError, statusOf, toGithubError } from './github-error.js';
+import { GithubError, toGithubError } from './github-error.js';
 import { InstallationTokenCache } from './installation-token-cache.js';
 
 const DEFAULT_API = 'https://api.github.com';
@@ -59,7 +59,10 @@ const repositoriesPage = z.object({
   repositories: z.array(z.unknown()),
 });
 
-const repositoryDetailSchema = repositorySchema.extend({ archived: z.boolean().default(false) });
+const repositoryDetailSchema = repositorySchema.extend({
+  archived: z.boolean().default(false),
+  default_branch: z.string().min(1).default('main'),
+});
 const contributorSchema = z.object({ id: z.number().int(), contributions: z.number().int() });
 
 const appInstallationSchema = z.object({
@@ -291,10 +294,11 @@ export class GithubClient {
       return auth.token;
     } catch (error) {
       if (error instanceof GithubError) throw error;
-      const status = statusOf(error);
-      if (status === 404) throw new GithubError('installation_gone', status);
-      if (status === 403) throw new GithubError('installation_suspended', status);
-      throw new GithubError('unavailable', status);
+      const failure = toGithubError(error);
+      if (failure.kind === 'rate_limited') throw failure;
+      if (failure.status === 404) throw new GithubError('installation_gone', failure.status);
+      if (failure.status === 403) throw new GithubError('installation_suspended', failure.status);
+      throw new GithubError('unavailable', failure.status);
     }
   }
 

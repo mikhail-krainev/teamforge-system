@@ -18,6 +18,11 @@ import { LinkCheckSweep } from './internal/jobs/link-check-sweep.js';
 import { LinkCheckRepository } from './internal/repositories/link-check.repository.js';
 import { LinkResultService } from './internal/services/link-result.service.js';
 import { ContributionConsumer } from './internal/events/contribution.consumer.js';
+import { ItemContributionConsumer } from './internal/contribution/item-contribution.consumer.js';
+import { RelabelService } from './internal/contribution/relabel.service.js';
+import { FeedController } from './internal/feed/feed.controller.js';
+import { FeedRepository } from './internal/feed/feed.repository.js';
+import { FeedService } from './internal/feed/feed.service.js';
 import { ContributionRepository } from './internal/repositories/contribution.repository.js';
 import { RouteMembersConsumer } from './internal/events/route-members.consumer.js';
 import { StepSignalsConsumer } from './internal/events/step-signals.consumer.js';
@@ -44,7 +49,7 @@ import { NotificationService } from './internal/services/notification.service.js
 /**
  * Workspace module. S3-10: notifications (list, read marks, event handlers, e-mail) and the
  * WebSocket gateway with its Redis relay. S5-04: the route of a project (stages, checklist) and
- * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer. S5-09: the verdict of the `link-checker` on saved links and the sweep that repairs a lost check. S6-05: contributions from GitHub events (`github.contribution_detected` and `_revoked`) and the real-time signal `contribution.recorded`.
+ * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer. S5-09: the verdict of the `link-checker` on saved links and the sweep that repairs a lost check. S6-05: contributions from GitHub events (`github.contribution_detected` and `_revoked`) and the real-time signal `contribution.recorded`. S6-07: the feed, the summary, the role of a contribution (`relabelContribution`) and contributions of artifacts and rituals.
  *
  * Global because teams injects `TEAM_LIFECYCLE_PORT` and may not import workspace (architecture
  * 2.2): this module is the one place where the port is bound.
@@ -57,6 +62,7 @@ import { NotificationService } from './internal/services/notification.service.js
     ItemController,
     StageTransitionController,
     ArtifactController,
+    FeedController,
   ],
   providers: [
     RouteRepository,
@@ -79,6 +85,10 @@ import { NotificationService } from './internal/services/notification.service.js
     RouteMembersConsumer,
     ContributionRepository,
     ContributionConsumer,
+    ItemContributionConsumer,
+    FeedRepository,
+    FeedService,
+    RelabelService,
     StageSuspensionConsumer,
     StepSignalsConsumer,
     LinkCheckRepository,
