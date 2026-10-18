@@ -67,71 +67,78 @@ export interface WebhookOptions {
 export const hmacHex = (secret: string, body: string): string =>
   createHmac('sha256', secret).update(body).digest('hex');
 
+const sha1Header = (secret: string, body: string): string =>
+  `sha1=${createHmac('sha1', secret).update(body).digest('hex')}`;
+
+/** The signature headers of one delivery for a mode, and the body when the mode changes it. */
+function signatureFor(
+  mode: SignatureMode,
+  secret: string,
+  body: string,
+): { headers: Record<string, string>; body: string } {
+  const digest = hmacHex(secret, body);
+  const header = (value: string) => ({ headers: { 'x-hub-signature-256': value }, body });
+  switch (mode) {
+    case 'valid':
+      return header(`sha256=${digest}`);
+    case 'invalid':
+      return header(`sha256=${digest.replace(/./, (c) => (c === '0' ? '1' : '0'))}`);
+    case 'malformed':
+      return header(digest);
+    case 'wrong-secret':
+      return header(`sha256=${hmacHex(`${secret}-other`, body)}`);
+    case 'sha1':
+      return { headers: { 'x-hub-signature': sha1Header(secret, body) }, body };
+    case 'padded':
+      return header(` sha256=${digest} `);
+    case 'tampered':
+      return { ...header(`sha256=${digest}`), body: `${body.slice(0, -1)} }` };
+    case 'upper-digest':
+      return header(`sha256=${digest.toUpperCase()}`);
+    case 'upper-prefix':
+      return header(`SHA256=${digest}`);
+    case 'inner-space':
+      return header(`sha256= ${digest}`);
+    case 'short':
+      return header(`sha256=${digest.slice(0, 63)}`);
+    case 'empty':
+      return header('');
+    case 'tab':
+      return header(`sha256=${digest}\t`);
+    case 'sha1-too':
+      return {
+        headers: {
+          'x-hub-signature-256': `sha256=${digest}`,
+          'x-hub-signature': sha1Header(`${secret}-legacy`, body),
+        },
+        body,
+      };
+    case 'missing':
+      return { headers: {}, body };
+  }
+}
+
 /** Headers + raw body of one delivery. */
 export function buildWebhook(
   event: string,
   payload: unknown,
   options: WebhookOptions,
 ): WebhookRequest {
-  const body = JSON.stringify(payload);
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    'user-agent': 'GitHub-Hookshot/double',
-    'x-github-event': event,
-    'x-github-delivery': options.deliveryId ?? randomUUID(),
+  const signed = signatureFor(
+    options.signature ?? 'valid',
+    options.secret,
+    JSON.stringify(payload),
+  );
+  return {
+    headers: {
+      'content-type': 'application/json',
+      'user-agent': 'GitHub-Hookshot/double',
+      'x-github-event': event,
+      'x-github-delivery': options.deliveryId ?? randomUUID(),
+      ...signed.headers,
+    },
+    body: signed.body,
   };
-  const mode = options.signature ?? 'valid';
-  const digest = hmacHex(options.secret, body);
-  switch (mode) {
-    case 'valid':
-      headers['x-hub-signature-256'] = `sha256=${digest}`;
-      break;
-    case 'invalid':
-      headers['x-hub-signature-256'] =
-        `sha256=${digest.replace(/./, (c) => (c === '0' ? '1' : '0'))}`;
-      break;
-    case 'malformed':
-      headers['x-hub-signature-256'] = digest;
-      break;
-    case 'wrong-secret':
-      headers['x-hub-signature-256'] = `sha256=${hmacHex(`${options.secret}-other`, body)}`;
-      break;
-    case 'sha1':
-      headers['x-hub-signature'] =
-        `sha1=${createHmac('sha1', options.secret).update(body).digest('hex')}`;
-      break;
-    case 'padded':
-      headers['x-hub-signature-256'] = ` sha256=${digest} `;
-      break;
-    case 'tampered':
-      headers['x-hub-signature-256'] = `sha256=${digest}`;
-      return { headers, body: `${body.slice(0, -1)} }` };
-    case 'upper-digest':
-      headers['x-hub-signature-256'] = `sha256=${digest.toUpperCase()}`;
-      break;
-    case 'upper-prefix':
-      headers['x-hub-signature-256'] = `SHA256=${digest}`;
-      break;
-    case 'inner-space':
-      headers['x-hub-signature-256'] = `sha256= ${digest}`;
-      break;
-    case 'short':
-      headers['x-hub-signature-256'] = `sha256=${digest.slice(0, 63)}`;
-      break;
-    case 'empty':
-      headers['x-hub-signature-256'] = '';
-      break;
-    case 'tab':
-      headers['x-hub-signature-256'] = `sha256=${digest}\t`;
-      break;
-    case 'sha1-too':
-      headers['x-hub-signature-256'] = `sha256=${digest}`;
-      headers['x-hub-signature'] = `sha1=${'0'.repeat(40)}`;
-      break;
-    case 'missing':
-      break;
-  }
-  return { headers, body };
 }
 
 // ---- payload builders ----------------------------------------------------------------------------

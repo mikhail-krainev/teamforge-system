@@ -15,7 +15,11 @@ import {
   type CompletableTeam,
 } from '../../../../test/fixtures/completion.js';
 import { github } from '../../../../test/fixtures/github.js';
-import { completionCount, contributionRows, forgetCompletion } from '../../../../test/fixtures/github-db.js';
+import {
+  completionCount,
+  contributionRows,
+  forgetCompletion,
+} from '../../../../test/fixtures/github-db.js';
 import { githubUser } from '../../../../test/fixtures/teams.js';
 import { routeTeam, startRouteWorld } from '../../../../test/fixtures/workspace.js';
 import { stageRows } from '../../../../test/fixtures/workspace-db.js';
