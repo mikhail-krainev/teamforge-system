@@ -1,17 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { uuidv7 } from 'uuidv7';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { InvariantError } from '../../../../platform/errors/domain-error.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
+  AccountEligibility,
   GithubApi,
   GithubContributionSource,
   RepoExistsResult,
+  RepoFinalResult,
   RepoLinkView,
 } from '../../public.js';
 import { ItemRepository } from '../webhook/item.repository.js';
-import { repoCheck } from '../schema/repo.js';
-import { RepoInspectionService } from './repo-inspection.service.js';
+import { RepoChecksService } from './repo-checks.service.js';
 import { RepoLinkRepository } from './repo-link.repository.js';
 
 const NO_REPOSITORY = 'NO_REPOSITORY';
@@ -23,7 +23,7 @@ export class GithubFacade implements GithubApi {
     @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(RepoLinkRepository) private readonly links: RepoLinkRepository,
-    @Inject(RepoInspectionService) private readonly inspection: RepoInspectionService,
+    @Inject(RepoChecksService) private readonly checks: RepoChecksService,
     @Inject(ItemRepository) private readonly items: ItemRepository,
   ) {}
 
@@ -43,20 +43,26 @@ export class GithubFacade implements GithubApi {
 
   async checkRepositoryExists(teamId: string): Promise<RepoExistsResult> {
     const link = await this.links.findHolding(teamId);
-    const checkedAt = this.clock.now();
-    if (link === undefined) return { ok: false, reasons: [NO_REPOSITORY], checkedAt };
-    const { rejections } = await this.inspection.inspect(link.installationId, link.repositoryId);
-    const result = { ok: rejections.length === 0, reasons: rejections as string[], checkedAt };
-    await this.tx.tx.insert(repoCheck).values({
-      id: uuidv7(),
-      teamId,
-      repositoryId: link.repositoryId,
-      kind: 'exists',
-      ok: result.ok,
-      details: { reasons: result.reasons },
-      checkedAt,
-    });
-    return result;
+    if (link === undefined) {
+      return { ok: false, reasons: [NO_REPOSITORY], checkedAt: this.clock.now() };
+    }
+    return (await this.checks.exists(link)).result;
+  }
+
+  checkRepositoryFinal(teamId: string): Promise<RepoFinalResult> {
+    return this.checks.final(teamId);
+  }
+
+  getCrossReviewedPullCount(teamId: string): Promise<number> {
+    return this.checks.crossReviewedPulls(teamId);
+  }
+
+  getCiState(teamId: string): Promise<'success' | 'none' | null> {
+    return this.checks.ciState(teamId);
+  }
+
+  getAccountEligibility(userId: string): Promise<AccountEligibility> {
+    return this.checks.accountEligibility(userId);
   }
 
   async isContributionSourceStanding(

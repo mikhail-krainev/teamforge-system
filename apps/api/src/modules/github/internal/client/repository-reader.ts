@@ -11,8 +11,7 @@ export type ItemFeed = 'issues' | 'pulls';
 
 /** One page of the list of issues or pull requests; the items are validated by the caller, per item. */
 export type FeedPage =
-  | { modified: false }
-  | { modified: true; items: unknown[]; etag: string | null; hasNext: boolean };
+  { modified: false } | { modified: true; items: unknown[]; etag: string | null; hasNext: boolean };
 
 const reviewSchema = z.object({
   user: z.object({ id: z.number().int().positive() }).nullable(),

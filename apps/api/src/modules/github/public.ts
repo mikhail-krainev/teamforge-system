@@ -24,6 +24,24 @@ export interface RepoExistsResult {
   checkedAt: Date;
 }
 
+/** The answer of `repo_final` (FR-GH-08): `reasons` are `REPO_*` codes, `NO_REPOSITORY`, `REPO_TOO_FEW_COMMITS`, `REPO_TOO_FEW_COMMITTERS`. */
+export interface RepoFinalResult {
+  ok: boolean;
+  reasons: string[];
+  /** Commits of all contributors of the repository. */
+  commits: number;
+  /** Distinct members of the team whose linked GitHub account committed. */
+  committingMembers: number;
+  checkedAt: Date;
+}
+
+/** FR-GH-09: `pending_account` means the credit waits, it is not refused; `unknown` until the account was checked. */
+export interface AccountEligibility {
+  status: 'eligible' | 'pending_account' | 'unknown';
+  /** `ACCOUNT_TOO_YOUNG`, `ACCOUNT_NO_PUBLIC_ACTIVITY`. */
+  reasons: string[];
+}
+
 export interface GithubApi {
   /** The repository that holds the team now (active or of a completed project), or `null`. */
   getRepoLink(teamId: TeamId): Promise<RepoLinkView | null>;
@@ -32,6 +50,18 @@ export interface GithubApi {
    * the result in `repo_check` (kind `exists`). A GitHub failure rejects; nothing is recorded.
    */
   checkRepositoryExists(teamId: TeamId): Promise<RepoExistsResult>;
+  /**
+   * `repo_final` of the repository that holds the team (FR-GH-08): the binding rules, at least 10 commits,
+   * commits of at least two members with a linked account. Keeps the result in `repo_check` (kind `final`).
+   * A GitHub failure rejects; nothing is recorded.
+   */
+  checkRepositoryFinal(teamId: TeamId): Promise<RepoFinalResult>;
+  /** `pr_cross_review:N`: merged pull requests of the team's repository with a review by somebody but the author. */
+  getCrossReviewedPullCount(teamId: TeamId): Promise<number>;
+  /** `ci_workflow`: a successful run on the default branch (`success`), none (`none`), or `null` when not checked. */
+  getCiState(teamId: TeamId): Promise<'success' | 'none' | null>;
+  /** FR-GH-09 for the credit (FR-REW-01 item 5), from the daily account check. */
+  getAccountEligibility(userId: string): Promise<AccountEligibility>;
   /**
    * Whether the issue is closed or the pull request merged now, as the last event or the sync left it;
    * `null` for an item that is not known. Handlers of contribution events reconcile against it:

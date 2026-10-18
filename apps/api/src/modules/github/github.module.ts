@@ -1,5 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { GithubClient } from './internal/client/github-client.js';
+import { RateLimitGate } from './internal/client/rate-limit-gate.js';
+import { RepositoryReader } from './internal/client/repository-reader.js';
 import { AvailableRepositoriesService } from './internal/installation/available-repositories.service.js';
 import { InstallationSessionService } from './internal/installation/installation-session.service.js';
 import { InstallationStateStore } from './internal/installation/installation-state.store.js';
@@ -12,6 +14,11 @@ import { RepoInspectionService } from './internal/services/repo-inspection.servi
 import { RepoLinkRepository } from './internal/services/repo-link.repository.js';
 import { RepoLinkService } from './internal/services/repo-link.service.js';
 import { SetupCallbackService } from './internal/installation/setup-callback.service.js';
+import { AccountSyncService } from './internal/jobs/account-sync.service.js';
+import { GithubSync } from './internal/jobs/github-sync.js';
+import { RepoSyncService } from './internal/jobs/repo-sync.service.js';
+import { SyncStateRepository } from './internal/repositories/sync-state.repository.js';
+import { RepoChecksService } from './internal/services/repo-checks.service.js';
 import { GithubWebhookProcessor } from './internal/jobs/github-webhook.processor.js';
 import { WebhookSweeper } from './internal/jobs/webhook-sweeper.js';
 import { ContributionEvents } from './internal/webhook/contribution-events.js';
@@ -31,12 +38,21 @@ import { WebhookReceiver } from './internal/webhook/webhook-receiver.service.js'
  * installation flow: createInstallationSession, githubSetupCallback, listAvailableRepositories.
  * S6-04: the binding of a repository (linkRepository, getRepository, unlinkRepository) and `GithubApi`.
  * S6-05: webhooks (receiveGithubWebhook, the `github-webhook` queue, the sweeper) and the events of contributions.
+ * S6-06: the daily reconciliation `github-sync`, `repo_check`, `account_check`, and the checks `repo_final`,
+ * `ci_workflow`, `pr_cross_review`.
  */
 @Global()
 @Module({
   controllers: [InstallationController, RepoController, WebhookController],
   providers: [
     GithubClient,
+    RepositoryReader,
+    RateLimitGate,
+    SyncStateRepository,
+    RepoChecksService,
+    RepoSyncService,
+    AccountSyncService,
+    GithubSync,
     InstallationStateStore,
     InstallationRepository,
     InstallationSessionService,

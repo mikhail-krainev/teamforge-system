@@ -5,7 +5,8 @@ export const MIN_FINAL_COMMITS = 10;
 /** FR-GH-08: members with a linked GitHub account who must have committed. */
 export const MIN_COMMITTING_MEMBERS = 2;
 
-export type RepoFinalReason = RepoRejectionCode | 'REPO_TOO_FEW_COMMITS' | 'REPO_TOO_FEW_COMMITTERS';
+export type RepoFinalReason =
+  RepoRejectionCode | 'REPO_TOO_FEW_COMMITS' | 'REPO_TOO_FEW_COMMITTERS';
 
 export interface RepoFinalFacts {
   /** The binding rules that fail now: gone, archived, private, fork without own commits. */

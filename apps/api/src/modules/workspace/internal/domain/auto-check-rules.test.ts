@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   autoCheckFailuresOf,
   failedBlockingChecks,
+  raisedSignalChecks,
   type AutoCheckFacts,
 } from './auto-check-rules.js';
 
@@ -258,5 +259,42 @@ describe('autoCheckFailuresOf: several items and several checks (S5-14)', () => 
   it('a stage without items and a step the playbook does not know give no failure', () => {
     expect(autoCheckFailuresOf([], () => ['file_ok'])).toEqual([]);
     expect(autoCheckFailuresOf([row('a')], () => [])).toEqual([]);
+  });
+});
+
+describe('repo_final and the GitHub signals (S6-06)', () => {
+  const facts = {
+    kind: 'artifact',
+    submission: 'link',
+    linkUrl: 'https://github.com/a/b',
+    linkStatus: 'ok',
+    heldOn: null,
+    externalUrl: null,
+    outcome: null,
+    filesCount: 0,
+  };
+
+  it('repo_final blocks only when its verdict is known and negative', () => {
+    expect(failedBlockingChecks(['repo_final'], { ...facts, repoFinalOk: false })).toEqual([
+      'repo_final',
+    ]);
+    expect(failedBlockingChecks(['repo_final'], { ...facts, repoFinalOk: true })).toEqual([]);
+    expect(failedBlockingChecks(['repo_final'], facts)).toEqual([]);
+  });
+
+  it('pr_cross_review:N raises a signal below N and never blocks', () => {
+    expect(raisedSignalChecks(['pr_cross_review:5'], { crossReviewedPulls: 4 })).toEqual([
+      'pr_cross_review',
+    ]);
+    expect(raisedSignalChecks(['pr_cross_review:5'], { crossReviewedPulls: 5 })).toEqual([]);
+    expect(raisedSignalChecks(['pr_cross_review:5'], {})).toEqual([]);
+    expect(failedBlockingChecks(['pr_cross_review:5'], facts)).toEqual([]);
+  });
+
+  it('ci_workflow raises a signal only for a known negative state', () => {
+    expect(raisedSignalChecks(['ci_workflow'], { ciState: 'none' })).toEqual(['ci_workflow']);
+    expect(raisedSignalChecks(['ci_workflow'], { ciState: 'success' })).toEqual([]);
+    expect(raisedSignalChecks(['ci_workflow'], { ciState: null })).toEqual([]);
+    expect(raisedSignalChecks(['ci_workflow'], {})).toEqual([]);
   });
 });

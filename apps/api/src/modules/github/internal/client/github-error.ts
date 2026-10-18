@@ -63,10 +63,12 @@ function headerOf(error: unknown, name: string): string | undefined {
  */
 function limitOrForbidden(error: unknown, status: number): GithubError {
   const retryAfter = Number(headerOf(error, 'retry-after'));
-  const retryAfterMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined;
+  const retryAfterMs =
+    Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined;
   const exhausted = headerOf(error, 'x-ratelimit-remaining') === '0';
   const reset = Number(headerOf(error, 'x-ratelimit-reset'));
-  const resetAt = exhausted && Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000) : undefined;
+  const resetAt =
+    exhausted && Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000) : undefined;
   if (status === 429 || retryAfterMs !== undefined || exhausted) {
     return new GithubError('rate_limited', status, retryAfterMs, resetAt);
   }
