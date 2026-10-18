@@ -2,6 +2,7 @@
 import artifacts from './ru/artifacts.json';
 import auth from './ru/auth.json';
 import checklist from './ru/checklist.json';
+import completion from './ru/completion.json';
 import errors from './ru/errors.json';
 import feed from './ru/feed.json';
 import github from './ru/github.json';
@@ -24,6 +25,7 @@ export const ruDictionaries = {
   "artifacts": artifacts,
   "auth": auth,
   "checklist": checklist,
+  "completion": completion,
   "errors": errors,
   "feed": feed,
   "github": github,

@@ -156,8 +156,11 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
       <h1>{data.name}</h1>
       {canManage ? <p className="muted">{t('teams.detail.youAreLead')}</p> : null}
       {data.status !== 'forming' ? (
-        <p>
+        <p className="row">
           <Link href={`/teams/${data.id}/route`}>{t('teams.detail.route')}</Link>
+          <Link href={`/teams/${data.id}/feed`}>{t('feed.links.feed')}</Link>
+          <Link href={`/teams/${data.id}/github`}>{t('github.links.github')}</Link>
+          <Link href={`/teams/${data.id}/complete`}>{t('completion.links.complete')}</Link>
         </p>
       ) : null}
       <Summary team={data} typeName={typeName} />
