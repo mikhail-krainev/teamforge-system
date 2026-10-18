@@ -30,10 +30,31 @@ export type WebhookSink = (request: WebhookRequest) => Promise<{ status: number 
  *  - wrong-secret: HMAC of the same body under another secret (a delivery signed by somebody else);
  *  - sha1: the legacy header name only (X-Hub-Signature), the new one absent;
  *  - padded: valid digest with spaces around it;
- *  - tampered: valid digest of the original body, but the body is changed afterwards (raw-body check).
+ *  - tampered: valid digest of the original body, but the body is changed afterwards (raw-body check);
+ *  - upper-digest: the right digest written in capitals (GitHub writes lower case);
+ *  - upper-prefix: `SHA256=` in capitals in front of the right digest;
+ *  - inner-space: `sha256= <digest>` (a space after the equals sign);
+ *  - short: the digest cut to 63 characters;
+ *  - empty: the header is present and empty;
+ *  - tab: valid digest followed by a tab;
+ *  - sha1-too: the right sha256 header plus a legacy `X-Hub-Signature` that is wrong (the new header decides).
  */
 export type SignatureMode =
-  'valid' | 'invalid' | 'missing' | 'malformed' | 'wrong-secret' | 'sha1' | 'padded' | 'tampered';
+  | 'valid'
+  | 'invalid'
+  | 'missing'
+  | 'malformed'
+  | 'wrong-secret'
+  | 'sha1'
+  | 'padded'
+  | 'tampered'
+  | 'upper-digest'
+  | 'upper-prefix'
+  | 'inner-space'
+  | 'short'
+  | 'empty'
+  | 'tab'
+  | 'sha1-too';
 
 export interface WebhookOptions {
   /** `X-GitHub-Delivery`; random by default. A repeated id is a re-delivery. */
@@ -85,6 +106,28 @@ export function buildWebhook(
     case 'tampered':
       headers['x-hub-signature-256'] = `sha256=${digest}`;
       return { headers, body: `${body.slice(0, -1)} }` };
+    case 'upper-digest':
+      headers['x-hub-signature-256'] = `sha256=${digest.toUpperCase()}`;
+      break;
+    case 'upper-prefix':
+      headers['x-hub-signature-256'] = `SHA256=${digest}`;
+      break;
+    case 'inner-space':
+      headers['x-hub-signature-256'] = `sha256= ${digest}`;
+      break;
+    case 'short':
+      headers['x-hub-signature-256'] = `sha256=${digest.slice(0, 63)}`;
+      break;
+    case 'empty':
+      headers['x-hub-signature-256'] = '';
+      break;
+    case 'tab':
+      headers['x-hub-signature-256'] = `sha256=${digest}\t`;
+      break;
+    case 'sha1-too':
+      headers['x-hub-signature-256'] = `sha256=${digest}`;
+      headers['x-hub-signature'] = `sha1=${'0'.repeat(40)}`;
+      break;
     case 'missing':
       break;
   }
