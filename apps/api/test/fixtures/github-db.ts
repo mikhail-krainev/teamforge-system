@@ -145,6 +145,23 @@ export const completionCount = (world: World, teamId: string): Promise<number> =
   countOf(world.sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM workspace.project_completion WHERE team_id = ${teamId}`);
 
+/**
+ * Removes the completion record of a test team. The table refuses UPDATE and DELETE (CC-13), so the
+ * owner of the schema switches the guard off for one transaction: tests that plant a "completed project"
+ * by hand take it back with this and nothing else.
+ */
+export async function forgetCompletion(world: World, teamId: string): Promise<void> {
+  await world.sql.begin(async (tx) => {
+    await tx.unsafe(
+      'ALTER TABLE workspace.project_completion DISABLE TRIGGER project_completion_immutable_trg',
+    );
+    await tx`DELETE FROM workspace.project_completion WHERE team_id = ${teamId}`;
+    await tx.unsafe(
+      'ALTER TABLE workspace.project_completion ENABLE TRIGGER project_completion_immutable_trg',
+    );
+  });
+}
+
 export const completionCheckCount = (world: World, teamId: string): Promise<number> =>
   countOf(world.sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM workspace.completion_check WHERE team_id = ${teamId}`);

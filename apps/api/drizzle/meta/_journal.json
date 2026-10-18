@@ -113,6 +113,13 @@
       "when": 1792339243175,
       "tag": "0015_slice6_github_contribution_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792346008862,
+      "tag": "0016_project_completion_immutable_delete",
+      "breakpoints": true
     }
   ]
 }

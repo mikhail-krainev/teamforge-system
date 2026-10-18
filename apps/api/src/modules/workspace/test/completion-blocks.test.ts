@@ -15,7 +15,7 @@ import {
   type CompletableTeam,
 } from '../../../../test/fixtures/completion.js';
 import { github } from '../../../../test/fixtures/github.js';
-import { completionCount, contributionRows } from '../../../../test/fixtures/github-db.js';
+import { completionCount, contributionRows, forgetCompletion } from '../../../../test/fixtures/github-db.js';
 import { githubUser } from '../../../../test/fixtures/teams.js';
 import { routeTeam, startRouteWorld } from '../../../../test/fixtures/workspace.js';
 import { stageRows } from '../../../../test/fixtures/workspace-db.js';
@@ -242,7 +242,7 @@ describeInfra(
           true,
         );
       } finally {
-        await world.sql`DELETE FROM workspace.project_completion WHERE team_id = ${earlier.team.id}`;
+        await forgetCompletion(world, earlier.team.id);
         await world.sql`UPDATE teams.team SET release_url = NULL WHERE id = ${earlier.team.id}`;
       }
       await expectStillOpen();
