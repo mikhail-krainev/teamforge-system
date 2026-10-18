@@ -94,7 +94,12 @@ export class GithubAppTwin {
     account: TwinAccount;
     options: Partial<InstallOptions>;
   }[] = [];
-  nextInstallationId = 70_000_000;
+  /**
+   * Installation tokens are cached in Redis under the id of the installation, and Redis is shared by every
+   * test world: twins that all counted from the same number would hand each other tokens they do not know
+   * (401 in the middle of a parallel run). A random start keeps the keys of one world apart from another's.
+   */
+  nextInstallationId = 70_000_000 + Math.floor(Math.random() * 1_000_000_000);
   nextRepoId = 810_000_000;
   nextRunId = 9_000_000;
   quotaRemaining = DEFAULT_QUOTA;

@@ -137,10 +137,19 @@ describeInfra(
         expect(fired.filter((f) => f.index % 2 === 1).every((f) => f.status !== 200)).toBe(true);
       });
 
+      /** The states of this team only: Redis is shared with the other test files that run at the same time. */
+      const statesOfTeam = async (teamId: string): Promise<number> => {
+        const keys = (await scanKeys(redis, 'gh_state:*')).filter(
+          (k) => !k.startsWith('gh_state:cache:'),
+        );
+        const values = await Promise.all(keys.map((k) => redis.get(k)));
+        return values.filter((v) => v?.includes(teamId)).length;
+      };
+
       it('FR-GH-01 (paired): createInstallationSession x5 with one key -> one state in Redis, the replays return the same answer', async () => {
         const fx = await routeTeam(world);
         const key = randomUUID();
-        const before = (await scanKeys(redis, 'gh_state:*')).length;
+        const before = await statesOfTeam(fx.team.id);
         const fired = await fireAll(
           5,
           (_i, k) => createSession(world, fx.lead, fx.team.id, k),
@@ -151,7 +160,7 @@ describeInfra(
         for (const f of fired.filter((x) => x.status !== 201)) expect(f.status).toBe(409);
         const winner = winnerOf(fired, 201);
         expectReplayOf(winner, await createSession(world, fx.lead, fx.team.id, key));
-        expect((await scanKeys(redis, 'gh_state:*')).length).toBe(before + 1);
+        expect(await statesOfTeam(fx.team.id)).toBe(before + 1);
       });
     });
 
