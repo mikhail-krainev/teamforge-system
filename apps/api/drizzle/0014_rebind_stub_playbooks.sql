@@ -1,4 +1,4 @@
--- A team that has not started yet and is pinned to a stub playbook (0.0.1, no stages) cannot get a route:
+-- A team that has not started yet and is pinned to a stub playbook (one without stages) cannot get a route:
 -- the start of such a project fails. Moves it to the latest published playbook of its product type that
 -- has stages. Idempotent; a no-op while only the stubs exist (the real ones are loaded by playbooks:load,
 -- which repeats this move after every published playbook).
@@ -15,9 +15,7 @@ UPDATE "teams"."team" AS t
        "version" = t."version" + 1,
        "updated_at" = now()
  WHERE t."status" = 'forming'
-   AND EXISTS (
-         SELECT 1 FROM "playbooks"."playbook" AS stub
-          WHERE stub."id" = t."playbook_id" AND stub."source_text" = 'stub')
+   AND NOT EXISTS (SELECT 1 FROM "playbooks"."stage" AS pinned WHERE pinned."playbook_id" = t."playbook_id")
    AND EXISTS (
          SELECT 1
            FROM "playbooks"."playbook" AS p

@@ -3,7 +3,11 @@ import { Clock } from '../../../../platform/clock/clock.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { PROFILES_API, type ProfilesApi } from '../../../profiles/public.js';
-import { PLAYBOOKS_MODULE } from '../../public.js';
+import {
+  PLAYBOOK_PUBLISHED_PORT,
+  PLAYBOOKS_MODULE,
+  type PlaybookPublishedPort,
+} from '../../public.js';
 import { PlaybookLoader, type PlaybookSummaryDto, type UploadResult } from './playbook-loader.js';
 
 /** Outbox event of a published playbook (architecture 3.3). */
@@ -19,6 +23,7 @@ export class PlaybookAdminService {
     @Inject(Clock) private readonly clock: Clock,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(PROFILES_API) private readonly profiles: ProfilesApi,
+    @Inject(PLAYBOOK_PUBLISHED_PORT) private readonly published: PlaybookPublishedPort,
   ) {}
 
   /** FR-PLAY-01/-02/-07: 422 PLAYBOOK_INVALID, 409 PLAYBOOK_VERSION_NOT_GREATER, or a stored draft. */
@@ -40,6 +45,10 @@ export class PlaybookAdminService {
           productType: published.productTypeCode,
           version: published.version,
         },
+      });
+      await this.published.onPublished({
+        productType: published.productTypeCode,
+        publishedAt: this.clock.now(),
       });
       return published;
     });

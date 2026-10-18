@@ -34,6 +34,8 @@ import { TeamService } from './internal/services/team.service.js';
 import { TeamsFacade } from './internal/services/teams-facade.service.js';
 import { TRIAL_CONTROLLERS, TRIAL_PROVIDERS } from './internal/trial.providers.js';
 import { START_CONTROLLERS, START_PROVIDERS } from './internal/start.providers.js';
+import { PLAYBOOK_PUBLISHED_PORT } from '../playbooks/public.js';
+import { StubTeamRebinder } from './internal/services/playbook-published.port.js';
 import { TEAMS_API } from './public.js';
 
 /**
@@ -82,7 +84,9 @@ import { TEAMS_API } from './public.js';
     TeamOperations,
     TeamsFacade,
     { provide: TEAMS_API, useExisting: TeamsFacade },
+    StubTeamRebinder,
+    { provide: PLAYBOOK_PUBLISHED_PORT, useExisting: StubTeamRebinder },
   ],
-  exports: [TEAMS_API],
+  exports: [TEAMS_API, PLAYBOOK_PUBLISHED_PORT],
 })
 export class TeamsModule {}

@@ -89,3 +89,14 @@ export interface PlaybooksApi {
 
 /** Injection token of the PlaybooksApi implementation. */
 export const PLAYBOOKS_API = Symbol('PLAYBOOKS_API');
+
+/**
+ * Declared by playbooks, implemented by teams (the upper module): runs in the transaction of the
+ * publication, after the playbook became immutable. Teams that have not started and are pinned to a
+ * playbook without stages move to the latest published one (FR-PLAY-03).
+ */
+export interface PlaybookPublishedPort {
+  onPublished(input: { productType: ProductTypeCode; publishedAt: Date }): Promise<void>;
+}
+
+export const PLAYBOOK_PUBLISHED_PORT = Symbol('PLAYBOOK_PUBLISHED_PORT');
