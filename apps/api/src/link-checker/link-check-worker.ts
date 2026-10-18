@@ -1,6 +1,11 @@
-import { DelayedError, UnrecoverableError, Worker } from 'bullmq';
+import { DelayedError, type Job, UnrecoverableError, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
-import { type LinkCheckResult, LINK_CHECK_QUEUE, linkCheckJobSchema } from './protocol.js';
+import {
+  type LinkCheckJobData,
+  type LinkCheckResult,
+  LINK_CHECK_QUEUE,
+  linkCheckJobSchema,
+} from './protocol.js';
 import { normalizeHostname } from './host.js';
 import {
   DomainBusy,
@@ -69,15 +74,11 @@ export function startLinkCheckWorker(
         return { teamId, itemId, version, url, outcome };
       } catch (error) {
         if (!(error instanceof DomainBusy)) throw error;
-        const firstBusyAt = parsed.data.firstBusyAt ?? Date.now();
-        if (Date.now() - firstBusyAt > maxThrottleMs) {
+        const timedOut = await deferBusyJob(job, token, parsed.data, error.waitMs, maxThrottleMs);
+        if (timedOut) {
           const outcome: LinkCheckOutcome = { ok: false, reason: 'TIMEOUT', httpStatus: null };
           return { teamId, itemId, version, url, outcome };
         }
-        if (parsed.data.firstBusyAt === undefined) {
-          await job.updateData({ ...parsed.data, firstBusyAt });
-        }
-        await job.moveToDelayed(Date.now() + Math.max(1_000, error.waitMs), token);
         throw new DelayedError();
       }
     },
@@ -90,6 +91,24 @@ export function startLinkCheckWorker(
   );
   worker.on('error', (error) => options.onError?.(error));
   return worker;
+}
+
+/**
+ * A check met a busy domain: runs it again later, or reports that the time allowed for waiting (counted
+ * from the first busy answer, kept in the job data) has run out. Throws `DelayedError` after moving the job.
+ */
+async function deferBusyJob(
+  job: Job,
+  token: string | undefined,
+  data: LinkCheckJobData,
+  waitMs: number,
+  maxThrottleMs: number,
+): Promise<boolean> {
+  const firstBusyAt = data.firstBusyAt ?? Date.now();
+  if (Date.now() - firstBusyAt > maxThrottleMs) return true;
+  if (data.firstBusyAt === undefined) await job.updateData({ ...data, firstBusyAt });
+  await job.moveToDelayed(Date.now() + Math.max(1_000, waitMs), token);
+  throw new DelayedError();
 }
 
 function hostnameOf(url: string): string | undefined {

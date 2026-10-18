@@ -317,7 +317,8 @@ describe('S5 audit L1/L2: the throttle of every hop and one deadline for the who
 
   it('the address of a redirect is verified before the throttle: a forbidden target takes no slot', async () => {
     const c = checker({
-      resolve: (hostname) => Promise.resolve([hostname === 'evil.example.test' ? '10.0.0.5' : PUBLIC_IP]),
+      resolve: (hostname) =>
+        Promise.resolve([hostname === 'evil.example.test' ? '10.0.0.5' : PUBLIC_IP]),
       responses: [redirect('https://evil.example.test/')],
     });
     const asked: string[] = [];

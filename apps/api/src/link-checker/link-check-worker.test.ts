@@ -246,44 +246,48 @@ describeInfra(
   },
 );
 
-describeInfra('link-checker: a redirect to the same host, with the real checker and Redis', ['redis'], () => {
-  const prefix = uniqueQueuePrefix();
-  let h: Harness;
-  const unique = randomUUID().slice(0, 8);
-  const requested: string[] = [];
+describeInfra(
+  'link-checker: a redirect to the same host, with the real checker and Redis',
+  ['redis'],
+  () => {
+    const prefix = uniqueQueuePrefix();
+    let h: Harness;
+    const unique = randomUUID().slice(0, 8);
+    const requested: string[] = [];
 
-  beforeAll(async () => {
-    const checker = createLinkChecker({
-      resolve: () => Promise.resolve(['93.184.216.34']),
-      request: (hop) => {
-        requested.push(`${hop.host}${hop.path}`);
-        return Promise.resolve(
-          hop.path === '/start'
-            ? { status: 302, location: `https://${hop.host}/final` }
-            : { status: 200 },
-        );
-      },
+    beforeAll(async () => {
+      const checker = createLinkChecker({
+        resolve: () => Promise.resolve(['93.184.216.34']),
+        request: (hop) => {
+          requested.push(`${hop.host}${hop.path}`);
+          return Promise.resolve(
+            hop.path === '/start'
+              ? { status: 302, location: `https://${hop.host}/final` }
+              : { status: 200 },
+          );
+        },
+      });
+      h = startHarness({
+        prefix,
+        redisUrl: process.env.REDIS_URL ?? '',
+        domainIntervalMs: 60_000,
+        checker,
+      });
+      await h.events.waitUntilReady();
     });
-    h = startHarness({
-      prefix,
-      redisUrl: process.env.REDIS_URL ?? '',
-      domainIntervalMs: 60_000,
-      checker,
+
+    afterAll(async () => {
+      if (h) await h.close();
     });
-    await h.events.waitUntilReady();
-  });
 
-  afterAll(async () => {
-    if (h) await h.close();
-  });
-
-  it('a redirect to the host of the first hop is not told to wait for its own slot', async () => {
-    const host = `${unique}.example.test`;
-    const result = await run(h, `https://${host}/start`);
-    expect(result.outcome).toEqual(OK);
-    expect(requested).toEqual([`${host}/start`, `${host}/final`]);
-  }, 20_000);
-});
+    it('a redirect to the host of the first hop is not told to wait for its own slot', async () => {
+      const host = `${unique}.example.test`;
+      const result = await run(h, `https://${host}/start`);
+      expect(result.outcome).toEqual(OK);
+      expect(requested).toEqual([`${host}/start`, `${host}/final`]);
+    }, 20_000);
+  },
+);
 
 describeInfra('link-checker: one spelling of a host for the pause', ['redis'], () => {
   const prefix = uniqueQueuePrefix();

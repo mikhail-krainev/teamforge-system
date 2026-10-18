@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { miniPlaybookYaml } from '../../test/fixtures/playbooks.js';
 import { team } from '../../test/fixtures/teams.js';
 import { World } from '../../test/fixtures/world.js';

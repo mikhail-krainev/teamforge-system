@@ -75,7 +75,7 @@ describe('loadLinkCheckerEnv', () => {
   });
 
   it('fails closed when NODE_ENV is missing or anything but development and test', () => {
-    const { NODE_ENV: _omitted, ...withoutNodeEnv } = BASE;
+    const withoutNodeEnv = { REDIS_LINKCHECK_URL: BASE.REDIS_LINKCHECK_URL };
     for (const env of [
       withoutNodeEnv,
       { ...BASE, NODE_ENV: 'staging' },
@@ -90,7 +90,13 @@ describe('loadLinkCheckerEnv', () => {
   });
 
   it('refuses a SELF_PUBLIC_IPS entry that is not an IP address, naming the variable only', () => {
-    for (const bad of ['203.0.114.7, not-an-ip', 'example.com', '10.0.0', '203.0.114.7/32', '1.2.3.4:80']) {
+    for (const bad of [
+      '203.0.114.7, not-an-ip',
+      'example.com',
+      '10.0.0',
+      '203.0.114.7/32',
+      '1.2.3.4:80',
+    ]) {
       const env = { ...BASE, SELF_PUBLIC_IPS: bad };
       expect(() => loadLinkCheckerEnv(env), bad).toThrow(LinkCheckerEnvError);
       expect(() => loadLinkCheckerEnv(env), bad).toThrow(/SELF_PUBLIC_IPS/);
