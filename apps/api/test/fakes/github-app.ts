@@ -1,6 +1,5 @@
 import { createPublicKey, type KeyObject } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { GithubAppHttp } from './github-app-http.js';
 import {
   ALL_READ,
   DEFAULT_QUOTA,
@@ -55,6 +54,11 @@ export * from './github-app-types.js';
  * Everything GitHub would answer is derived from the state below; tests change the state with the
  * methods of the class and read what the application asked for in `calls`.
  */
+
+/** The HTTP surface of the double. */
+export interface AppHttp {
+  handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean>;
+}
 
 export class GithubAppTwin {
   readonly appId: number;
@@ -565,11 +569,19 @@ export class GithubAppTwin {
     );
   }
 
-  private readonly http = new GithubAppHttp(this);
+  private http: AppHttp | undefined;
+
+  /**
+   * The REST surface (`github-app-http.ts`) is plugged in by the server that owns both: the surface
+   * reads this twin, so the twin must not import it (dependency cycle).
+   */
+  useHttp(http: AppHttp): void {
+    this.http = http;
+  }
 
   /** True when the request was answered here. Called by `GithubServer` before its own routes. */
-  handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
-    return this.http.handle(req, res, url);
+  async handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
+    return (await this.http?.handle(req, res, url)) ?? false;
   }
 
   installationBody(installation: TwinInstallation): Record<string, unknown> {

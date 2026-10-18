@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { GithubAppTwin, type AppClock } from './github-app.js';
+import { GithubAppHttp } from './github-app-http.js';
 
 /**
  * Double of GitHub for sign-in and account linking (docs/plan.md, "Фикстуры"; architecture 7.1:
@@ -289,6 +290,7 @@ function createDouble(
     issueCode: (identity, redirectUri) => issueCode(state, identity as GithubIdentity, redirectUri),
     baseUrl: () => baseUrl,
   });
+  app.useHttp(new GithubAppHttp(app));
   return {
     app,
     baseUrl,
