@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { GithubAppTwin, type AppClock } from './github-app.js';
 
 /**
  * Double of GitHub for sign-in and account linking (docs/plan.md, "Фикстуры"; architecture 7.1:
@@ -62,9 +63,19 @@ export interface GithubServerOptions {
   publicHost?: string;
   clientId?: string;
   clientSecret?: string;
+  /** GitHub App settings (slice 6, `test/fakes/github-app.ts`). */
+  appId?: number;
+  appSlug?: string;
+  webhookSecret?: string;
+  /** PKCS#1 key of the App; the e2e stack passes the one its containers were started with. */
+  privateKeyPem?: string;
+  /** Clock of the App side (token expiry, rate limits); the system clock by default. */
+  clock?: AppClock;
 }
 
 export interface GithubServer {
+  /** The GitHub App side: installations, repositories, issues, pull requests, webhooks, limits. */
+  app: GithubAppTwin;
   /** Origin of the double: it serves both the OAuth pages and the REST API. */
   baseUrl: string;
   clientId: string;
@@ -183,7 +194,12 @@ function exchange(state: State, body: Record<string, string>, res: ServerRespons
   }
   const grant = state.codes.get(body.code ?? '');
   state.codes.delete(body.code ?? '');
-  if (!grant || (body.redirect_uri !== undefined && body.redirect_uri !== grant.redirectUri)) {
+  if (
+    !grant ||
+    (body.redirect_uri !== undefined &&
+      grant.redirectUri !== '' &&
+      body.redirect_uri !== grant.redirectUri)
+  ) {
     return sendJson(res, 200, { error: 'bad_verification_code' });
   }
   sendJson(res, 200, issueTokens(state, grant.identity));
@@ -206,6 +222,12 @@ function api(state: State, path: string, req: IncomingMessage, res: ServerRespon
   }
   if (path === '/user/emails') return sendJson(res, 200, identity.emails);
   if (path === '/user/installations') {
+    if (state.server.app.hasInstallations(identity.id)) {
+      const installations = state.server.app.userInstallations(identity.id).map((i) => ({
+        ...state.server.app.installationBody(i),
+      }));
+      return sendJson(res, 200, { total_count: installations.length, installations });
+    }
     return sendJson(res, 200, {
       total_count: state.installations.length,
       installations: state.installations,
@@ -236,6 +258,7 @@ async function handle(state: State, req: IncomingMessage, res: ServerResponse): 
     authorization: req.headers.authorization,
     body,
   });
+  if (await state.server.app.handle(req, res, url)) return;
   if (req.method === 'GET' && url.pathname === '/login/oauth/authorize') {
     return authorize(state, url, res);
   }
@@ -251,8 +274,23 @@ async function handle(state: State, req: IncomingMessage, res: ServerResponse): 
   sendJson(res, 404, { message: 'Not Found' });
 }
 
-function createDouble(state: State, server: Server, baseUrl: string): GithubServer {
+function createDouble(
+  state: State,
+  server: Server,
+  baseUrl: string,
+  options: GithubServerOptions,
+): GithubServer {
+  const app = new GithubAppTwin({
+    ...(options.appId === undefined ? {} : { appId: options.appId }),
+    ...(options.appSlug === undefined ? {} : { slug: options.appSlug }),
+    ...(options.webhookSecret === undefined ? {} : { webhookSecret: options.webhookSecret }),
+    ...(options.privateKeyPem === undefined ? {} : { privateKeyPem: options.privateKeyPem }),
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
+    issueCode: (identity, redirectUri) => issueCode(state, identity as GithubIdentity, redirectUri),
+    baseUrl: () => baseUrl,
+  });
   return {
+    app,
     baseUrl,
     clientId: state.clientId,
     clientSecret: state.clientSecret,
@@ -302,7 +340,12 @@ export async function startGithubServer(options: GithubServerOptions = {}): Prom
   );
   const bound = server.address();
   const port = typeof bound === 'object' && bound ? bound.port : 0;
-  state.server = createDouble(state, server, `http://${options.publicHost ?? '127.0.0.1'}:${port}`);
+  state.server = createDouble(
+    state,
+    server,
+    `http://${options.publicHost ?? '127.0.0.1'}:${port}`,
+    options,
+  );
   return state.server;
 }
 
@@ -317,5 +360,9 @@ export function githubEnv(server: GithubServer): Record<string, string> {
     GITHUB_APP_CLIENT_SECRET: server.clientSecret,
     GITHUB_OAUTH_BASE_URL: server.baseUrl,
     GITHUB_API_BASE_URL: server.baseUrl,
+    GITHUB_APP_ID: String(server.app.appId),
+    GITHUB_APP_SLUG: server.app.slug,
+    GITHUB_APP_PRIVATE_KEY: server.app.privateKeyPem,
+    GITHUB_WEBHOOK_SECRET: server.app.webhookSecret,
   };
 }
