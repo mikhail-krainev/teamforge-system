@@ -45,11 +45,23 @@ import { RealtimeRelayConsumer } from './internal/events/realtime-relay.consumer
 import { RealtimeGateway } from './internal/realtime/realtime.gateway.js';
 import { NotificationRepository } from './internal/repositories/notification.repository.js';
 import { NotificationService } from './internal/services/notification.service.js';
+import { CompletionController } from './internal/controllers/completion.controller.js';
+import { ReleaseCheckRecorder } from './internal/events/release-check.recorder.js';
+import { CompletionCheckProcessor } from './internal/jobs/completion-check.processor.js';
+import { CompletionCheckSweep } from './internal/jobs/completion-check-sweep.js';
+import { CompletionRepository } from './internal/repositories/completion.repository.js';
+import { CompletionCheckService } from './internal/services/completion-check.service.js';
+import { CompletionService } from './internal/services/completion.service.js';
+import { LinkChecks } from './internal/services/link-checks.js';
+import { ReleaseTargetService } from './internal/services/release-target.service.js';
+import { WorkspaceFacade } from './internal/services/workspace-facade.service.js';
+import { WorkspaceOperations } from './internal/authz/workspace-operations.js';
+import { WORKSPACE_API } from './public.js';
 
 /**
  * Workspace module. S3-10: notifications (list, read marks, event handlers, e-mail) and the
  * WebSocket gateway with its Redis relay. S5-04: the route of a project (stages, checklist) and
- * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer. S5-09: the verdict of the `link-checker` on saved links and the sweep that repairs a lost check. S6-05: contributions from GitHub events (`github.contribution_detected` and `_revoked`) and the real-time signal `contribution.recorded`. S6-07: the feed, the summary, the role of a contribution (`relabelContribution`) and contributions of artifacts and rituals.
+ * the `TeamLifecyclePort` that opens it. S5-05: item writes (version, links), executors, fallback steps and the departure of a member. S5-06: artifact files (upload, signed download link, deletion, orphan cleanup). S5-08: stage transition, participation confirmations and the `stage-due-notify` timer. S5-09: the verdict of the `link-checker` on saved links and the sweep that repairs a lost check. S6-05: contributions from GitHub events (`github.contribution_detected` and `_revoked`) and the real-time signal `contribution.recorded`. S6-08: the check of readiness to complete (`auto-checks` worker, sweep), `completeProject` (T6), the page of results, the first look at the release and `WorkspaceApi`. S6-07: the feed, the summary, the role of a contribution (`relabelContribution`) and contributions of artifacts and rituals.
  *
  * Global because teams injects `TEAM_LIFECYCLE_PORT` and may not import workspace (architecture
  * 2.2): this module is the one place where the port is bound.
@@ -63,6 +75,7 @@ import { NotificationService } from './internal/services/notification.service.js
     StageTransitionController,
     ArtifactController,
     FeedController,
+    CompletionController,
   ],
   providers: [
     RouteRepository,
@@ -91,6 +104,17 @@ import { NotificationService } from './internal/services/notification.service.js
     RelabelService,
     StageSuspensionConsumer,
     StepSignalsConsumer,
+    WorkspaceOperations,
+    CompletionRepository,
+    LinkChecks,
+    ReleaseTargetService,
+    ReleaseCheckRecorder,
+    CompletionCheckService,
+    CompletionService,
+    CompletionCheckProcessor,
+    CompletionCheckSweep,
+    WorkspaceFacade,
+    { provide: WORKSPACE_API, useExisting: WorkspaceFacade },
     LinkCheckRepository,
     LinkResultService,
     LinkCheckSweep,
@@ -105,6 +129,6 @@ import { NotificationService } from './internal/services/notification.service.js
     RealtimeRelayConsumer,
     RealtimeGateway,
   ],
-  exports: [TEAM_LIFECYCLE_PORT, DEPARTURE_ITEMS_PORT],
+  exports: [TEAM_LIFECYCLE_PORT, DEPARTURE_ITEMS_PORT, WORKSPACE_API],
 })
 export class WorkspaceModule {}

@@ -70,6 +70,9 @@ export interface TeamLockView {
   suspendedTotalSeconds: number;
   playbookId: PlaybookId;
   productType: ProductTypeCode;
+  name: string;
+  /** Copied from the release step of the last stage (FR-WORK-14); `null` until it is saved. */
+  releaseUrl: string | null;
 }
 
 export interface RosterMember {
@@ -166,12 +169,20 @@ export interface TeamsApi {
   seatBelongsToTeam(teamId: TeamId, seatId: SeatId): Promise<boolean>;
   /** Names of the teams; absent ids are absent from the map. */
   getTeamNames(teamIds: TeamId[]): Promise<Map<TeamId, string>>;
-  /** @requiresTx, the team must be locked by the caller. Stub until slice 6. */
+  /** @requiresTx, the team must be locked by the caller: members, seats with `desired`, and those who left. */
   getCompletionRosterSnapshot(teamId: TeamId): Promise<RosterSnapshot>;
   /** @requiresTx */
   markCompleted(teamId: TeamId, completedAt: Date): Promise<void>;
-  /** @requiresTx */
-  setReleaseUrl(teamId: TeamId, url: string): Promise<void>;
+  /** @requiresTx, the team must be locked by the caller (T7, FR-WORK-14). `null` clears it. */
+  setReleaseUrl(teamId: TeamId, url: string | null): Promise<void>;
+  /**
+   * Release addresses of the completed projects (AF-02) that contain `hostFragment`, the team `exceptTeamId`
+   * left out; the caller compares them as whole addresses.
+   */
+  listCompletedReleaseUrls(
+    hostFragment: string,
+    exceptTeamId: TeamId,
+  ): Promise<{ teamId: TeamId; releaseUrl: string }[]>;
 }
 
 /** Ports declared by teams, implemented by upper modules and bound in AppModule. */

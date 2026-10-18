@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { startFakeLinkChecker, type FakeLinkChecker } from '../fakes/link-checker.js';
 import {
@@ -82,7 +83,7 @@ describeInfra('CC-13: 20 "Завершить" -> one completion (FR-WORK-13)', [
 
   it('CC-13: 20 "Завершить" with one key -> the same answer for all; one completion', async () => {
     const c = await ready();
-    const key = 'same-key-for-every-press';
+    const key = randomUUID();
     const fired = await fireAll(
       N,
       (_i, k) => complete(world, c.fx.lead, c.fx.team.id, k),

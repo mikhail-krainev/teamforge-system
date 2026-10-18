@@ -27,6 +27,9 @@ import { JoinService } from './join.service.js';
 
 type TeamRow = typeof team.$inferSelect;
 
+/** Candidates of one host fragment that AF-02 compares as whole addresses. */
+const RELEASE_HOLDERS_LIMIT = 200;
+
 function toView(row: TeamRow, now: Date): TeamLockView {
   return {
     teamId: row.id,
@@ -39,6 +42,8 @@ function toView(row: TeamRow, now: Date): TeamLockView {
     suspendedTotalSeconds: row.suspendedTotalSeconds,
     playbookId: row.playbookId,
     productType: row.productTypeCode,
+    name: row.name,
+    releaseUrl: row.releaseUrl,
   };
 }
 
@@ -211,8 +216,8 @@ export class TeamsFacade implements TeamsApi {
   }
 
   /**
-   * Stub until slice 6: the current roster and seats, nobody departed. The real snapshot adds the
-   * members who left during the project (FR-REW-02).
+   * The current roster and seats, and the members who left during the project (FR-REW-02): a member who
+   * left and came back is in the roster, so he is not listed as departed.
    */
   async getCompletionRosterSnapshot(teamId: TeamId): Promise<RosterSnapshot> {
     const members = await this.getRoster(teamId);
@@ -225,6 +230,12 @@ export class TeamsFacade implements TeamsApi {
       .select()
       .from(seatAssignment)
       .where(and(eq(seatAssignment.teamId, teamId), isNull(seatAssignment.endedAt)));
+    const left = await this.tx.tx
+      .select({ userId: membership.userId })
+      .from(membership)
+      .where(and(eq(membership.teamId, teamId), inArray(membership.status, ['left', 'removed'])))
+      .orderBy(asc(membership.userId));
+    const activeIds = new Set(members.map((m) => m.userId));
     return {
       members,
       seats: seats
@@ -236,7 +247,7 @@ export class TeamsFacade implements TeamsApi {
           desiredChangedAt: s.desiredChangedAt,
           holderUserId: holders.find((h) => h.seatId === s.id)?.userId ?? null,
         })),
-      departedUserIds: [],
+      departedUserIds: [...new Set(left.map((m) => m.userId))].filter((id) => !activeIds.has(id)),
     };
   }
 
@@ -244,8 +255,29 @@ export class TeamsFacade implements TeamsApi {
     await this.updateLocked(teamId, { status: 'completed', completedAt, updatedAt: completedAt });
   }
 
-  async setReleaseUrl(teamId: TeamId, url: string): Promise<void> {
+  async setReleaseUrl(teamId: TeamId, url: string | null): Promise<void> {
     await this.updateLocked(teamId, { releaseUrl: url });
+  }
+
+  async listCompletedReleaseUrls(
+    hostFragment: string,
+    exceptTeamId: TeamId,
+  ): Promise<{ teamId: TeamId; releaseUrl: string }[]> {
+    const escaped = hostFragment.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const rows = await this.tx.tx
+      .select({ teamId: team.id, releaseUrl: team.releaseUrl })
+      .from(team)
+      .where(
+        and(
+          eq(team.status, 'completed'),
+          sql`${team.id} <> ${exceptTeamId}`,
+          sql`${team.releaseUrl} ILIKE ${`%${escaped}%`}`,
+        ),
+      )
+      .limit(RELEASE_HOLDERS_LIMIT);
+    return rows.flatMap((r) =>
+      r.releaseUrl === null ? [] : [{ teamId: r.teamId, releaseUrl: r.releaseUrl }],
+    );
   }
 
   private async updateLocked(teamId: TeamId, set: Partial<TeamRow>): Promise<void> {

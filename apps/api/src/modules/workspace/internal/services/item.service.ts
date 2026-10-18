@@ -22,6 +22,7 @@ import {
   type ItemFacts,
 } from '../domain/item-rules.js';
 import { isStorableLink } from '../domain/link-policy.js';
+import { CompletionRepository } from '../repositories/completion.repository.js';
 import { ItemRepository, type ItemChanges } from '../repositories/item.repository.js';
 import { ReviewRepository } from '../repositories/review.repository.js';
 import type { ItemRow, StageRow } from '../repositories/route.repository.js';
@@ -60,6 +61,7 @@ export class ItemService {
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
     @Inject(ItemGate) private readonly gate: ItemGate,
     @Inject(ItemRepository) private readonly items: ItemRepository,
+    @Inject(CompletionRepository) private readonly completions: CompletionRepository,
     @Inject(ReviewRepository) private readonly reviews: ReviewRepository,
     @Inject(RouteQueryService) private readonly query: RouteQueryService,
     @Inject(PinoLogger) private readonly logger: PinoLogger,
@@ -105,7 +107,13 @@ export class ItemService {
     itemId: string,
     body: Patch,
   ): Promise<Saved> {
-    const { team, item, stage } = await this.gate.open(teamId, itemId, { member: userId });
+    // T7 (FR-WORK-14): the link of the release step is copied to the team, so lock #4 is taken for update at once.
+    const writesRelease =
+      body.linkUrl !== undefined && (await this.completions.isReleaseItem(teamId, itemId));
+    const { team, item, stage } = await this.gate.open(teamId, itemId, {
+      member: userId,
+      ...(writesRelease ? { teamLock: 'update' as const } : {}),
+    });
     await this.assertMayWrite(team.leadUserId, item, userId, body);
     if (item.version !== body.version) throw new VersionConflict();
     const now = this.clock.now();
@@ -113,6 +121,7 @@ export class ItemService {
     await this.checkResult(item, stage, body, changes);
     const row = await this.items.updateIfVersion(itemId, body.version, changes, now);
     if (row === undefined) throw new VersionConflict();
+    if (writesRelease) await this.teams.setReleaseUrl(teamId, body.linkUrl ?? null);
     if (changesJudgedArtifact(item, changes)) await this.reviews.clear(itemId);
     await this.outbox.publish({
       module: WORKSPACE_MODULE,
@@ -241,7 +250,7 @@ export class ItemService {
       await this.queues.add(
         LINK_CHECK_QUEUE,
         CHECK_ITEM_LINK_JOB,
-        { teamId, itemId, version, url },
+        { teamId, itemId, version, url, savedAt: this.clock.now().toISOString() },
         { jobId: linkCheckJobId(itemId, version) },
       );
     } catch (error) {

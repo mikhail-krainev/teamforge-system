@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { uuidv7 } from 'uuidv7';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type { MergedPull, ReviewFact } from '../domain/review-rules.js';
@@ -58,7 +58,18 @@ export class SyncStateRepository {
     details: Record<string, unknown>;
     checkedAt: Date;
   }): Promise<void> {
-    await this.tx.tx.insert(repoCheck).values({ id: uuidv7(), ...check });
+    // Rows are read newest first: two checks of one instant (a clock that stands still) keep the order they were made in.
+    const [latest] = await this.tx.tx
+      .select({ checkedAt: repoCheck.checkedAt })
+      .from(repoCheck)
+      .where(and(eq(repoCheck.teamId, check.teamId), eq(repoCheck.kind, check.kind)))
+      .orderBy(desc(repoCheck.checkedAt))
+      .limit(1);
+    const checkedAt =
+      latest !== undefined && latest.checkedAt.getTime() >= check.checkedAt.getTime()
+        ? new Date(latest.checkedAt.getTime() + 1)
+        : check.checkedAt;
+    await this.tx.tx.insert(repoCheck).values({ id: uuidv7(), ...check, checkedAt });
   }
 
   async accountChecks(githubUserIds: number[]): Promise<AccountCheckRow[]> {

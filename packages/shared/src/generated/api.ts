@@ -2906,6 +2906,31 @@ export interface components {
                 /** Format: date-time */
                 coolingUntil: string;
             };
+            /** @description Итоги из неизменяемого снимка завершения (FR-WORK-13, FR-WORK-17): состав с ролями и дефицитом при вступлении, вклад по ролям (метки зафиксированы), этапы, просрочка. */
+            snapshot?: {
+                members: {
+                    /** Format: uuid */
+                    userId: string;
+                    isLead: boolean;
+                    roles: {
+                        roleCode: string;
+                        deficitAtJoin: boolean;
+                    }[];
+                }[];
+                contributionByRole: {
+                    roleCode: string;
+                    count: number;
+                }[];
+                stages: {
+                    ordinal: number;
+                    stageKey: string;
+                    /** Format: date-time */
+                    openedAt: string | null;
+                    /** Format: date-time */
+                    closedAt: string | null;
+                }[];
+                overdueDays: number;
+            };
         };
         Notification: {
             /** Format: uuid */

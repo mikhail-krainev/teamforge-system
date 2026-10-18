@@ -101,13 +101,14 @@ async function processJob(
 ): Promise<LinkCheckResult> {
   const parsed = linkCheckJobSchema.safeParse(job.data);
   if (!parsed.success) throw new UnrecoverableError('malformed link-check job');
-  const { teamId, itemId, version, url } = parsed.data;
+  const { teamId, itemId, version, url, savedAt } = parsed.data;
   const owner = job.id ?? `${itemId}_${version}`;
   const timedOutResult = (): LinkCheckResult => ({
     teamId,
     itemId,
     version,
     url,
+    ...(savedAt === undefined ? {} : { savedAt }),
     outcome: { ok: false, reason: 'TIMEOUT', httpStatus: null },
   });
   const hostname = hostnameOf(url);
@@ -121,7 +122,7 @@ async function processJob(
     const outcome = await options.checker.check(url, {
       throttle: (host) => claim(host, owner),
     });
-    return { teamId, itemId, version, url, outcome };
+    return { teamId, itemId, version, url, ...(savedAt === undefined ? {} : { savedAt }), outcome };
   } catch (error) {
     if (!(error instanceof DomainBusy)) throw error;
     await deferBusyJob(job, token, parsed.data, error.waitMs, maxThrottleMs);

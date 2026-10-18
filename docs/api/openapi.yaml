@@ -7813,6 +7813,86 @@ components:
           required:
             - status
             - coolingUntil
+        snapshot:
+          type: object
+          description: "Итоги из неизменяемого снимка завершения (FR-WORK-13, FR-WORK-17): состав с ролями и дефицитом при вступлении, вклад по ролям (метки зафиксированы), этапы, просрочка."
+          additionalProperties: false
+          properties:
+            members:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                properties:
+                  userId:
+                    type: string
+                    format: uuid
+                  isLead:
+                    type: boolean
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        roleCode:
+                          type: string
+                        deficitAtJoin:
+                          type: boolean
+                      required:
+                        - roleCode
+                        - deficitAtJoin
+                required:
+                  - userId
+                  - isLead
+                  - roles
+            contributionByRole:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                properties:
+                  roleCode:
+                    type: string
+                  count:
+                    type: integer
+                    minimum: 0
+                required:
+                  - roleCode
+                  - count
+            stages:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                properties:
+                  ordinal:
+                    type: integer
+                  stageKey:
+                    type: string
+                  openedAt:
+                    type:
+                      - string
+                      - "null"
+                    format: date-time
+                  closedAt:
+                    type:
+                      - string
+                      - "null"
+                    format: date-time
+                required:
+                  - ordinal
+                  - stageKey
+                  - openedAt
+                  - closedAt
+            overdueDays:
+              type: integer
+              minimum: 0
+          required:
+            - members
+            - contributionByRole
+            - stages
+            - overdueDays
       required:
         - teamId
         - completedAt
