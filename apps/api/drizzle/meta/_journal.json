@@ -99,6 +99,13 @@
       "when": 1792246911210,
       "tag": "0013_workspace_link_check_and_stage_suspension",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792330413389,
+      "tag": "0014_rebind_stub_playbooks",
+      "breakpoints": true
     }
   ]
 }
