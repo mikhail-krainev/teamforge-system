@@ -1,19 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { inArray } from 'drizzle-orm';
-import { PinoLogger } from 'nestjs-pino';
 import { outboxEvent } from '../db/schema/platform.js';
+import { InvariantError } from '../errors/domain-error.js';
 import { TxRunner } from '../tx/tx-runner.js';
 import { EventConsumers } from './event-consumers.js';
 import { InboxService } from './inbox.service.js';
 import { toEventData } from './outbox-relay.js';
 
 /**
- * Delivers events that a job has just committed to their consumers right away, instead of waiting for
- * the relay, the queue and a worker (about a tenth of a second). The events stay in the outbox: the relay
- * publishes them as usual and the inbox (`consumer`, `event_id`) makes the second delivery a no-op,
- * whoever comes first. A job that has to leave its work visible to the next reader (a webhook
- * is `processed` only once its contributions exist) calls this before it says it is done.
- * A failing consumer is only logged: the relay delivers the event again with the usual retries.
+ * Delivers events to their consumers inside the transaction that wrote them, instead of waiting for the
+ * relay, the queue and a worker (about a tenth of a second). The events stay in the outbox: the relay
+ * publishes them as usual, and the inbox row (`consumer`, `event_id`) that commits together with the
+ * consumer's writes makes that second delivery a no-op. A job whose result must be complete for the next
+ * reader (a webhook is `processed` only when its contributions exist, and the two appear at the same
+ * moment) calls this before it commits. A failing consumer fails the transaction: nothing of it is kept
+ * and the job is retried.
  */
 @Injectable()
 export class InlineDelivery {
@@ -21,12 +22,16 @@ export class InlineDelivery {
     @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(EventConsumers) private readonly consumers: EventConsumers,
     @Inject(InboxService) private readonly inbox: InboxService,
-    @Inject(PinoLogger) private readonly logger: PinoLogger,
   ) {}
 
-  /** Call after the transaction that wrote the events has committed. */
+  /** Call inside the transaction that wrote the events. */
   async deliver(eventIds: string[]): Promise<void> {
     if (eventIds.length === 0) return;
+    if (!this.tx.isActive()) {
+      throw new InvariantError(
+        'Inline delivery must run inside the transaction that wrote the events',
+      );
+    }
     const rows = await this.tx.tx
       .select()
       .from(outboxEvent)
@@ -35,14 +40,7 @@ export class InlineDelivery {
     for (const row of rows) {
       const event = toEventData(row);
       for (const consumer of this.consumers.forEvent(event)) {
-        try {
-          await this.inbox.runOnce(consumer.consumer, event.id, () => consumer.handle(event));
-        } catch (error) {
-          this.logger.warn(
-            { err: error, consumer: consumer.consumer, event_id: event.id },
-            'inline delivery failed, the relay will retry',
-          );
-        }
+        await this.inbox.runOnce(consumer.consumer, event.id, () => consumer.handle(event));
       }
     }
   }

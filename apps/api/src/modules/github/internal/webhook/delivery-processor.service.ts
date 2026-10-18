@@ -16,8 +16,9 @@ type Planned = DeliveryPlan | { kind: 'invalid' };
 /**
  * Processes one stored delivery (architecture 7.3 item 4). The plan is made first: the payload is
  * validated, GitHub and other modules are asked what is needed. Then one transaction locks the
- * delivery row, runs the writes and marks the delivery, so a second worker (the sweeper queued it
- * again) either waits and finds it done, or does the same work once.
+ * delivery row, runs the writes, hands the events they wrote to their consumers and marks the delivery,
+ * so a second worker (the sweeper queued it again) either waits and finds it done, or does the same
+ * work once.
  */
 @Injectable()
 export class DeliveryProcessor {
@@ -37,26 +38,15 @@ export class DeliveryProcessor {
     if (row?.status !== 'received') return;
     await this.deliveries.countAttempt(deliveryId);
     const plan = await this.plan(row);
-    const written = await this.tx.run(async () => {
-      if ((await this.deliveries.lock(deliveryId))?.status !== 'received') return undefined;
-      const events = plan.kind === 'apply' ? await plan.run() : [];
-      // Ignored and invalid deliveries wrote nothing and are done; an applied one is finished below.
-      if (plan.kind !== 'apply') await this.finish(deliveryId, plan.kind);
-      return events;
-    });
-    if (written === undefined || plan.kind !== 'apply') return;
-    // The delivery is `processed` only when what it caused exists (contributions, FR-GH-05).
-    await this.inline.deliver(written);
     await this.tx.run(async () => {
-      if ((await this.deliveries.lock(deliveryId))?.status === 'received') {
-        await this.finish(deliveryId, 'apply');
-      }
+      if ((await this.deliveries.lock(deliveryId))?.status !== 'received') return;
+      const events = plan.kind === 'apply' ? await plan.run() : [];
+      // The consumers run now, in this transaction: a delivery is `processed` at the very moment its
+      // contributions exist, never before (FR-GH-05).
+      await this.inline.deliver(events);
+      const status = { apply: 'processed', ignore: 'ignored', invalid: 'failed' } as const;
+      await this.deliveries.finish(deliveryId, status[plan.kind], this.clock.now());
     });
-  }
-
-  private finish(deliveryId: string, outcome: 'apply' | 'ignore' | 'invalid'): Promise<void> {
-    const status = { apply: 'processed', ignore: 'ignored', invalid: 'failed' } as const;
-    return this.deliveries.finish(deliveryId, status[outcome], this.clock.now());
   }
 
   /** The last attempt failed: the delivery is `failed`, the payload stays for the investigation until the retention ends. */
