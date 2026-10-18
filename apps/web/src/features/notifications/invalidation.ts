@@ -7,6 +7,7 @@ import type { RealtimeSignal } from '@/lib/realtime';
 import { NOTIFICATIONS_ROOT } from './api';
 import { votesKey } from '@/features/votes/api';
 import { workspaceKey } from '@/features/route/api';
+import { feedRootKey } from '@/features/contribution/api';
 
 /** The id after `team:` / `user:` - taken from the channel we subscribed to, never from a payload. */
 function channelId(channel: string): string {
@@ -46,8 +47,11 @@ export function keysFor({ type, channel }: RealtimeSignal): readonly QueryKey[] 
       ];
     case 'vote.updated':
       return [votesKey(id), teamKey(id), teamEventsKey(id)];
+    case 'contribution.recorded':
+      // A contribution appeared, changed its role or was revoked: the feed and the summary re-read.
+      return [feedRootKey(id), teamKey(id)];
     case 'project.completed':
-      return [teamKey(id), teamEventsKey(id)];
+      return [teamKey(id), teamEventsKey(id), feedRootKey(id), workspaceKey(id)];
     case 'stage.opened':
     case 'stage.closed':
       // The route, the stages and the checklists of the project move with the stage.
@@ -56,7 +60,6 @@ export function keysFor({ type, channel }: RealtimeSignal): readonly QueryKey[] 
       // item.*: checklists are deliberately not re-read live. A re-read under a form that is being
       // edited would hand it the new version and hide the conflict the user must see (FR-WORK-07);
       // they are re-read after own writes, on focus and while a link check runs.
-      // contribution.*: no screen yet; refresh the team only.
       return channel.startsWith('team:') ? [teamKey(id)] : [];
   }
 }
