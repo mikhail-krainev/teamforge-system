@@ -21,6 +21,5 @@ import { SetupCallbackService } from './internal/installation/setup-callback.ser
     SetupCallbackService,
     AvailableRepositoriesService,
   ],
-  exports: [GithubClient],
 })
 export class GithubModule {}
