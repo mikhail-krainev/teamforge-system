@@ -9,7 +9,8 @@ import { GithubError } from '../client/github-error.js';
 import { githubUnavailable } from '../installation/github-problems.js';
 import { installationNotGranted } from '../installation/available-repositories.service.js';
 import { InstallationRepository } from '../installation/installation.repository.js';
-import { RepoInspectionService } from './repo-inspection.service.js';
+import type { RepositoryDetail } from '../client/github-client.js';
+import { RepoInspectionService, type RepoInspection } from './repo-inspection.service.js';
 import { RepoLinkRepository, type RepoLinkRow } from './repo-link.repository.js';
 import { isOlderThanThirtyDays, rejectionMessage } from './repo-rules.js';
 
@@ -53,17 +54,7 @@ export class RepoLinkService {
     if (!(await this.installations.hasActiveGrant(installationId, teamId, userId))) {
       throw installationNotGranted();
     }
-    const inspected = await this.inspectOrFail(installationId, repositoryId);
-    if (inspected.repository === null || inspected.rejections.length > 0) {
-      throw new DomainError('REPO_REJECTED', 422, {
-        errors: inspected.rejections.map((code) => ({
-          pointer: '/repositoryId',
-          code,
-          message: rejectionMessage(code),
-        })),
-      });
-    }
-    const { repository } = inspected;
+    const repository = await this.acceptedRepository(installationId, repositoryId);
     const now = this.clock.now();
     const created = await this.tx.run(async () => {
       const team = await this.teams.lockTeam(teamId, 'update');
@@ -76,7 +67,7 @@ export class RepoLinkService {
       const holding = await this.links.findHolding(teamId, true);
       if (holding !== undefined) {
         // The same repository again is the same answer; another one needs the lead to unlink first.
-        if (holding.repositoryId === repositoryId) return { row: holding, team, isNew: false };
+        if (holding.repositoryId === repositoryId) return { row: holding, team };
         throw new DomainError('INVALID_STATE', 409);
       }
       const row = await this.links.insert({
@@ -96,7 +87,7 @@ export class RepoLinkService {
         aggregateId: row.id,
         payload: { teamId, repositoryId, installationId, fullName: row.fullName },
       });
-      return { row, team, isNew: true };
+      return { row, team };
     });
     return this.dto(created.row, created.team.startedAt);
   }
@@ -129,7 +120,28 @@ export class RepoLinkService {
     });
   }
 
-  private async inspectOrFail(installationId: number, repositoryId: number) {
+  /** The repository as GitHub shows it, or 422 REPO_REJECTED with one `errors[].code` per reason. */
+  private async acceptedRepository(
+    installationId: number,
+    repositoryId: number,
+  ): Promise<RepositoryDetail> {
+    const inspected = await this.inspectOrFail(installationId, repositoryId);
+    if (inspected.repository === null || inspected.rejections.length > 0) {
+      throw new DomainError('REPO_REJECTED', 422, {
+        errors: inspected.rejections.map((code) => ({
+          pointer: '/repositoryId',
+          code,
+          message: rejectionMessage(code),
+        })),
+      });
+    }
+    return inspected.repository;
+  }
+
+  private async inspectOrFail(
+    installationId: number,
+    repositoryId: number,
+  ): Promise<RepoInspection> {
     try {
       return await this.inspection.inspect(installationId, repositoryId);
     } catch (error) {
