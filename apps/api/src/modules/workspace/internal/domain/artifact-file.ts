@@ -20,11 +20,15 @@ const reject = (status: 415 | 422, reason: string): ArtifactVerdict => ({
 
 /**
  * Active content in a PDF dictionary: such a file is refused outright (SEC-15). Best effort: names
- * inside compressed object streams are not seen, so this narrows the risk and does not remove it
- * (the file is only ever served as an attachment with `nosniff`).
+ * inside compressed object streams (`/ObjStm`) are not parsed, so this narrows the risk and does not
+ * remove it (the file is only ever served as an attachment with `nosniff`). `/URI` and `/OpenAction`
+ * alone are ordinary (hyperlinks, "open at page"); a script behind them is caught as `/JavaScript`.
  */
-const PDF_ACTIVE_NAMES =
-  /\/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|OpenAction|AA|XFA|URI)(?![^\s()<>[\]{}/%])/;
+const PDF_ACTIVE_NAMES = new RegExp(
+  '/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|AA|XFA|SubmitForm|ImportData|GoToR|GoToE|Rendition)' +
+    // A name ends at white space (NUL and form feed included), a delimiter or the end of the text.
+    '(?![^\\s\\x00\\f()<>[\\]{}/%])',
+);
 
 /** A PDF name may spell any character as `#xx`: `/J#61vaScript` is `/JavaScript`. */
 const decodeNameEscapes = (text: string): string =>
@@ -96,11 +100,13 @@ export function sniffArtifact(bytes: Buffer, filename: string): ArtifactVerdict 
   return checkText(bytes, filename);
 }
 
-/** The name is kept for display only: no path, no control or format characters (bidi, zero width), at most 255 characters. */
+/** Characters that print as nothing but are not format characters: fillers of Hangul and the blank braille cell. */
+const INVISIBLE_FILLERS = '\u115f\u1160\u3164\uffa0\u2800';
+
+/** The name is kept for display only: no path, no control, format, separator or blank filler characters, at most 255 characters. */
 export function safeFileName(name: string): string {
   const base = (name.split(/[\\/]/).pop() ?? '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f]|\p{Cf}/gu, '')
+    .replace(new RegExp(`[${INVISIBLE_FILLERS}]|\\p{Cc}|\\p{Cf}|\\p{Zl}|\\p{Zp}`, 'gu'), '')
     .trim();
   const cleaned = base === '' || base === '.' || base === '..' ? 'file' : base;
   return Array.from(cleaned).slice(0, 255).join('');
