@@ -47,3 +47,6 @@ Thumbs.db
 
 # Public test values for the test stack
 !.env.test
+
+# Local Playwright override (browser cache path of one machine)
+apps/web/pw.local.config.ts
