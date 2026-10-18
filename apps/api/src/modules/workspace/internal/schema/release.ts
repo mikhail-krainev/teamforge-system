@@ -33,6 +33,8 @@ export const releaseCheck = workspaceSchema.table(
     teamId: uuid('team_id').notNull(),
     url: text('url').notNull(),
     checkKey: text('check_key').notNull(),
+    /** The completion check run this result belongs to; empty for a check of a saved step link (S6-03). */
+    completionCheckId: uuid('completion_check_id'),
     ok: boolean('ok').notNull(),
     httpStatus: integer('http_status'),
     reason: text('reason'),
@@ -44,5 +46,8 @@ export const releaseCheck = workspaceSchema.table(
       sql`${t.reason} IN ('HTTP_STATUS','TOO_SMALL','PLACEHOLDER_TITLE','TIMEOUT','BLOCKED_ADDRESS','BLOCKED_PORT','TLS_ERROR','TOO_MANY_REDIRECTS','DNS_ERROR')`,
     ),
     index('release_check_team_idx').on(t.teamId, t.url, t.checkedAt.desc()),
+    index('release_check_completion_idx')
+      .on(t.completionCheckId)
+      .where(sql`${t.completionCheckId} IS NOT NULL`),
   ],
 );
