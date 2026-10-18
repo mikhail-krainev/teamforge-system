@@ -14,7 +14,7 @@ export const DOMAIN_INTERVAL_MS = 60_000;
 const DEFAULT_CONCURRENCY = 5;
 /** The lock of a job outlasts the deadline of a check, or a slow check would be taken for a stalled one. */
 const LOCK_MARGIN_MS = 30_000;
-/** A job that keeps meeting a busy domain is given up after this time: a `TIMEOUT`, a warning only. */
+/** A job that keeps meeting a busy domain is given up this long after the first busy answer: a `TIMEOUT`, a warning only. */
 const MAX_THROTTLE_AGE_MS = 10 * 60_000;
 
 export interface LinkCheckWorkerOptions {
@@ -24,6 +24,8 @@ export interface LinkCheckWorkerOptions {
   checker: { check(url: string, options?: CheckOptions): Promise<LinkCheckOutcome> };
   concurrency?: number;
   domainIntervalMs?: number;
+  /** How long a check may keep meeting a busy domain, counted from the first time it did. */
+  maxThrottleMs?: number;
   /** The deadline of one check; the lock of a job is longer. */
   totalTimeoutMs?: number;
   onError?(error: Error): void;
@@ -38,6 +40,7 @@ export function startLinkCheckWorker(
   options: LinkCheckWorkerOptions,
 ): Worker<unknown, LinkCheckResult> {
   const interval = options.domainIntervalMs ?? DOMAIN_INTERVAL_MS;
+  const maxThrottleMs = options.maxThrottleMs ?? MAX_THROTTLE_AGE_MS;
 
   /** Milliseconds to wait before this domain may be checked again, 0 when it may be checked now. */
   async function pauseFor(rawHostname: string): Promise<number> {
@@ -66,9 +69,13 @@ export function startLinkCheckWorker(
         return { teamId, itemId, version, url, outcome };
       } catch (error) {
         if (!(error instanceof DomainBusy)) throw error;
-        if (Date.now() - job.timestamp > MAX_THROTTLE_AGE_MS) {
+        const firstBusyAt = parsed.data.firstBusyAt ?? Date.now();
+        if (Date.now() - firstBusyAt > maxThrottleMs) {
           const outcome: LinkCheckOutcome = { ok: false, reason: 'TIMEOUT', httpStatus: null };
           return { teamId, itemId, version, url, outcome };
+        }
+        if (parsed.data.firstBusyAt === undefined) {
+          await job.updateData({ ...parsed.data, firstBusyAt });
         }
         await job.moveToDelayed(Date.now() + Math.max(1_000, error.waitMs), token);
         throw new DelayedError();

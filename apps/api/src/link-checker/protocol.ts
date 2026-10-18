@@ -19,6 +19,8 @@ export const linkCheckJobSchema = z.object({
   version: z.number().int().positive(),
   url: z.string().min(1).max(MAX_URL_LENGTH),
   requestId: z.string().optional(),
+  /** Set by the consumer when the check first met a busy domain (`Date.now()`); the limit on waiting counts from it. */
+  firstBusyAt: z.number().int().positive().optional(),
 });
 export type LinkCheckJobData = z.infer<typeof linkCheckJobSchema>;
 

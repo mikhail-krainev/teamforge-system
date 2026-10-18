@@ -10,7 +10,13 @@ import {
   LINK_CHECK_QUEUE,
   type LinkCheckResult,
 } from './protocol.js';
-import { DomainBusy, TOTAL_TIMEOUT_MS, type LinkCheckOutcome } from './ssrf-client.js';
+import {
+  createLinkChecker,
+  DomainBusy,
+  TOTAL_TIMEOUT_MS,
+  type CheckOptions,
+  type LinkCheckOutcome,
+} from './ssrf-client.js';
 
 /*
  * The consumer of the `link-check` queue (S5-09): result of a check as the job result, the per-domain
@@ -21,6 +27,10 @@ import { DomainBusy, TOTAL_TIMEOUT_MS, type LinkCheckOutcome } from './ssrf-clie
 const LINKCHECK_URL =
   process.env.REDIS_LINKCHECK_URL ?? 'redis://linkcheck:tf_test_redis_linkcheck@127.0.0.1:6380';
 const OK: LinkCheckOutcome = { ok: true, reason: null, httpStatus: 200 };
+
+type LinkCheckerLike = {
+  check(url: string, options?: CheckOptions): Promise<LinkCheckOutcome>;
+};
 
 interface Harness {
   queue: Queue;
@@ -36,6 +46,9 @@ function startHarness(options: {
   outcome?: (url: string) => LinkCheckOutcome;
   domainIntervalMs?: number;
   busyOnce?: boolean;
+  alwaysBusy?: boolean;
+  maxThrottleMs?: number;
+  checker?: LinkCheckerLike;
 }): Harness {
   const seen: string[] = [];
   const consumer = new Redis(options.redisUrl, { maxRetriesPerRequest: null });
@@ -49,9 +62,11 @@ function startHarness(options: {
     connection: consumer,
     prefix: options.prefix,
     domainIntervalMs: options.domainIntervalMs ?? 0,
-    checker: {
+    ...(options.maxThrottleMs === undefined ? {} : { maxThrottleMs: options.maxThrottleMs }),
+    checker: options.checker ?? {
       check: (url) => {
         seen.push(url);
+        if (options.alwaysBusy === true) return Promise.reject(new DomainBusy(200));
         if (options.busyOnce === true && seen.length === 1)
           return Promise.reject(new DomainBusy(300));
         return Promise.resolve(options.outcome ? options.outcome(url) : OK);
@@ -80,10 +95,16 @@ const jobData = (url: string) => ({
   url,
 });
 
-async function run(h: Harness, url: string, data = jobData(url)): Promise<LinkCheckResult> {
+async function run(
+  h: Harness,
+  url: string,
+  data = jobData(url),
+  extra: { timestamp?: number } = {},
+): Promise<LinkCheckResult> {
   const job = await h.queue.add(CHECK_ITEM_LINK_JOB, data, {
     jobId: linkCheckJobId(data.itemId, data.version),
     attempts: 1,
+    ...extra,
   });
   return (await job.waitUntilFinished(h.events, 15_000)) as LinkCheckResult;
 }
@@ -183,11 +204,86 @@ describeInfra(
       expect(h.seen).toHaveLength(2);
     });
 
+    it('the age of a job counts from its first busy domain, not from its creation', async () => {
+      const hourAgo = Date.now() - 60 * 60_000;
+      const data = jobData('https://example.test/old-job');
+      // `busyOnce` is spent by the previous test, so a fresh harness gives the first call the busy answer.
+      const fresh = startHarness({
+        prefix: uniqueQueuePrefix(),
+        redisUrl: process.env.REDIS_URL ?? '',
+        busyOnce: true,
+      });
+      try {
+        await fresh.events.waitUntilReady();
+        const result = await run(fresh, data.url, data, { timestamp: hourAgo });
+        expect(result.outcome).toEqual(OK);
+        expect(fresh.seen).toHaveLength(2);
+      } finally {
+        await fresh.close();
+      }
+    });
+
+    it('a domain that stays busy ends as a TIMEOUT once the limit counted from the first busy answer passes', async () => {
+      const fresh = startHarness({
+        prefix: uniqueQueuePrefix(),
+        redisUrl: process.env.REDIS_URL ?? '',
+        alwaysBusy: true,
+        maxThrottleMs: 1_500,
+      });
+      try {
+        await fresh.events.waitUntilReady();
+        const result = await run(fresh, 'https://example.test/always-busy');
+        expect(result.outcome).toEqual({ ok: false, reason: 'TIMEOUT', httpStatus: null });
+        expect(fresh.seen.length).toBeGreaterThan(1);
+      } finally {
+        await fresh.close();
+      }
+    }, 30_000);
+
     it('the lock of a job outlasts the deadline of a check, so a slow check is not taken for a stalled one', () => {
       expect(h.worker.opts.lockDuration).toBeGreaterThan(TOTAL_TIMEOUT_MS);
     });
   },
 );
+
+describeInfra('link-checker: a redirect to the same host, with the real checker and Redis', ['redis'], () => {
+  const prefix = uniqueQueuePrefix();
+  let h: Harness;
+  const unique = randomUUID().slice(0, 8);
+  const requested: string[] = [];
+
+  beforeAll(async () => {
+    const checker = createLinkChecker({
+      resolve: () => Promise.resolve(['93.184.216.34']),
+      request: (hop) => {
+        requested.push(`${hop.host}${hop.path}`);
+        return Promise.resolve(
+          hop.path === '/start'
+            ? { status: 302, location: `https://${hop.host}/final` }
+            : { status: 200 },
+        );
+      },
+    });
+    h = startHarness({
+      prefix,
+      redisUrl: process.env.REDIS_URL ?? '',
+      domainIntervalMs: 60_000,
+      checker,
+    });
+    await h.events.waitUntilReady();
+  });
+
+  afterAll(async () => {
+    if (h) await h.close();
+  });
+
+  it('a redirect to the host of the first hop is not told to wait for its own slot', async () => {
+    const host = `${unique}.example.test`;
+    const result = await run(h, `https://${host}/start`);
+    expect(result.outcome).toEqual(OK);
+    expect(requested).toEqual([`${host}/start`, `${host}/final`]);
+  }, 20_000);
+});
 
 describeInfra('link-checker: one spelling of a host for the pause', ['redis'], () => {
   const prefix = uniqueQueuePrefix();
