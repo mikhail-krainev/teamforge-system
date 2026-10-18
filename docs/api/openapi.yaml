@@ -1681,7 +1681,7 @@ paths:
       tags:
         - teams
       summary: "Начать проект (тимлид)"
-      description: "CC-13: блокировка строки команды, статус forming проверяется в транзакции; первый этап открывается в той же транзакции. Повтор - 409 INVALID_STATE."
+      description: "CC-13: блокировка строки команды, статус forming проверяется в транзакции; первый этап открывается в той же транзакции. Повтор - 409 INVALID_STATE. Сценарий команды без этапов (заглушка 0.0.1) - 409 PLAYBOOK_NOT_READY, команда остаётся forming."
       parameters:
         - $ref: "#/components/parameters/TeamId"
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -4824,6 +4824,7 @@ components:
         - PLAYBOOK_INVALID
         - PLAYBOOK_VERSION_NOT_GREATER
         - PLAYBOOK_PUBLISHED_IMMUTABLE
+        - PLAYBOOK_NOT_READY
         - CATALOG_ENTRY_IN_USE
         - DELETION_ALREADY_REQUESTED
         - DELETION_CANCEL_GONE

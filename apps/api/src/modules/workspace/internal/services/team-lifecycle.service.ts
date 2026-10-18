@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { uuidv7 } from 'uuidv7';
-import { InvariantError } from '../../../../platform/errors/domain-error.js';
+import { DomainError, InvariantError } from '../../../../platform/errors/domain-error.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import {
   PLAYBOOKS_API,
@@ -73,9 +73,9 @@ export class TeamLifecycleService implements TeamLifecyclePort {
     const first = stages[0];
     // A published playbook without stages (the stub 0.0.1) cannot give a project a route: the start rolls back.
     if (first === undefined) {
-      throw new InvariantError(
-        `Playbook ${input.playbookId} has no stages; the project cannot start`,
-      );
+      throw new DomainError('PLAYBOOK_NOT_READY', 409, {
+        detail: 'The playbook of the team has no stages yet; the project cannot start',
+      });
     }
     const roster = await this.teams.getRoster(input.teamId);
     const members: RoleHolder[] = roster.map((m) => ({
