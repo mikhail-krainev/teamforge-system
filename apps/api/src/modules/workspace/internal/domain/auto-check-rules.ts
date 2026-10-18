@@ -1,11 +1,12 @@
 /**
  * Blocking automatic checks of a step (FR-PLAY-08, docs/playbooks.md 2.4) that slice 5 evaluates from
- * the stored state of an item: `file_ok`, `ritual_fields`, `link_https`. The signal checks (`sha_dedup`,
- * `md_headings`, `min_files`, ...) never block, and `repo_*`, `pr_cross_review`, `ci_workflow` come
- * with slice 6. Pure functions: the transition and the item write call them.
+ * the stored state of an item: `file_ok`, `ritual_fields`, `link_https`, and `repo_exists` (S6-04: the team
+ * has a bound repository; what GitHub says about it is asked by `GithubApi.checkRepositoryExists` and at
+ * the completion). The signal checks (`sha_dedup`, `md_headings`, `min_files`, ...) never block, and
+ * `repo_final`, `pr_cross_review`, `ci_workflow` come with the rest of slice 6. Pure functions: the transition and the item write call them.
  */
 
-export type BlockingCheck = 'file_ok' | 'ritual_fields' | 'link_https';
+export type BlockingCheck = 'file_ok' | 'ritual_fields' | 'link_https' | 'repo_exists';
 
 export interface AutoCheckFacts {
   kind: string;
@@ -18,6 +19,8 @@ export interface AutoCheckFacts {
   outcome: string | null;
   /** Files of the item that are not deleted. */
   filesCount: number;
+  /** Whether the team holds a repository; left out when the caller did not ask (the check then passes). */
+  repoLinked?: boolean;
 }
 
 /** `min_files:2` is the check `min_files` with a parameter. */
@@ -35,6 +38,7 @@ const EVALUATORS: Record<BlockingCheck, (facts: AutoCheckFacts) => boolean> = {
     (present(facts.heldOn) && present(facts.externalUrl) && present(facts.outcome)),
   // `broken` is a warning (FR-WORK-04); only a link the SSRF policy refused, or none, fails.
   link_https: (facts) => present(facts.linkUrl) && facts.linkStatus !== 'rejected',
+  repo_exists: (facts) => facts.repoLinked !== false,
 };
 
 const isBlocking = (name: string): name is BlockingCheck =>

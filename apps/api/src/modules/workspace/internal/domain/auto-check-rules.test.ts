@@ -122,6 +122,15 @@ describe('failedBlockingChecks (FR-PLAY-08: file_ok, ritual_fields, link_https)'
     ).toEqual([]);
   });
 
+  it('repo_exists fails only when the caller says the team has no repository', () => {
+    const link = artifact({ linkUrl: 'https://github.com/o/r', linkStatus: 'ok' });
+    expect(failedBlockingChecks(['repo_exists'], { ...link, repoLinked: true })).toEqual([]);
+    expect(failedBlockingChecks(['repo_exists'], { ...link, repoLinked: false })).toEqual([
+      'repo_exists',
+    ]);
+    expect(failedBlockingChecks(['repo_exists'], link)).toEqual([]);
+  });
+
   it('reports every failed check once, in the order the step lists them', () => {
     expect(
       failedBlockingChecks(['link_https', 'file_ok', 'file_ok'], artifact({ linkUrl: null })),
