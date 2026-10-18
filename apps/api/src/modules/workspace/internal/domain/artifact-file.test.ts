@@ -80,6 +80,14 @@ describe('safeFileName', () => {
     expect(safeFileName('\u3164\u2800')).toBe('file');
   });
 
+  it('drops invisible combining marks and turns any space separator into a plain space', () => {
+    expect(safeFileName('a\u034Fb\u17B4c\u17B5d\u180Ee.txt')).toBe('abcde.txt');
+    expect(safeFileName('e\u0301.txt')).toBe('e\u0301.txt');
+    expect(safeFileName('my\u00A0report\u3000final\u2003v2.pdf')).toBe('my report final v2.pdf');
+    expect(safeFileName('\u00A0\u3000x.md\u2003')).toBe('x.md');
+    expect(safeFileName('\u00A0\u034F')).toBe('file');
+  });
+
   it('falls back to "file" when nothing is left', () => {
     expect(safeFileName('')).toBe('file');
     expect(safeFileName('..')).toBe('file');

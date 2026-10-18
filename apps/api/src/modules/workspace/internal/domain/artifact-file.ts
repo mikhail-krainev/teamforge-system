@@ -100,13 +100,14 @@ export function sniffArtifact(bytes: Buffer, filename: string): ArtifactVerdict 
   return checkText(bytes, filename);
 }
 
-/** Characters that print as nothing but are not format characters: fillers of Hangul and the blank braille cell. */
-const INVISIBLE_FILLERS = '\u115f\u1160\u3164\uffa0\u2800';
+/** Characters that print as nothing but are not format characters: fillers of Hangul and the blank braille cell and combining marks that draw nothing. */
+const INVISIBLE_FILLERS = '\u115f\u1160\u3164\uffa0\u2800\u034f\u17b4\u17b5';
 
-/** The name is kept for display only: no path, no control, format, separator or blank filler characters, at most 255 characters. */
+/** The name is kept for display only: no path, no control, format, separator or blank filler characters; space separators become a plain space, at most 255 characters. */
 export function safeFileName(name: string): string {
   const base = (name.split(/[\\/]/).pop() ?? '')
     .replace(new RegExp(`[${INVISIBLE_FILLERS}]|\\p{Cc}|\\p{Cf}|\\p{Zl}|\\p{Zp}`, 'gu'), '')
+    .replace(/\p{Zs}/gu, ' ')
     .trim();
   const cleaned = base === '' || base === '.' || base === '..' ? 'file' : base;
   return Array.from(cleaned).slice(0, 255).join('');
