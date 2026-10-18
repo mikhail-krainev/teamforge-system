@@ -63,3 +63,5 @@ S5-14 закончена 2026-10-18: Playwright slice1-5 на полном ст�
 - Юридическая проверка согласия и политики ПД, трансграничная передача в GitHub.
 - Провайдер VPS в России.
 - Вычитка человеком раздела 6 `docs/playbooks.md`.
+
+Срез 6 начат (2026-10-18), ветка `feat/workspace-github` от `feat/playbooks`; PR среза 5 не открыт из-за отсутствия `gh`. S6-01 готов: `docs/research/github-state-spike.md` (поток `state` + запасной вариант по `installation_id` и `GET /user/installations`, список ручных проверок на реальном App), двойник и 17 тестов в `apps/api/src/modules/github/spike/**` (временно, удалить в S6-03).
