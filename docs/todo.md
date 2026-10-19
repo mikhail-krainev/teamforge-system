@@ -117,5 +117,5 @@
 - [ ] Срез 3 готов по фазе 6 (typecheck, lint, тесты, сквозной сценарий, code-reviewer, security-auditor и тесты с параллельными запросами где обязательны, нет CRITICAL/HIGH)
 - [ ] Срез 4 готов по фазе 6 (typecheck, lint, тесты, сквозной сценарий, code-reviewer, security-auditor и тесты с параллельными запросами где обязательны, нет CRITICAL/HIGH)
 - [ ] Срез 5 готов по фазе 6 (typecheck, lint, тесты, сквозной сценарий, code-reviewer, security-auditor и тесты с параллельными запросами где обязательны, нет CRITICAL/HIGH)
-- [ ] Срез 6 готов по фазе 6 (typecheck, lint, тесты, сквозной сценарий, code-reviewer, security-auditor и тесты с параллельными запросами где обязательны, нет CRITICAL/HIGH)
+- [x] Срез 6 готов по фазе 6 (typecheck, lint, тесты, сквозной сценарий, code-reviewer, security-auditor и тесты с параллельными запросами где обязательны, нет CRITICAL/HIGH)
 - [ ] Срез 7 готов по фазе 6 (typecheck, lint, тесты, сквозной сценарий, code-reviewer, security-auditor и тесты с параллельными запросами где обязательны, нет CRITICAL/HIGH)
