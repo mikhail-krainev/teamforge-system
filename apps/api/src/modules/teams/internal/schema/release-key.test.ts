@@ -12,6 +12,8 @@ const quiet = { prepare: false, onnotice: () => undefined } as const;
 const now = new Date('2026-10-18T10:00:00Z');
 /** Migration 0017 adds `team.release_key`; the folder below stops before it. */
 const RELEASE_KEY_MIGRATION = '0017_release_key_resume_cursor_team_index';
+/** Migration 0018 canonicalizes the key function; a team saved between the two has the key of 0017. */
+const CANONICAL_HOST_MIGRATION = '0018_release_key_canonical_host';
 
 /** The migrations up to the one before 0017, in a private copy of the folder. */
 function migrationsBefore(tag: string): string {
@@ -37,6 +39,8 @@ describeInfra('AF-02 normalized release address (migration 0017)', ['db'], () =>
   let sql: postgres.Sql;
   const oldTeams = { plain: randomUUID(), decorated: randomUUID(), empty: randomUUID() };
   let oldMigrations = '';
+  let midMigrations = '';
+  const between = { spaced: randomUUID(), plain: randomUUID() };
 
   const insertTeam = async (releaseUrl: string | null, id = randomUUID()): Promise<string> => {
     await sql`INSERT INTO teams.team (id, name, description, product_type_code, playbook_id,
@@ -68,12 +72,18 @@ describeInfra('AF-02 normalized release address (migration 0017)', ['db'], () =>
     await insertTeam('https://WWW.Old.Example.test/App/index.html?x=1#y', oldTeams.plain);
     await insertTeam('http://user@old2.example.test:8080/%61pp/', oldTeams.decorated);
     await insertTeam(null, oldTeams.empty);
+    // 0017 only: the key function of that migration does not cut a leading space.
+    midMigrations = migrationsBefore(CANONICAL_HOST_MIGRATION);
+    await runMigrations(directUrl, midMigrations);
+    await insertTeam(' https://Spaced.Example.test/Docs/ ', between.spaced);
+    await insertTeam('https://plain.example.test/index.html', between.plain);
     await runMigrations(directUrl);
   }, 120_000);
 
   afterAll(async () => {
     await sql.end({ timeout: 5 });
     rmSync(oldMigrations, { recursive: true, force: true });
+    rmSync(midMigrations, { recursive: true, force: true });
     const admin = postgres(adminUrl, { max: 1, ...quiet });
     try {
       await admin.unsafe(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
@@ -91,7 +101,24 @@ describeInfra('AF-02 normalized release address (migration 0017)', ['db'], () =>
     expect(byId[oldTeams.empty]).toBeNull();
   });
 
+  it('migration 0018 makes the keys again for the rows that exist, the ones 0017 could not read too', async () => {
+    const rows = await sql<{ id: string; release_key: string | null }[]>`
+      SELECT id, release_key FROM teams.team WHERE id IN ${sql(Object.values(between))}`;
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r.release_key]));
+    expect(byId[between.spaced]).toBe('spaced.example.test/docs');
+    expect(byId[between.plain]).toBe('plain.example.test');
+  });
+
+  it('the key function is pure: IMMUTABLE', async () => {
+    const [row] = await sql<{ provolatile: string }[]>`
+      SELECT provolatile FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'teams' AND p.proname = 'release_address_key'`;
+    expect(row?.provolatile).toBe('i');
+  });
+
   it.each([
+    ['  https://foo.app/x  ', 'foo.app/x'],
+    ['\t\nhttps://foo.app/x\r\n', 'foo.app/x'],
     ['https://foo.app/', 'foo.app'],
     ['https://foo.app', 'foo.app'],
     ['HTTP://FOO.App./', 'foo.app'],

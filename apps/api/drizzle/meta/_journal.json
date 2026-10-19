@@ -127,6 +127,13 @@
       "when": 1792437345280,
       "tag": "0017_release_key_resume_cursor_team_index",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792440251174,
+      "tag": "0018_release_key_canonical_host",
+      "breakpoints": true
     }
   ]
 }

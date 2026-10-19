@@ -21,6 +21,7 @@ import type {
   TeamsApi,
   UserId,
 } from '../../public.js';
+import { canonicalReleaseUrl } from '../domain/release-url.js';
 import { extendedPlannedEnd } from '../domain/team-status.js';
 import { membership, seat, seatAssignment, team } from '../schema/teams.js';
 import { JoinService } from './join.service.js';
@@ -254,7 +255,7 @@ export class TeamsFacade implements TeamsApi {
   }
 
   async setReleaseUrl(teamId: TeamId, url: string | null): Promise<void> {
-    await this.updateLocked(teamId, { releaseUrl: url });
+    await this.updateLocked(teamId, { releaseUrl: url === null ? null : canonicalReleaseUrl(url) });
   }
 
   async listCompletedTeamsByReleaseKey(

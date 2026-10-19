@@ -87,10 +87,9 @@ export class CompletionCheckService {
   /**
    * Under lock #4 for update, so two requests cannot both find the team idle: one check at a time per
    * team (S6SEC-02). While one is queued or running (and not yet given up) the answer is 409 INVALID_STATE;
-   * the hourly limit per team caps the jobs a team can put on the `link-check` queue.
+   * the hourly limit per team (10, accepted requests only) caps the jobs a team can put on the `link-check` queue.
    */
   async request(userId: string, teamId: string): Promise<CheckDto> {
-    await this.limiter.enforce('completionCheckTeam', `team:${teamId}`);
     const row = await this.tx.run(async () => {
       const team = await this.teams.lockTeam(teamId, 'update');
       if (team.leadUserId !== userId) throw new DomainError('NOT_TEAM_LEAD', 403);
@@ -100,6 +99,8 @@ export class CompletionCheckService {
       if ((await this.completions.findActiveCheck(teamId, giveUpBefore)) !== undefined) {
         throw new DomainError('INVALID_STATE', 409);
       }
+      // After the 409 above: a refused request does not use up the quota of the team.
+      await this.limiter.enforce('completionCheckTeam', `team:${teamId}`);
       return this.completions.insertCheck({
         id: uuidv7(),
         teamId,

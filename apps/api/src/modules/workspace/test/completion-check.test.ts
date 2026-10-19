@@ -186,7 +186,9 @@ describeInfra(
 
     describe('one check at a time and a limit per team (S6SEC-02)', () => {
       const GIVE_UP_MS = 30 * 60_000;
-      const HOURLY_LIMIT = 30;
+      const HOURLY_LIMIT = 10;
+      /** More refusals than any hourly limit this check ever had. */
+      const REFUSED_REQUESTS = 35;
 
       /** A check row as the request leaves it: nobody has picked it up. */
       const plantCheck = async (
@@ -235,7 +237,22 @@ describeInfra(
         },
       );
 
-      it('S6SEC-02: the 31st request of a team within an hour is 429 RATE_LIMITED', async () => {
+      it('S6SEC-02 (R-5): requests refused with 409 do not use up the quota of the team', async () => {
+        const own = await routeTeam(world);
+        await plantCheck(own.team.id, own.lead.id, 'running', clock.now());
+        for (let i = 0; i < REFUSED_REQUESTS; i += 1) {
+          expectProblem(
+            'requestCompletionCheck',
+            await requestCheck(world, own.lead, own.team.id),
+            409,
+            'INVALID_STATE',
+          );
+        }
+        await world.sql`UPDATE workspace.completion_check SET status = 'failed' WHERE team_id = ${own.team.id}`;
+        expectOk('requestCompletionCheck', await requestCheck(world, own.lead, own.team.id), 202);
+      });
+
+      it('S6SEC-02: the 11th accepted request of a team within an hour is 429 RATE_LIMITED', async () => {
         const own = await routeTeam(world);
         for (let i = 0; i < HOURLY_LIMIT; i += 1) {
           expectOk('requestCompletionCheck', await requestCheck(world, own.lead, own.team.id), 202);

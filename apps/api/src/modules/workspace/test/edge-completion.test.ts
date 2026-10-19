@@ -432,6 +432,60 @@ describeInfra(
       });
     });
 
+    describe('the release address is stored in the form of the URL parser (AF-02, R-1)', () => {
+      let t: CompletableTeam;
+
+      beforeAll(async () => {
+        t = await completableTeam(world, { keepLastStageOpen: true });
+      }, 240_000);
+
+      const plantHolder = async (url: string): Promise<string> => {
+        const earlier = await routeTeam(world);
+        await world.sql`UPDATE teams.team SET status = 'completed', release_url = ${url} WHERE id = ${earlier.team.id}`;
+        await world.sql`
+          INSERT INTO workspace.project_completion (team_id, completed_at, planned_end_at, overdue_days, snapshot, completed_by)
+          VALUES (${earlier.team.id}, now() - interval '1 minute', now(), 0, '{}'::jsonb, ${earlier.lead.id})`;
+        return earlier.team.id;
+      };
+
+      const saveRelease = async (url: string) => {
+        const item = await itemOf(t.fx, 'mini_final_links', 3, t.fx.lead);
+        return patchItem(world, t.fx.lead, t.fx.team.id, item.id, {
+          version: item.version,
+          linkUrl: url,
+        });
+      };
+
+      it.each([
+        ['a percent-encoded dot in the host', 'https://app.release.example%2Etest/'],
+        ['a percent-encoded letter in the host', 'https://ap%70.release.example.test/'],
+        ['capitals in the host', 'https://APP.Release.Example.TEST/'],
+        ['the default port', 'https://app.release.example.test:443/'],
+        ['the root dot at the end of the host', 'https://app.release.example.test./'],
+      ])(
+        'AF-02 (R-1): %s is stored as the URL parser gives it and is the address of a completed project -> FRAUD_BLOCK',
+        async (_title, saved) => {
+          const earlierId = await plantHolder(RELEASE_URL);
+          try {
+            const patched = await saveRelease(saved);
+            expect(patched.statusCode, patched.body).toBe(200);
+            const [row] = await world.sql<{ release_url: string; release_key: string }[]>`
+              SELECT release_url, release_key FROM teams.team WHERE id = ${t.fx.team.id}`;
+            expect(row?.release_url).toBe(new URL(saved).href);
+            expect(row?.release_key).toBe('app.release.example.test');
+            const response = await complete(world, t.fx.lead, t.fx.team.id);
+            expectProblem('completeProject', response, 409, 'COMPLETION_BLOCKED');
+            expect(unmetCodes(response)).toContain('FRAUD_BLOCK');
+          } finally {
+            await forgetCompletion(world, earlierId);
+            await world.sql`UPDATE teams.team SET release_url = NULL WHERE id = ${earlierId}`;
+            await saveRelease(RELEASE_URL);
+          }
+          expect(await completionCount(world, t.fx.team.id)).toBe(0);
+        },
+      );
+    });
+
     describe('template addresses (AF-02)', () => {
       let t: CompletableTeam;
 

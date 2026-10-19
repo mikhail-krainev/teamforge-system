@@ -3,6 +3,7 @@ import type { Ok } from 'shared';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
+import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { GITHUB_API, type GithubApi } from '../../../github/public.js';
 import { TEAMS_API, type TeamLockView, type TeamsApi } from '../../../teams/public.js';
@@ -53,6 +54,7 @@ export function toCompletionDto(row: ProjectCompletionRow): CompletionDto {
 export class CompletionService {
   constructor(
     @Inject(TxRunner) private readonly tx: TxRunner,
+    @Inject(LockService) private readonly locks: LockService,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
@@ -158,10 +160,13 @@ export class CompletionService {
 
   /**
    * AF-02: another project already holds this release address. The teams are found by the normalized
-   * address (an equality lookup); only those with a record of completion count.
+   * address (an equality lookup); only those with a record of completion count. Lock order: #4 `team`,
+   * then the advisory lock of the address (see `LockService.lockReleaseAddress`).
    */
   private async releaseAddressHeld(team: TeamLockView): Promise<boolean> {
     if (team.releaseKey === null) return false;
+    // Two projects with this address complete one after the other: the second sees the first (CC-13).
+    await this.locks.lockReleaseAddress(team.releaseKey);
     const holders = await this.teams.listCompletedTeamsByReleaseKey(team.releaseKey, team.teamId);
     return (await this.completions.completedTeamIds(holders)).size > 0;
   }

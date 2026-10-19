@@ -19,6 +19,7 @@ import {
   createSession,
   ghPerson,
   github,
+  closedIssueDelivered,
   link,
   locationOf,
   personalAccount,
@@ -401,6 +402,36 @@ describeInfra(
       });
     });
 
+    describe('two projects with one release address complete one after the other (AF-02, R-2)', () => {
+      const RELEASE_KEY = 'app.release.example.test';
+
+      it('R-2: completeProject waits for the advisory lock of the release address, then completes', async () => {
+        const c = await completableTeam(world);
+        await runCheck(world, c.fx.lead, c.fx.team.id);
+        let pending: ReturnType<typeof complete> | undefined;
+        // Another completion of the same address holds the lock of the address while it decides.
+        await world.sql.begin(async (tx) => {
+          await tx`SELECT pg_advisory_xact_lock(hashtextextended(${RELEASE_KEY}, 0))`;
+          pending = complete(world, c.fx.lead, c.fx.team.id);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          expect(await completionCount(world, c.fx.team.id)).toBe(0);
+        });
+        const done = await pending;
+        expect(done?.statusCode, done?.body).toBe(201);
+        expect(await completionCount(world, c.fx.team.id)).toBe(1);
+      }, 240_000);
+
+      it('R-2: a lock of another address does not hold it back', async () => {
+        const c = await completableTeam(world);
+        await runCheck(world, c.fx.lead, c.fx.team.id);
+        await world.sql.begin(async (tx) => {
+          await tx`SELECT pg_advisory_xact_lock(hashtextextended('another.example.test', 0))`;
+          const done = await complete(world, c.fx.lead, c.fx.team.id);
+          expect(done.statusCode, done.body).toBe(201);
+        });
+      }, 240_000);
+    });
+
     describe('a webhook contribution against completeProject (M-5, 12.3)', () => {
       const sleep = (ms: number): Promise<void> =>
         new Promise((resolve) => setTimeout(resolve, ms));
@@ -426,6 +457,30 @@ describeInfra(
         await waitForDelivery(world, deliveryId);
         expect((await deliveryRows(world, deliveryId))[0]?.status).toBe('processed');
         expect(await contributionCount(world, fx.team.id)).toBe(0);
+      });
+
+      it('R-6: a revoke waits for the lock of the team and leaves the contribution alone once the project is completed', async () => {
+        const { fx, connected } = await linkedTeam(world);
+        const person = await ghPerson(world, fx.backend);
+        const { item } = await closedIssueDelivered(world, connected.repo, {
+          author: person,
+          assignees: [person],
+        });
+        expect(await contributionCount(world, fx.team.id, { active: true })).toBe(1);
+        app().reopenIssue(connected.repo.id, item.number);
+        const request = app().issuesEvent('reopened', item);
+        const deliveryId = request.headers['x-github-delivery'] ?? '';
+
+        await world.sql.begin(async (tx) => {
+          await tx`SELECT id FROM teams.team WHERE id = ${fx.team.id} FOR NO KEY UPDATE`;
+          expect((await postWebhook(world, request)).statusCode).toBe(202);
+          await sleep(HOLD_MS);
+          expect(await contributionCount(world, fx.team.id, { active: true })).toBe(1);
+          await tx`UPDATE teams.team SET status = 'completed' WHERE id = ${fx.team.id}`;
+        });
+
+        await waitForDelivery(world, deliveryId);
+        expect(await contributionCount(world, fx.team.id, { active: true })).toBe(1);
       });
 
       it('M-5: a credit that comes before the completion is in the snapshot, one that comes after is not written', async () => {

@@ -112,6 +112,9 @@ export class ContributionConsumer implements EventConsumer, OnModuleInit {
     );
     if (standing !== false) return;
     const { teamId, source: kind } = parsed.data;
+    // Same lock as `credit`: after the completion the snapshot is final and the rows are left as they are.
+    const team = await this.teams.lockTeam(teamId, 'share');
+    if (team.status === 'completed' || team.status === 'archived') return;
     await this.announce(teamId, await this.contributions.deactivate(teamId, kind, parsed.data.ref));
   }
 

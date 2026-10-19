@@ -1,3 +1,4 @@
+import { Redis } from 'ioredis';
 import { expect } from 'vitest';
 import type { Schema } from 'shared';
 import type { TwinPerson } from '../fakes/github-webhooks.js';
@@ -161,12 +162,27 @@ export function waitForCheck(
   }, 30_000);
 }
 
+/**
+ * The hourly quota of checks per team (10, SEC-27) is real time in Redis, and tests that walk one team
+ * through many conditions ask for far more. This gives the quota back; the tests of the limit itself
+ * use `requestCheck`, which does not.
+ */
+export async function forgetCheckQuota(teamId: string): Promise<void> {
+  const redis = new Redis(process.env.REDIS_URL ?? '', { maxRetriesPerRequest: null });
+  try {
+    await redis.del(`rl:completionCheckTeam:team:${teamId}`);
+  } finally {
+    redis.disconnect();
+  }
+}
+
 /** Requests a check (202) and waits until the worker has finished it. */
 export async function runCheck(
   world: World,
   lead: UserFixture,
   teamId: string,
 ): Promise<CompletionCheckDto> {
+  await forgetCheckQuota(teamId);
   const requested = expectOk<CompletionCheckDto>(
     'requestCompletionCheck',
     await requestCheck(world, lead, teamId),
