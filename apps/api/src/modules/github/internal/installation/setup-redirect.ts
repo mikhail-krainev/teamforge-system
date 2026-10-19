@@ -9,6 +9,7 @@ export type SetupError =
   | 'installation_suspended'
   | 'permissions_missing'
   | 'not_lead'
+  | 'account_mismatch'
   | 'github_unavailable';
 
 export type SetupOutcome =

@@ -45,6 +45,8 @@ export const repoLink = githubSchema.table(
       .on(t.teamId)
       .where(sql`${t.status} = 'active'`),
     index('repo_link_installation_idx').on(t.installationId),
+    /** `findHolding`: the link of a team that is active or completed, newest first. */
+    index('repo_link_team_idx').on(t.teamId, t.linkedAt.desc()),
   ],
 );
 
@@ -53,7 +55,13 @@ export const repoSyncState = githubSchema.table('repo_sync_state', {
   repositoryId: bigint('repository_id', { mode: 'number' }).primaryKey(),
   issuesEtag: text('issues_etag'),
   pullsEtag: text('pulls_etag'),
+  /** Set only when both feeds were read to the end (or to the position of the previous run). */
   lastSyncedAt: tstz('last_synced_at'),
+  /** The page a feed continues from after a run that hit its page budget; null when the feed was finished. */
+  issuesResumePage: integer('issues_resume_page'),
+  pullsResumePage: integer('pulls_resume_page'),
+  /** When the first unfinished run of the current round started: it becomes `last_synced_at` at the end. */
+  pendingSyncStartedAt: tstz('pending_sync_started_at'),
   ciState: text('ci_state'),
   ciCheckedAt: tstz('ci_checked_at'),
 });

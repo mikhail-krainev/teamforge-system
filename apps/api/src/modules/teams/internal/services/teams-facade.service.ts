@@ -27,9 +27,6 @@ import { JoinService } from './join.service.js';
 
 type TeamRow = typeof team.$inferSelect;
 
-/** Candidates of one host fragment that AF-02 compares as whole addresses. */
-const RELEASE_HOLDERS_LIMIT = 200;
-
 function toView(row: TeamRow, now: Date): TeamLockView {
   return {
     teamId: row.id,
@@ -44,6 +41,7 @@ function toView(row: TeamRow, now: Date): TeamLockView {
     productType: row.productTypeCode,
     name: row.name,
     releaseUrl: row.releaseUrl,
+    releaseKey: row.releaseKey,
   };
 }
 
@@ -259,25 +257,21 @@ export class TeamsFacade implements TeamsApi {
     await this.updateLocked(teamId, { releaseUrl: url });
   }
 
-  async listCompletedReleaseUrls(
-    hostFragment: string,
+  async listCompletedTeamsByReleaseKey(
+    releaseKey: string,
     exceptTeamId: TeamId,
-  ): Promise<{ teamId: TeamId; releaseUrl: string }[]> {
-    const escaped = hostFragment.replace(/[\\%_]/g, (c) => `\\${c}`);
+  ): Promise<TeamId[]> {
     const rows = await this.tx.tx
-      .select({ teamId: team.id, releaseUrl: team.releaseUrl })
+      .select({ teamId: team.id })
       .from(team)
       .where(
         and(
+          eq(team.releaseKey, releaseKey),
           eq(team.status, 'completed'),
           sql`${team.id} <> ${exceptTeamId}`,
-          sql`${team.releaseUrl} ILIKE ${`%${escaped}%`}`,
         ),
-      )
-      .limit(RELEASE_HOLDERS_LIMIT);
-    return rows.flatMap((r) =>
-      r.releaseUrl === null ? [] : [{ teamId: r.teamId, releaseUrl: r.releaseUrl }],
-    );
+      );
+    return rows.map((r) => r.teamId);
   }
 
   private async updateLocked(teamId: TeamId, set: Partial<TeamRow>): Promise<void> {

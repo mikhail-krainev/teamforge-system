@@ -13,7 +13,6 @@ export {
   contributorsTooFew,
   durationTooShort,
   fraudBlock,
-  isReleaseAddressRepeated,
   isTemplateAddress,
   membersBelowMin,
   stageClosedTooFast,

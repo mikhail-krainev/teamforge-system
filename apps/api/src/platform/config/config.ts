@@ -101,6 +101,11 @@ export const envSchema = z.object({
   GITHUB_OAUTH_BASE_URL: optionalString.pipe(httpUrl.optional()),
   GITHUB_API_BASE_URL: optionalString.pipe(httpUrl.optional()),
   GITHUB_WEBHOOK_SECRET: optionalString,
+  /** Pages (100 items each) one run of the reconciliation reads per feed before it continues in the next run. */
+  GITHUB_SYNC_MAX_PAGES: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(1).max(100).default(30),
+  ),
   DATA_ENCRYPTION_KEY: encryptionKey,
   IP_HASH_SALT: secret(),
   BACKUP_AGE_RECIPIENT: optionalString,

@@ -174,16 +174,23 @@ export const repoCheckRows = (
     SELECT kind, ok, details FROM github.repo_check WHERE team_id = ${teamId}
      ORDER BY checked_at DESC`;
 
+export interface SyncStateRowDto {
+  issues_etag: string | null;
+  ci_state: string | null;
+  last_synced_at: Date | null;
+  issues_resume_page: number | null;
+  pulls_resume_page: number | null;
+  pending_sync_started_at: Date | null;
+}
+
 export const syncStateRow = async (
   world: World,
   repositoryId: number,
-): Promise<
-  { issues_etag: string | null; ci_state: string | null; last_synced_at: Date | null } | undefined
-> => {
-  const rows = await world.sql<
-    { issues_etag: string | null; ci_state: string | null; last_synced_at: Date | null }[]
-  >`SELECT issues_etag, ci_state, last_synced_at FROM github.repo_sync_state
-     WHERE repository_id = ${repositoryId}`;
+): Promise<SyncStateRowDto | undefined> => {
+  const rows = await world.sql<SyncStateRowDto[]>`
+    SELECT issues_etag, ci_state, last_synced_at, issues_resume_page, pulls_resume_page,
+           pending_sync_started_at
+      FROM github.repo_sync_state WHERE repository_id = ${repositoryId}`;
   return rows[0];
 };
 

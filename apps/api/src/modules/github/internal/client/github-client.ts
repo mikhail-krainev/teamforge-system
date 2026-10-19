@@ -43,6 +43,7 @@ const userInstallationSchema = z.object({
   permissions: z.record(z.string(), z.string()).default({}),
   suspended_at: z.string().nullable().default(null),
 });
+const authorizedUserSchema = z.object({ id: z.number().int().positive() });
 const userInstallationsPage = z.object({
   total_count: z.number().int(),
   installations: z.array(z.unknown()),
@@ -174,6 +175,12 @@ export class GithubClient {
     const parsed = tokenResponse.safeParse(await response.json().catch(() => null));
     if (!parsed.success) throw new GithubError('bad_code');
     return parsed.data.access_token;
+  }
+
+  /** `GET /user`: the id of the GitHub account that authorized the user-to-server token. */
+  async getAuthorizedUserId(userToken: string): Promise<number> {
+    const response = await this.call(() => this.octokit(userToken).request('GET /user'));
+    return parseOrUnavailable(authorizedUserSchema, response.data).id;
   }
 
   /** The installation `installationId` among those the user can access, or `null`. */

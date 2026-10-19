@@ -7,6 +7,7 @@ import {
   complete,
   completableTeam,
   feedOk,
+  linkedTeam,
   relabel,
   runCheck,
   type CompletableTeam,
@@ -32,6 +33,7 @@ import {
   completionRows,
   contributionCount,
   contributionRows,
+  deliveryRows,
   grantRows,
   repoLinkRows,
   teamReleaseUrl,
@@ -397,6 +399,64 @@ describeInfra(
           (await repoLinkRows(world, fx.team.id)).filter((r) => r.status === 'active'),
         ).toHaveLength(1);
       });
+    });
+
+    describe('a webhook contribution against completeProject (M-5, 12.3)', () => {
+      const sleep = (ms: number): Promise<void> =>
+        new Promise((resolve) => setTimeout(resolve, ms));
+      const HOLD_MS = 1500;
+
+      it('M-5: a credit waits for the lock of the team and writes nothing once the project is completed', async () => {
+        const { fx, connected } = await linkedTeam(world);
+        const person = await ghPerson(world, fx.backend);
+        const issue = app().openIssue(connected.repo.id, { author: person, assignees: [person] });
+        app().closeIssue(connected.repo.id, issue.number);
+        const request = app().issuesEvent('closed', issue);
+        const deliveryId = request.headers['x-github-delivery'] ?? '';
+
+        // The completion's own lock (#4), held by hand: the webhook arrives while the snapshot is being made.
+        await world.sql.begin(async (tx) => {
+          await tx`SELECT id FROM teams.team WHERE id = ${fx.team.id} FOR NO KEY UPDATE`;
+          expect((await postWebhook(world, request)).statusCode).toBe(202);
+          await sleep(HOLD_MS);
+          expect(await contributionCount(world, fx.team.id)).toBe(0);
+          await tx`UPDATE teams.team SET status = 'completed' WHERE id = ${fx.team.id}`;
+        });
+
+        await waitForDelivery(world, deliveryId);
+        expect((await deliveryRows(world, deliveryId))[0]?.status).toBe('processed');
+        expect(await contributionCount(world, fx.team.id)).toBe(0);
+      });
+
+      it('M-5: a credit that comes before the completion is in the snapshot, one that comes after is not written', async () => {
+        const c = await completableTeam(world);
+        await runCheck(world, c.fx.lead, c.fx.team.id);
+        const late = app().openIssue(c.connected.repo.id, {
+          author: c.backend,
+          assignees: [c.backend],
+        });
+        app().closeIssue(c.connected.repo.id, late.number);
+        const request = app().issuesEvent('closed', late);
+        const [done, delivered] = await Promise.all([
+          complete(world, c.fx.lead, c.fx.team.id),
+          postWebhook(world, request),
+        ]);
+        expect(done.statusCode, done.body).toBe(201);
+        expect(delivered.statusCode).toBe(202);
+        await waitForDelivery(world, request.headers['x-github-delivery'] ?? '');
+        const ref = `issue:${c.connected.repo.id}#${late.number}`;
+        const written = (await contributionRows(world, c.fx.team.id)).some((r) => r.ref === ref);
+        const [completion] = await completionRows(world, c.fx.team.id);
+        const inSnapshot = findByRef(completion?.snapshot, ref) !== undefined;
+        expect(written).toBe(inSnapshot);
+        if (written) {
+          expect(
+            (await contributionRows(world, c.fx.team.id))
+              .filter((r) => r.ref === ref)
+              .every((r) => r.role_locked),
+          ).toBe(true);
+        }
+      }, 240_000);
     });
   },
 );

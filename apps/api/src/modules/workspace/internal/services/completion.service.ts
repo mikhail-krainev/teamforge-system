@@ -12,7 +12,6 @@ import {
   type CompletionFacts,
   completionUnmet,
   overdueDaysOf,
-  releaseHostFragment,
 } from '../domain/completion-rules.js';
 import {
   buildSnapshot,
@@ -89,7 +88,7 @@ export class CompletionService {
       check: await this.latestCheck(teamId),
       releaseUrl: team.releaseUrl,
       repositoryId,
-      otherReleaseUrls: await this.otherReleaseUrls(team),
+      releaseAddressHeld: await this.releaseAddressHeld(team),
     });
     if (unmet.length > 0) throw new DomainError('COMPLETION_BLOCKED', 409, { unmet });
 
@@ -157,12 +156,13 @@ export class CompletionService {
     return { validUntil: row.validUntil, results: row.results as CheckResultFact[] };
   }
 
-  /** AF-02: release addresses of the other completed projects on the same host. */
-  private async otherReleaseUrls(team: TeamLockView): Promise<string[]> {
-    const host = team.releaseUrl === null ? null : releaseHostFragment(team.releaseUrl);
-    if (host === null) return [];
-    const holders = await this.teams.listCompletedReleaseUrls(host, team.teamId);
-    const recorded = await this.completions.completedTeamIds(holders.map((h) => h.teamId));
-    return holders.filter((h) => recorded.has(h.teamId)).map((h) => h.releaseUrl);
+  /**
+   * AF-02: another project already holds this release address. The teams are found by the normalized
+   * address (an equality lookup); only those with a record of completion count.
+   */
+  private async releaseAddressHeld(team: TeamLockView): Promise<boolean> {
+    if (team.releaseKey === null) return false;
+    const holders = await this.teams.listCompletedTeamsByReleaseKey(team.releaseKey, team.teamId);
+    return (await this.completions.completedTeamIds(holders)).size > 0;
   }
 }

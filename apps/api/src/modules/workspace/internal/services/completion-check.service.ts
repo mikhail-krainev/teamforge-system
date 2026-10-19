@@ -7,6 +7,7 @@ import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { jobId } from '../../../../platform/queues/job-id.js';
 import { QueuesService } from '../../../../platform/queues/queues.service.js';
+import { RateLimiter } from '../../../../platform/ratelimit/rate-limiter.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { GITHUB_API, type GithubApi } from '../../../github/public.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
@@ -79,21 +80,33 @@ export class CompletionCheckService {
     @Inject(CompletionRepository) private readonly completions: CompletionRepository,
     @Inject(ReleaseTargetService) private readonly targets: ReleaseTargetService,
     @Inject(LinkChecks) private readonly linkChecks: LinkChecks,
+    @Inject(RateLimiter) private readonly limiter: RateLimiter,
     @Inject(PinoLogger) private readonly logger: PinoLogger,
   ) {}
 
+  /**
+   * Under lock #4 for update, so two requests cannot both find the team idle: one check at a time per
+   * team (S6SEC-02). While one is queued or running (and not yet given up) the answer is 409 INVALID_STATE;
+   * the hourly limit per team caps the jobs a team can put on the `link-check` queue.
+   */
   async request(userId: string, teamId: string): Promise<CheckDto> {
+    await this.limiter.enforce('completionCheckTeam', `team:${teamId}`);
     const row = await this.tx.run(async () => {
-      const team = await this.teams.lockTeam(teamId, 'share');
+      const team = await this.teams.lockTeam(teamId, 'update');
       if (team.leadUserId !== userId) throw new DomainError('NOT_TEAM_LEAD', 403);
       assertCompletable(team.status);
+      const now = this.clock.now();
+      const giveUpBefore = new Date(now.getTime() - CHECK_GIVE_UP_AFTER_MS);
+      if ((await this.completions.findActiveCheck(teamId, giveUpBefore)) !== undefined) {
+        throw new DomainError('INVALID_STATE', 409);
+      }
       return this.completions.insertCheck({
         id: uuidv7(),
         teamId,
         status: 'queued',
         results: [],
         requestedBy: userId,
-        requestedAt: this.clock.now(),
+        requestedAt: now,
       });
     });
     await this.enqueue(row.id, 0);

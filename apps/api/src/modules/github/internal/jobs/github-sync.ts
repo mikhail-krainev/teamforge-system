@@ -69,7 +69,10 @@ export class GithubSync implements OnModuleInit {
   }
 
   private async isStale(link: ActiveLink): Promise<boolean> {
-    const last = (await this.state.state(link.repositoryId))?.lastSyncedAt;
+    const state = await this.state.state(link.repositoryId);
+    // A round that stopped at its page budget is continued by every resume run, not once a day.
+    if (state?.pendingSyncStartedAt != null) return true;
+    const last = state?.lastSyncedAt;
     return last == null || this.clock.now().getTime() - last.getTime() >= DAY_MS;
   }
 

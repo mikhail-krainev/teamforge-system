@@ -63,6 +63,8 @@ export interface StageFact {
 export interface ContributionFact {
   userId: string;
   source: string;
+  /** The task or pull request that was credited (`issue:<repo>#<n>`, `pr:<repo>#<n>`); one per assignee row. */
+  ref: string;
   active: boolean;
   receivedAt: Date;
 }
@@ -91,8 +93,8 @@ export interface CompletionFacts {
   releaseUrl: string | null;
   /** The repository that holds the team now (active link). */
   repositoryId: number | null;
-  /** Release addresses of the other completed projects that share a host fragment with this one. */
-  otherReleaseUrls: readonly string[];
+  /** AF-02: another completed project holds the same normalized release address (`team.release_key`). */
+  releaseAddressHeld: boolean;
 }
 
 function unmet(code: UnmetCode, message: string, data?: Record<string, unknown>): UnmetCondition {
@@ -153,9 +155,17 @@ export function contributionDaysTooFew(facts: CompletionFacts): UnmetCondition |
   );
 }
 
+/**
+ * How many merged pull requests and closed issues count: distinct `source` + `ref`. A task with two
+ * assignees has a row per account, but it is one task (AF-04).
+ */
+export function countedWorkItems(contributions: readonly ContributionFact[]): number {
+  return new Set(countedWork(contributions).map((c) => `${c.source}:${c.ref}`)).size;
+}
+
 /** FR-WORK-13 (6), AF-04: at least 10 merged pull requests and closed issues. */
 export function contributionTooLow(facts: CompletionFacts): UnmetCondition | undefined {
-  const count = countedWork(facts.contributions).length;
+  const count = countedWorkItems(facts.contributions);
   if (count >= MIN_CONTRIBUTIONS) return undefined;
   return unmet('CONTRIBUTION_TOO_LOW', `Меньше ${MIN_CONTRIBUTIONS} слитых PR и закрытых задач`, {
     count,
@@ -194,33 +204,11 @@ function hostOf(address: string): string | null {
   }
 }
 
-/** The host and path of an address, as AF-02 compares them (scheme, query, fragment and a final slash are ignored). */
-export function releaseAddressKey(address: string): string | null {
-  try {
-    const url = new URL(address);
-    const path = url.pathname.replace(/\/+$/, '');
-    return `${url.hostname.toLowerCase().replace(/\.$/, '')}${path.toLowerCase()}`;
-  } catch {
-    return null;
-  }
-}
-
-/** The part of the host that candidates for a repeat share (`hostFragment` of `TeamsApi.listCompletedReleaseUrls`). */
-export function releaseHostFragment(address: string): string | null {
-  return hostOf(address);
-}
-
 /** AF-02: an address of examples or of the local machine. */
 export function isTemplateAddress(address: string): boolean {
   const host = hostOf(address);
   if (host === null) return false;
   return TEMPLATE_HOSTS.some((t) => host === t || host === `www.${t}` || host.endsWith(`.${t}`));
-}
-
-/** AF-02: the full address (host and path) repeats among the completed projects. */
-export function isReleaseAddressRepeated(address: string, others: readonly string[]): boolean {
-  const key = releaseAddressKey(address);
-  return key !== null && others.some((other) => releaseAddressKey(other) === key);
 }
 
 /** AF-02 (FRAUD_BLOCK): a template address or one already used by a completed project. */
@@ -229,7 +217,7 @@ export function fraudBlock(facts: CompletionFacts): UnmetCondition | undefined {
   if (isTemplateAddress(facts.releaseUrl)) {
     return unmet('FRAUD_BLOCK', 'Адрес релиза — шаблонный или локальный', { rule: 'AF-02' });
   }
-  if (isReleaseAddressRepeated(facts.releaseUrl, facts.otherReleaseUrls)) {
+  if (facts.releaseAddressHeld) {
     return unmet('FRAUD_BLOCK', 'Этот адрес релиза уже есть у другого завершённого проекта', {
       rule: 'AF-02',
     });

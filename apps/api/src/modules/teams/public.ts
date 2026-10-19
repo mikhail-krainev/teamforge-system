@@ -73,6 +73,8 @@ export interface TeamLockView {
   name: string;
   /** Copied from the release step of the last stage (FR-WORK-14); `null` until it is saved. */
   releaseUrl: string | null;
+  /** The normalized form of `releaseUrl` (AF-02), made by the database; `null` when there is no address. */
+  releaseKey: string | null;
 }
 
 export interface RosterMember {
@@ -176,13 +178,10 @@ export interface TeamsApi {
   /** @requiresTx, the team must be locked by the caller (T7, FR-WORK-14). `null` clears it. */
   setReleaseUrl(teamId: TeamId, url: string | null): Promise<void>;
   /**
-   * Release addresses of the completed projects (AF-02) that contain `hostFragment`, the team `exceptTeamId`
-   * left out; the caller compares them as whole addresses.
+   * Teams with status `completed` whose normalized release address equals `releaseKey` (AF-02), the team
+   * `exceptTeamId` left out. An equality lookup on an index: all of them, no limit.
    */
-  listCompletedReleaseUrls(
-    hostFragment: string,
-    exceptTeamId: TeamId,
-  ): Promise<{ teamId: TeamId; releaseUrl: string }[]>;
+  listCompletedTeamsByReleaseKey(releaseKey: string, exceptTeamId: TeamId): Promise<TeamId[]>;
 }
 
 /** Ports declared by teams, implemented by upper modules and bound in AppModule. */

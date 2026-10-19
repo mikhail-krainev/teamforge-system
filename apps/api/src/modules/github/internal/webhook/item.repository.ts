@@ -21,7 +21,7 @@ export interface ItemWrite {
   deletions: number | null;
   closedAt: Date | null;
   mergedAt: Date | null;
-  /** `updated_at` on GitHub: an older event never overwrites a newer one (SEC-06). */
+  /** `updated_at` on GitHub: an older event never overwrites a newer one (SEC-06); see `supersedes` for equal stamps. */
   sourceUpdatedAt: Date;
   receivedAt: Date;
 }
@@ -34,6 +34,41 @@ export interface UpsertResult {
 }
 
 const EPOCH = new Date(0);
+
+/** How far an item has come: a state does not go back inside one second of `updated_at`. */
+export function itemRank(item: { state: string; merged: boolean }): number {
+  if (item.merged) return 2;
+  return item.state === 'closed' ? 1 : 0;
+}
+
+/** What of an item decides whether another version of it with the same `updated_at` still says something. */
+export interface ItemStamp {
+  sourceUpdatedAt: Date;
+  state: string;
+  merged: boolean;
+  labels: readonly string[];
+  assigneeGithubIds: readonly number[];
+}
+
+const sameMembers = <T>(a: readonly T[], b: readonly T[]): boolean =>
+  a.length === b.length && a.every((value) => b.includes(value));
+
+/**
+ * True when `incoming` is news for the stored version. GitHub stamps whole seconds, so two changes of
+ * one second (assigned, then closed by a script) carry the same `updated_at`: inside the same second
+ * the version that went further (open, closed, merged) wins, and at the same step one that differs in
+ * labels or assignees is applied (writing the same content again is harmless). A strictly older stamp never is.
+ */
+export function supersedes(incoming: ItemStamp, stored: ItemStamp): boolean {
+  const byTime = incoming.sourceUpdatedAt.getTime() - stored.sourceUpdatedAt.getTime();
+  if (byTime !== 0) return byTime > 0;
+  const byStep = itemRank(incoming) - itemRank(stored);
+  if (byStep !== 0) return byStep > 0;
+  return (
+    !sameMembers(incoming.labels, stored.labels) ||
+    !sameMembers(incoming.assigneeGithubIds, stored.assigneeGithubIds)
+  );
+}
 
 /** `github.gh_item` and `github.gh_pr_review`: what the webhooks and the reconciliation know of the repository. */
 @Injectable()
@@ -63,7 +98,7 @@ export class ItemRepository {
 
   /**
    * Conditional upsert (architecture 7.3 item 4): `INSERT`, and on a conflict the row is locked and
-   * rewritten only by an event that is newer than what it holds. `closer_pr_number` and the time of
+   * rewritten only by an event that `supersedes` what it holds. `closer_pr_number` and the time of
    * the first sighting survive.
    */
   async upsert(write: ItemWrite): Promise<UpsertResult> {
@@ -93,7 +128,7 @@ export class ItemRepository {
     if (inserted.length === 1) return { applied: true, previous: undefined };
     const previous = await this.find(write.repositoryId, write.kind, write.number, true);
     if (previous === undefined) return this.upsert(write);
-    if (previous.sourceUpdatedAt.getTime() >= write.sourceUpdatedAt.getTime()) {
+    if (!supersedes(write, previous)) {
       return { applied: false, previous };
     }
     await this.tx.tx

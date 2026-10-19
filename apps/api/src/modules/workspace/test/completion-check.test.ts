@@ -12,6 +12,7 @@ import {
   RELEASE_URL,
   requestCheck,
   runCheck,
+  waitForCheck,
   type CompletableTeam,
   type CompletionCheckDto,
 } from '../../../../test/fixtures/completion.js';
@@ -70,6 +71,8 @@ describeInfra(
         expect(['queued', 'running', 'done']).toContain(body.status);
         expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
         expect(Date.parse(body.requestedAt)).toBeGreaterThan(0);
+        // One check at a time: the next test asks again only after this one has finished.
+        await waitForCheck(world, c.fx.lead, c.fx.team.id, body.id);
       });
 
       it('FR-WORK-13: the worker finishes the check: done, with the time it is valid until (one hour)', async () => {
@@ -125,6 +128,7 @@ describeInfra(
         expect(first.statusCode).toBe(202);
         expectReplayed(second);
         expect(second.json<CompletionCheckDto>().id).toBe(first.json<CompletionCheckDto>().id);
+        await waitForCheck(world, c.fx.lead, c.fx.team.id, first.json<CompletionCheckDto>().id);
         expect(await completionCheckCount(world, c.fx.team.id)).toBe(before + 1);
       });
 
@@ -170,9 +174,87 @@ describeInfra(
           return;
         }
         expect(response.statusCode, response.body).toBe(202);
-        const check = await runCheck(world, own.lead, own.team.id);
+        const check = await waitForCheck(
+          world,
+          own.lead,
+          own.team.id,
+          response.json<CompletionCheckDto>().id,
+        );
         expect(resultOf(check, 'repo_final')).toMatchObject({ ok: false, blocking: true });
       });
+    });
+
+    describe('one check at a time and a limit per team (S6SEC-02)', () => {
+      const GIVE_UP_MS = 30 * 60_000;
+      const HOURLY_LIMIT = 30;
+
+      /** A check row as the request leaves it: nobody has picked it up. */
+      const plantCheck = async (
+        teamId: string,
+        leadId: string,
+        status: string,
+        requestedAt: Date,
+      ): Promise<void> => {
+        await world.sql`
+          INSERT INTO workspace.completion_check (id, team_id, status, results, requested_by, requested_at)
+          VALUES (${randomUUID()}, ${teamId}, ${status}, '[]'::jsonb, ${leadId}, ${requestedAt})`;
+      };
+
+      it.each(['queued', 'running'])(
+        'S6SEC-02: a check that is %s blocks a new one: 409 INVALID_STATE, no second row',
+        async (status) => {
+          const own = await routeTeam(world);
+          await plantCheck(own.team.id, own.lead.id, status, clock.now());
+          expectProblem(
+            'requestCompletionCheck',
+            await requestCheck(world, own.lead, own.team.id),
+            409,
+            'INVALID_STATE',
+          );
+          expect(await completionCheckCount(world, own.team.id)).toBe(1);
+        },
+      );
+
+      it('S6SEC-02: a check that nobody finished for 30 minutes is given up: a new one is accepted', async () => {
+        const own = await routeTeam(world);
+        await plantCheck(
+          own.team.id,
+          own.lead.id,
+          'running',
+          new Date(clock.now().getTime() - GIVE_UP_MS - 1000),
+        );
+        expectOk('requestCompletionCheck', await requestCheck(world, own.lead, own.team.id), 202);
+      });
+
+      it.each(['done', 'failed'])(
+        'S6SEC-02: a %s check does not block the next one',
+        async (status) => {
+          const own = await routeTeam(world);
+          await plantCheck(own.team.id, own.lead.id, status, clock.now());
+          expectOk('requestCompletionCheck', await requestCheck(world, own.lead, own.team.id), 202);
+        },
+      );
+
+      it('S6SEC-02: the 31st request of a team within an hour is 429 RATE_LIMITED', async () => {
+        const own = await routeTeam(world);
+        for (let i = 0; i < HOURLY_LIMIT; i += 1) {
+          expectOk('requestCompletionCheck', await requestCheck(world, own.lead, own.team.id), 202);
+          await world.sql`UPDATE workspace.completion_check SET status = 'failed' WHERE team_id = ${own.team.id}`;
+        }
+        expectProblem(
+          'requestCompletionCheck',
+          await requestCheck(world, own.lead, own.team.id),
+          429,
+          'RATE_LIMITED',
+        );
+        // Another team has its own count.
+        const other = await routeTeam(world);
+        expectOk(
+          'requestCompletionCheck',
+          await requestCheck(world, other.lead, other.team.id),
+          202,
+        );
+      }, 120_000);
     });
 
     describe('repo_final (FR-GH-08, AF-01)', () => {

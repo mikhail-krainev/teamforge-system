@@ -34,7 +34,8 @@ const revoked = z.object({ teamId: z.uuid(), source, ref: z.string() });
  * the members, `github.contribution_revoked` takes the credit back. Events are not delivered in order,
  * so the state of the issue is read again before anything is written: a "detected" for an issue that is
  * open now writes nothing, a "revoked" for one that is closed again changes nothing. Repeats end on
- * `contribution_uq`.
+ * `contribution_uq`. A credit takes the team lock (#4, shared) and writes nothing once the project is
+ * completed: the snapshot of the completion holds every contribution of the project, and no row appears later.
  */
 @Injectable()
 export class ContributionConsumer implements EventConsumer, OnModuleInit {
@@ -70,6 +71,10 @@ export class ContributionConsumer implements EventConsumer, OnModuleInit {
       ref.number,
     );
     if (standing === false) return;
+    // Lock #4 like the completion, in the same order (team first): the credit lands wholly before the
+    // snapshot of the completion or not at all, never between (architecture 12.3).
+    const team = await this.teams.lockTeam(work.teamId, 'share');
+    if (team.status === 'completed' || team.status === 'archived') return;
     const roster = new Map((await this.teams.getRoster(work.teamId)).map((m) => [m.userId, m]));
     const stageOrdinal = await this.contributions.stageOrdinalAt(
       work.teamId,

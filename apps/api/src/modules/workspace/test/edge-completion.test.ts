@@ -7,6 +7,7 @@ import {
   RELEASE_URL,
   requestCheck,
   runCheck,
+  waitForCheck,
   unmetCodes,
   type CompletableTeam,
   type CompletionCheckDto,
@@ -187,7 +188,13 @@ describeInfra(
         const requested = await requestCheck(world, t.fx.lead, t.fx.team.id);
         expect(requested.statusCode, requested.body).toBe(202);
         await world.sql`UPDATE teams.team SET lead_user_id = ${t.fx.backend.id} WHERE id = ${t.fx.team.id}`;
-        const finished = await runCheck(world, t.fx.backend, t.fx.team.id);
+        // One check at a time: the new lead reads the very check the old lead asked for.
+        const finished = await waitForCheck(
+          world,
+          t.fx.backend,
+          t.fx.team.id,
+          requested.json<{ id: string }>().id,
+        );
         expect(finished.status).toBe('done');
         expectProblem(
           'completeProject',
@@ -341,6 +348,77 @@ describeInfra(
           expect(await completionCount(world, t.fx.team.id)).toBe(0);
         },
       );
+
+      it.each([
+        ['www. in front of the host', 'https://www.app.release.example.test/'],
+        ['/index.html at the end', 'https://app.release.example.test/index.html'],
+        ['/index.htm and a slash', 'https://app.release.example.test/index.htm/'],
+        ['a dot segment', 'https://app.release.example.test/./'],
+        ['an empty query and a fragment', 'https://app.release.example.test/?#top'],
+        ['a port and a user', 'https://me@app.release.example.test:8443/'],
+      ])(
+        'AF-02 (S6SEC-03): %s does not hide an address that a completed project holds -> FRAUD_BLOCK',
+        async (_title, url) => {
+          const earlierId = await plantCompleted(url, -1);
+          try {
+            const response = await complete(world, t.fx.lead, t.fx.team.id);
+            expectProblem('completeProject', response, 409, 'COMPLETION_BLOCKED');
+            expect(unmetCodes(response)).toEqual(['FRAUD_BLOCK']);
+          } finally {
+            await forgetCompletion(world, earlierId);
+            await world.sql`UPDATE teams.team SET release_url = NULL WHERE id = ${earlierId}`;
+          }
+          expect(await completionCount(world, t.fx.team.id)).toBe(0);
+        },
+      );
+
+      it('AF-02 (S6SEC-03): a percent-encoded path is the same path', async () => {
+        await world.sql`UPDATE teams.team SET release_url = 'https://app.release.example.test/app' WHERE id = ${t.fx.team.id}`;
+        const earlierId = await plantCompleted('https://app.release.example.test/%61pp', -1);
+        try {
+          await runCheck(world, t.fx.lead, t.fx.team.id);
+          const response = await complete(world, t.fx.lead, t.fx.team.id);
+          expectProblem('completeProject', response, 409, 'COMPLETION_BLOCKED');
+          expect(unmetCodes(response)).toContain('FRAUD_BLOCK');
+        } finally {
+          await forgetCompletion(world, earlierId);
+          await world.sql`UPDATE teams.team SET release_url = NULL WHERE id = ${earlierId}`;
+          await world.sql`UPDATE teams.team SET release_url = ${RELEASE_URL} WHERE id = ${t.fx.team.id}`;
+        }
+        await runCheck(world, t.fx.lead, t.fx.team.id);
+      });
+
+      it('AF-02 (H-2): the holder is found among hundreds of projects on the same host, not only among the first 200', async () => {
+        await world.sql`
+          INSERT INTO teams.team (id, name, description, product_type_code, playbook_id, status, timezone,
+            hours_per_week, created_by, created_at, updated_at, release_url)
+          SELECT gen_random_uuid(), 'crowd', 'd', 'web_service', gen_random_uuid(), 'completed', 'UTC', 10,
+            gen_random_uuid(), now(), now(), 'https://app.release.example.test/crowd-' || n
+          FROM generate_series(1, 250) AS n`;
+        await world.sql`
+          INSERT INTO workspace.project_completion (team_id, completed_at, planned_end_at, overdue_days, snapshot, completed_by)
+          SELECT id, now() - interval '1 minute', now(), 0, '{}'::jsonb, created_by
+          FROM teams.team WHERE name = 'crowd'`;
+        const earlierId = await plantCompleted(RELEASE_URL, -1);
+        try {
+          const response = await complete(world, t.fx.lead, t.fx.team.id);
+          expectProblem('completeProject', response, 409, 'COMPLETION_BLOCKED');
+          expect(unmetCodes(response)).toEqual(['FRAUD_BLOCK']);
+        } finally {
+          await forgetCompletion(world, earlierId);
+          await world.sql`UPDATE teams.team SET release_url = NULL WHERE id = ${earlierId}`;
+          await world.sql.begin(async (tx) => {
+            await tx.unsafe(
+              'ALTER TABLE workspace.project_completion DISABLE TRIGGER project_completion_immutable_trg',
+            );
+            await tx`DELETE FROM workspace.project_completion WHERE team_id IN (SELECT id FROM teams.team WHERE name = 'crowd')`;
+            await tx.unsafe(
+              'ALTER TABLE workspace.project_completion ENABLE TRIGGER project_completion_immutable_trg',
+            );
+            await tx`UPDATE teams.team SET release_url = NULL, name = 'crowd-gone' WHERE name = 'crowd'`;
+          });
+        }
+      });
 
       it('AF-02: another path on the same host is another release: no block', async () => {
         const earlierId = await plantCompleted('https://app.release.example.test/other-app', -1);

@@ -253,6 +253,28 @@ describeInfra(
         expect(await activeGrantCount(world, fx.team.id)).toBe(0);
       });
 
+      it('SEC-02 (M-3, S6SEC-01): the OAuth step done with another GitHub account than the lead signed in with: account_mismatch, no grant', async () => {
+        const fx = await newTeam();
+        const friend = await githubUser(world, 'friend-with-an-org');
+        const friendPerson = await ghPerson(world, friend);
+        const { state } = await startSession(world, fx.lead, fx.team.id);
+        // The friend's account owns the installation and authorized the code; the lead only relays it.
+        const result = github(world).app.install(friendPerson, personalAccount(friendPerson), {
+          state,
+        });
+        const installationId = Number(result.query.installation_id);
+        const response = await callback(world, fx.lead, result.query);
+        expect(expectSetupRefused(response, world)).toBe('account_mismatch');
+        expect(await grantRows(world, installationId)).toHaveLength(0);
+        expect(await activeGrantCount(world, fx.team.id)).toBe(0);
+      });
+
+      it("SEC-02 (M-3): the lead's own account passes the same flow", async () => {
+        const fx = await newTeam();
+        const { installation } = await installApp(world, fx.lead, fx.team.id);
+        expect(await grantRows(world, installation.id)).toHaveLength(1);
+      });
+
       it('SEC-02: a code is used once: the same code with a new state is refused', async () => {
         const fx = await newTeam();
         const { installation, query } = await installApp(world, fx.lead, fx.team.id);

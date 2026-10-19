@@ -144,6 +144,23 @@ export function completionOf(
   return world.as(who).get(`/v1/teams/${teamId}/completion`);
 }
 
+/** Waits until the worker has finished the check `checkId` (done or failed). */
+export function waitForCheck(
+  world: World,
+  lead: UserFixture,
+  teamId: string,
+  checkId: string,
+): Promise<CompletionCheckDto> {
+  return waitFor(async () => {
+    const response = await latestCheck(world, lead, teamId);
+    if (response.statusCode !== 200) return false;
+    const body = response.json<CompletionCheckDto>();
+    return body.id === checkId && (body.status === 'done' || body.status === 'failed')
+      ? body
+      : false;
+  }, 30_000);
+}
+
 /** Requests a check (202) and waits until the worker has finished it. */
 export async function runCheck(
   world: World,
@@ -155,14 +172,7 @@ export async function runCheck(
     await requestCheck(world, lead, teamId),
     202,
   );
-  return waitFor(async () => {
-    const response = await latestCheck(world, lead, teamId);
-    if (response.statusCode !== 200) return false;
-    const body = response.json<CompletionCheckDto>();
-    return body.id === requested.id && (body.status === 'done' || body.status === 'failed')
-      ? body
-      : false;
-  }, 30_000);
+  return waitForCheck(world, lead, teamId, requested.id);
 }
 
 export const unmetCodes = (response: InjectResponse): string[] =>

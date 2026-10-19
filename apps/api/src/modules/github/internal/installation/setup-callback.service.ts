@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
+import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
 import { GithubClient, type UserInstallation } from '../client/github-client.js';
 import { GithubError } from '../client/github-error.js';
@@ -39,6 +40,7 @@ export class SetupCallbackService {
     @Inject(InstallationStateStore) private readonly states: InstallationStateStore,
     @Inject(InstallationRepository) private readonly installations: InstallationRepository,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
+    @Inject(AUTH_API) private readonly auth: AuthApi,
     @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(Clock) private readonly clock: Clock,
   ) {}
@@ -75,6 +77,13 @@ export class SetupCallbackService {
     code: string,
   ): Promise<SetupOutcome> {
     const userToken = await this.github.exchangeUserCode(code);
+    // The code proves the GitHub account that authorized, which must be the one the lead signed in with
+    // (SEC-02): another account with access to someone else's organization would pass the checks below.
+    const authorizedGithubId = await this.github.getAuthorizedUserId(userToken);
+    const identity = await this.auth.getIdentity(userId);
+    if (identity?.githubUserId == null || identity.githubUserId !== authorizedGithubId) {
+      return refused('account_mismatch', teamId);
+    }
     const installation = await this.github.findUserInstallation(userToken, installationId);
     // The user token has done its work: it is not kept anywhere.
     if (installation === null) return refused('installation_not_found', teamId);

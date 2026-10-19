@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { contribution } from '../schema/contribution.js';
 import { completionCheck, projectCompletion } from '../schema/completion.js';
@@ -42,6 +42,22 @@ export class CompletionRepository {
     const [created] = await this.tx.tx.insert(completionCheck).values(row).returning();
     if (created === undefined) throw new Error('INSERT completion_check returned no row');
     return created;
+  }
+
+  /** A check of the team that is still queued or running and was requested after `since` (older ones are given up). */
+  async findActiveCheck(teamId: string, since: Date): Promise<CompletionCheckRow | undefined> {
+    const [row] = await this.tx.tx
+      .select()
+      .from(completionCheck)
+      .where(
+        and(
+          eq(completionCheck.teamId, teamId),
+          inArray(completionCheck.status, ['queued', 'running']),
+          gt(completionCheck.requestedAt, since),
+        ),
+      )
+      .limit(1);
+    return row;
   }
 
   async findCheck(checkId: string): Promise<CompletionCheckRow | undefined> {

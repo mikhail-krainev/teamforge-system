@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   type CompletionFacts,
   completionUnmet,
-  isReleaseAddressRepeated,
   isTemplateAddress,
   overdueDaysOf,
-  releaseAddressKey,
 } from './completion-rules.js';
 
 const DAY = 24 * 3_600_000;
@@ -18,6 +16,7 @@ function facts(change: Partial<CompletionFacts> = {}): CompletionFacts {
   const contributions = Array.from({ length: 10 }, (_, i) => ({
     userId: i % 2 === 0 ? 'u1' : 'u2',
     source: i % 3 === 0 ? 'pr' : 'issue',
+    ref: `${i % 3 === 0 ? 'pr' : 'issue'}:7#${i + 1}`,
     active: true,
     receivedAt: at(20 - (i % 3)),
   }));
@@ -47,7 +46,7 @@ function facts(change: Partial<CompletionFacts> = {}): CompletionFacts {
     },
     releaseUrl: RELEASE,
     repositoryId: 7,
-    otherReleaseUrls: [],
+    releaseAddressHeld: false,
     ...change,
   };
 }
@@ -130,6 +129,27 @@ describe('completionUnmet (FR-WORK-13, architecture 11.4)', () => {
     expect(codes(facts({ contributions: artifacts }))).toContain('CONTRIBUTION_TOO_LOW');
   });
 
+  it('AF-04: one task credited to two assignees counts once: five tasks with two rows each are CONTRIBUTION_TOO_LOW', () => {
+    const rows = facts().contributions.map((c, i) => ({
+      ...c,
+      source: 'issue',
+      ref: `issue:7#${Math.floor(i / 2) + 1}`,
+      userId: i % 2 === 0 ? 'u1' : 'u2',
+    }));
+    const unmet = completionUnmet(facts({ contributions: rows }));
+    expect(unmet.map((u) => u.code)).toEqual(['CONTRIBUTION_TOO_LOW']);
+    expect(unmet[0]?.data).toMatchObject({ count: 5, min: 10 });
+  });
+
+  it('AF-04: the same number as an issue and as a pull request are two items', () => {
+    const rows = facts().contributions.map((c, i) => ({
+      ...c,
+      source: i % 2 === 0 ? 'issue' : 'pr',
+      ref: `${i % 2 === 0 ? 'issue' : 'pr'}:7#${Math.floor(i / 2) + 1}`,
+    }));
+    expect(codes(facts({ contributions: rows }))).toEqual([]);
+  });
+
   it('AF-04: contributions of a single account: CONTRIBUTORS_TOO_FEW', () => {
     const one = facts().contributions.map((c) => ({ ...c, userId: 'u1' }));
     expect(codes(facts({ contributions: one }))).toEqual(['CONTRIBUTORS_TOO_FEW']);
@@ -149,9 +169,7 @@ describe('completionUnmet (FR-WORK-13, architecture 11.4)', () => {
   });
 
   it('AF-02: an address of another completed project or a template address: FRAUD_BLOCK', () => {
-    expect(codes(facts({ otherReleaseUrls: ['http://APP.release.test'] }))).toEqual([
-      'FRAUD_BLOCK',
-    ]);
+    expect(codes(facts({ releaseAddressHeld: true }))).toEqual(['FRAUD_BLOCK']);
     const same = 'https://www.example.com/';
     const check = facts().check;
     const results =
@@ -164,20 +182,12 @@ describe('completionUnmet (FR-WORK-13, architecture 11.4)', () => {
   });
 
   it('several conditions are all listed', () => {
-    const list = codes(facts({ memberCount: 1, otherReleaseUrls: [RELEASE] }));
+    const list = codes(facts({ memberCount: 1, releaseAddressHeld: true }));
     expect(list).toEqual(['MEMBERS_BELOW_MIN', 'FRAUD_BLOCK']);
   });
 });
 
 describe('release addresses (AF-02)', () => {
-  it('the full address is host and path; scheme, case, query and the final slash do not matter', () => {
-    expect(releaseAddressKey('https://App.Example.test/Docs/?a=1#x')).toBe('app.example.test/docs');
-    expect(releaseAddressKey('not an address')).toBeNull();
-    expect(isReleaseAddressRepeated('https://a.test/x', ['http://A.test/x/'])).toBe(true);
-    expect(isReleaseAddressRepeated('https://a.test/x', ['https://a.test/y'])).toBe(false);
-    expect(isReleaseAddressRepeated('https://a.test/', ['https://a.test'])).toBe(true);
-  });
-
   it('example domains and localhost are templates, a host that merely contains the word is not', () => {
     expect(isTemplateAddress('https://example.com/')).toBe(true);
     expect(isTemplateAddress('https://shop.example.org/')).toBe(true);
@@ -213,30 +223,6 @@ describe('release addresses, edge cases (AF-02, S6-12)', () => {
     '',
   ])('%s is not', (address) => {
     expect(isTemplateAddress(address)).toBe(false);
-  });
-
-  it('the repeat check is blind to the scheme, the case of host and path, the query and the slashes, but not to the path itself', () => {
-    const held = ['https://App.Example.test/Docs'];
-    for (const same of [
-      'http://app.example.test/docs',
-      'https://APP.example.TEST/DOCS/',
-      'https://app.example.test/docs///',
-      'https://app.example.test/docs?utm_source=x#top',
-      'https://app.example.test./docs',
-    ]) {
-      expect(isReleaseAddressRepeated(same, held), same).toBe(true);
-    }
-    for (const other of [
-      'https://app.example.test/docs/v2',
-      'https://app.example.test/',
-      'https://www.app.example.test/docs',
-    ]) {
-      expect(isReleaseAddressRepeated(other, held), other).toBe(false);
-    }
-  });
-
-  it('an address that cannot be read is never "repeated"', () => {
-    expect(isReleaseAddressRepeated('::::', ['::::'])).toBe(false);
   });
 });
 

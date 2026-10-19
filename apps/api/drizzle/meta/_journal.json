@@ -120,6 +120,13 @@
       "when": 1792346008862,
       "tag": "0016_project_completion_immutable_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792437345280,
+      "tag": "0017_release_key_resume_cursor_team_index",
+      "breakpoints": true
     }
   ]
 }
