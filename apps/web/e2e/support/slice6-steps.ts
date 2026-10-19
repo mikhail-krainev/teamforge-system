@@ -5,7 +5,14 @@ import { ORIGIN_HEADERS } from './api';
 import { expectNoSeriousA11yViolations } from './axe';
 import { routeInstallDialogToDouble } from './github';
 import * as slice5steps from './slice5-steps';
-import { artifactFile, backdateStage, itemOf, patchItem, stages } from './slice5-world';
+import {
+  artifactFile,
+  backdateStage,
+  itemOf,
+  patchItem,
+  stages,
+  world as slice5World,
+} from './slice5-world';
 import { WEB_ORIGIN } from './slice3-world';
 import { completeUi, feedUi, githubUi, ROUTES } from './slice6-ui';
 import {
@@ -44,6 +51,13 @@ import {
  */
 
 const RELEASE_URL = process.env.E2E_RELEASE_URL ?? 'https://www.wikipedia.org/';
+/**
+ * The link-checker looks at one domain once a minute (SEC-05), so a run of the checks that meets a domain
+ * looked at a moment ago waits up to a minute for its turn.
+ */
+const CHECKS_WAIT_MS = 150_000;
+/** The steps that run the checks twice wait for the link-checker more than once: more than the default 2 minutes. */
+export const CHECKS_TEST_TIMEOUT_MS = 6 * 60_000;
 const REVIEW_ANSWERS = [1, 2, 3].map((ordinal) => ({ ordinal, answer: true }));
 
 interface RepositoryBody {
@@ -61,6 +75,10 @@ interface FeedBody {
 // ---- setup: the playbook, the team, the first team's route is slice 5 -----------------------------
 
 export async function setupPlaybookAndStartedTeam(): Promise<void> {
+  // When slice5.spec.ts ran in the same process it published its version and named its team already:
+  // this scenario needs a greater version (and its own team name) on the same stack.
+  slice5World.version = `9.${Math.floor(Date.now() / 1000)}.1`;
+  slice5World.teamName = `Команда среза 6 ${Date.now()}`;
   await slice5steps.adminPublishesThePlaybook();
   await slice5steps.teamOfThreeStartsTheProject();
 }
@@ -343,7 +361,7 @@ async function finishStages(): Promise<void> {
     outcome: 'Договорились о цели, ролях и правилах работы команды.',
   });
   const board = await itemOf(c, 'mini_board', 1);
-  await patchItem(c, board, { linkUrl: 'https://example.org/team-board' });
+  await patchItem(c, board, { linkUrl: 'https://example.org/' });
   await doneWith(c, 'mini_board', 1);
   const charter = await itemOf(a, 'mini_charter', 1);
   const assigned = await put(a, `/v1/teams/${teamId()}/checklist-items/${charter.id}/assignee`, {
@@ -401,7 +419,7 @@ export async function leadPastesTheReleaseLinkAndRunsTheChecks(): Promise<void> 
   if (finalLinks.status !== 'done') await patchItem(a, finalLinks, { status: 'done' });
 
   await completeUi.runChecks(page).click();
-  await expect(completeUi.checks(page)).toBeVisible({ timeout: 60_000 });
+  await expect(completeUi.checks(page)).toBeVisible({ timeout: CHECKS_WAIT_MS });
   // the second check of the release is not earlier than 24 hours after the first: the screen says when
   await expect(completeUi.secondCheckTimer(page)).toBeVisible();
   await expect(completeUi.check(page, /релиз/i)).toContainText(completeUi.failed);
@@ -415,7 +433,7 @@ export async function leadPastesTheReleaseLinkAndRunsTheChecks(): Promise<void> 
   await completeUi.runChecks(page).click();
   for (const check of [/репозиторий/i, /релиз/i]) {
     await expect(completeUi.check(page, check)).toContainText(completeUi.passed, {
-      timeout: 90_000,
+      timeout: CHECKS_WAIT_MS,
     });
   }
   await expect(completeUi.finish(page)).toBeEnabled();
@@ -432,7 +450,7 @@ export async function leadCompletesTheProject(): Promise<void> {
   expect([201, 409], closing.text).toContain(closing.status);
   await page.goto(ROUTES.complete(teamId()));
   await completeUi.runChecks(page).click();
-  await expect(completeUi.finish(page)).toBeEnabled({ timeout: 90_000 });
+  await expect(completeUi.finish(page)).toBeEnabled({ timeout: CHECKS_WAIT_MS });
   await completeUi.finish(page).click();
   await completeUi.finishConfirm(page).click();
 

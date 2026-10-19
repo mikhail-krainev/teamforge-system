@@ -78,6 +78,7 @@ function feedTests(): void {
 
 function completionTests(): void {
   test('FR-WORK-14, FR-GH-08, FR-PLAY-08: on the release stage the lead pastes the link and runs the checks; the release is checked twice', async () => {
+    test.setTimeout(steps.CHECKS_TEST_TIMEOUT_MS);
     await test.step(
       'FR-WORK-14, FR-GH-08: the link, the checks with their reasons, the timer to the second check; after a day all green (axe)',
       steps.leadPastesTheReleaseLinkAndRunsTheChecks,
@@ -85,6 +86,7 @@ function completionTests(): void {
   });
 
   test('FR-WORK-13, FR-WORK-15, CC-13: "Завершить" gives the results screen with the snapshot; a second press is impossible', async () => {
+    test.setTimeout(steps.CHECKS_TEST_TIMEOUT_MS);
     await test.step(
       'FR-WORK-13, FR-WORK-15: the results (no delay, the composition, the contribution by role), no second press (axe)',
       steps.leadCompletesTheProject,

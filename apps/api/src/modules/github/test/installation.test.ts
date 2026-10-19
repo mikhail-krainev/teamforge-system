@@ -74,6 +74,7 @@ describeInfra(
           201,
         );
         const url = new URL(session.installUrl);
+        expect(url.origin).toBe('https://github.com');
         expect(url.pathname).toBe(`/apps/${github(world).app.slug}/installations/new`);
         const state = stateOf(session);
         expect(state).toMatch(/^[A-Za-z0-9_-]+$/); // base64url: no ':' that could name a cache key

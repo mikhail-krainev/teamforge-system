@@ -72,7 +72,8 @@ export const completeUi = {
   checks: (p: Page): Locator => p.getByRole('list', { name: /проверки готовности/i }),
   check: (p: Page, title: RegExp): Locator =>
     completeUi.checks(p).getByRole('listitem').filter({ hasText: title }),
-  passed: /пройдена|выполнена|\bок\b/i,
+  /** Not "не пройдена": a stale failed result must not satisfy a wait for the green one. */
+  passed: /(?<!не )(пройдена|выполнена)|\bок\b/i,
   failed: /не пройдена|не выполнена|ошибка/i,
   /** "Вторая проверка релиза возможна через ..." */
   secondCheckTimer: (p: Page): Locator => p.getByText(/вторая проверка релиза/i),

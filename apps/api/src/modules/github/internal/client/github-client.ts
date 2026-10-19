@@ -18,6 +18,7 @@ import { InstallationTokenCache } from './installation-token-cache.js';
 
 const DEFAULT_API = 'https://api.github.com';
 const DEFAULT_OAUTH = 'https://github.com';
+const GITHUB_WEB_ORIGIN = 'https://github.com';
 const REQUEST_TIMEOUT_MS = 10_000;
 const USER_AGENT = 'teamforge';
 const PAGE_SIZE = 100;
@@ -128,10 +129,14 @@ export class GithubClient {
     return this.settings !== null;
   }
 
-  /** `https://github.com/apps/<slug>/installations/new?state=...` (architecture 7.2). */
+  /**
+   * `https://github.com/apps/<slug>/installations/new?state=...` (architecture 7.2). The dialog is a page
+   * of github.com that the browser opens (the web follows https only), so it does not follow the
+   * OAuth/API base overrides that point the server-side calls at a double.
+   */
   installUrl(state: string): string {
     const settings = this.requireSettings();
-    const url = new URL(`/apps/${settings.slug}/installations/new`, this.oauthBaseUrl);
+    const url = new URL(`/apps/${settings.slug}/installations/new`, GITHUB_WEB_ORIGIN);
     url.searchParams.set('state', state);
     return url.toString();
   }

@@ -27,7 +27,7 @@ export const E2E_GITHUB_WEBHOOK_SECRET = 'e2e-github-webhook-secret-0001';
 
 const KEY_FILE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../../test-results/e2e-github-app-key.pem',
+  '../../.e2e/e2e-github-app-key.pem',
 );
 
 /**
