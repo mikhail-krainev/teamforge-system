@@ -1,0 +1,22 @@
+product_type: web_service
+title: "Неизвестная проверка"
+version: "9.7.0"
+total_days: 7
+stages:
+  - key: check_s1
+    title: "Этап 1"
+    goal: "Цель"
+    duration_days: 7
+    exit_criteria: "Критерий"
+    steps:
+      - key: check_final_links
+        title: "Ссылка на релиз"
+        description: "Публичный URL релиза и репозиторий."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "magic_check", "release_alive_web", "repo_final"]
+        sources: ["https://sre.google/sre-book/launch-checklist/"]

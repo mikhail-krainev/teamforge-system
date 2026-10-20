@@ -1,0 +1,860 @@
+product_type: ml_product
+title: "ML-продукт"
+version: "1.0.0"
+total_days: 91
+stages:
+  - key: m1_problem
+    title: "Постановка задачи"
+    goal: "Сформулировать бизнес-метрику, ML-метрику и минимально приемлемый уровень; решить, нужен ли ML вообще."
+    duration_days: 7
+    exit_criteria: "Метрики и минимальный уровень записаны; ML оправдан перед эвристикой; есть правило остановки при нехватке данных. Все обязательные шаги выполнены, пункты ревью «да» либо нет-пункты приняты как риск."
+    steps:
+      - key: m1_kickoff
+        title: "Kickoff команды"
+        description: "Созвон 1 ч: цель проекта, роли, правила работы."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Charter.md"
+      - key: m1_repo
+        title: "Репозиторий проекта"
+        description: "Ссылка на репозиторий GitHub; структура: данные (ссылки), код, документы."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "repo_exists"]
+        sources:
+          - "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Charter.md"
+          - "https://doc.dvc.org/start"
+      - key: m1_charter
+        title: "Charter проекта"
+        description: "Бизнес-фон, бизнес-метрика и её текущее значение, ML-метрика и минимально приемлемый уровень, план, архитектура на одном слайде."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ["product_analyst", "ba"]
+        fallback:
+          title: "Charter по шаблону ML"
+          instruction: "Заполнить шаблон Charter платформы (по мотивам TDSP). Метрику и минимальный уровень задаёт тимлид вместе с командой."
+          template: tpl_charter_ml
+          url: "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Charter.md"
+        review_checklist: true
+        review_items:
+          - "Бизнес-метрика, её текущее значение и способ измерения записаны?"
+          - "До моделирования задан минимально приемлемый уровень ML-метрики?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Charter.md"
+      - key: m1_no_ml
+        title: "Заметка об осуществимости и вариант без ML"
+        description: "Оценка: хватит ли эвристики; если нет, почему нужен ML; какие данные нужны."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["ml_engineer", "ba"]
+        fallback:
+          title: "Вопрос «а можно без ML?» по шаблону"
+          instruction: "Заполнить раздел шаблона Charter про вариант без ML (Rule 1 из Rules of ML): опишите эвристику и оцените её."
+          template: tpl_charter_ml
+          url: "https://developers.google.com/machine-learning/guides/rules-of-ml"
+        review_checklist: true
+        review_items:
+          - "Описан вариант без ML (эвристика) и оценён?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://arxiv.org/pdf/2003.05155"
+      - key: m1_risks
+        title: "Риски, правило остановки, ограничения"
+        description: "Реестр рисков; правило остановки при нехватке данных; юридические ограничения и персональные данные."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ["ba", "product_analyst"]
+        fallback:
+          title: "Реестр рисков по шаблону"
+          instruction: "Заполнить шаблон реестра рисков и ограничений."
+          template: tpl_risk_register
+        review_checklist: true
+        review_items:
+          - "Есть правило остановки, если данных недостаточно?"
+          - "Перечислены юридические ограничения и персональные данные?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Charter.md"
+      - key: m1_review
+        title: "Ревью Charter командой"
+        description: "Созвон: команда утверждает метрики, минимальный уровень и правило остановки."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Charter.md"
+  - key: m2_data
+    title: "Сбор и разметка данных"
+    goal: "Получить данные нужного объёма, описать их, разметить и зафиксировать версию набора; либо вовремя остановиться."
+    duration_days: 21
+    exit_criteria: "Данные есть в достаточном объёме или принято решение остановиться/сменить задачу; версия набора зафиксирована."
+    steps:
+      - key: m2_collection
+        title: "Отчёт о сборе данных"
+        description: "Источник, лицензия, способ получения, объём, ограничения использования."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: data_engineer
+        alt_roles: ["ml_engineer"]
+        fallback:
+          title: "Готовый набор данных и шаблон отчёта"
+          instruction: "Взять готовый открытый набор данных (например, из Hugging Face Datasets) и заполнить шаблон отчёта о данных, включая лицензию."
+          template: tpl_data_report
+          url: "https://huggingface.co/docs/datasets/index"
+        review_checklist: true
+        review_items:
+          - "Источник и лицензия данных записаны?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://huggingface.co/docs/datasets/index"
+      - key: m2_datasheet
+        title: "Словарь данных и datasheet-lite"
+        description: "Поля, типы, смысл; разделы datasheet: зачем собраны, состав, как собраны, допустимое использование."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: data_engineer
+        alt_roles: ["ml_engineer"]
+        fallback:
+          title: "Datasheet по шаблону"
+          instruction: "Заполнить шаблон datasheet-lite платформы."
+          template: tpl_datasheet
+        review_checklist: true
+        review_items:
+          - "Заполнены разделы datasheet-lite (зачем собраны, состав, как собраны, допустимое использование)?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/1803.09010"
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+      - key: m2_guide
+        title: "Инструкция разметки"
+        description: "Правила разметки с примерами; если разметка не нужна, описание происхождения меток."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: data_engineer
+        alt_roles: ["ml_engineer", "product_analyst"]
+        fallback:
+          title: "Инструкция разметки по шаблону"
+          instruction: "Заполнить шаблон инструкции разметки; выборку размечают двое."
+          template: tpl_labeling_guide
+        review_checklist: true
+        review_items:
+          - "Инструкция разметки написана, выборка размечена двумя людьми?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+      - key: m2_labeling
+        title: "Разметка парами и сверка расхождений"
+        description: "Созвоны сверки: расхождения между разметчиками, правки инструкции."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+      - key: m2_version
+        title: "Версия набора данных"
+        description: "Ссылка на тег/хеш набора в репозитории или DVC."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: data_engineer
+        alt_roles: ["ml_engineer"]
+        fallback:
+          title: "Хеш файла и тег в README или DVC"
+          instruction: "Записать хеш файлов набора в README и поставить тег; по возможности использовать DVC."
+          template: tpl_data_report
+          url: "https://doc.dvc.org/start"
+        review_checklist: true
+        review_items:
+          - "Версия набора зафиксирована (хеш/тег)?"
+        auto_checks: ["link_https"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://doc.dvc.org/start"
+      - key: m2_enough
+        title: "Решение: данных достаточно / стоп / смена задачи"
+        description: "Запись решения со ссылкой на правило остановки из Charter."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["pm", "data_engineer"]
+        fallback:
+          title: "Запись решения по шаблону"
+          instruction: "Тимлид заполняет шаблон записи решения."
+          template: tpl_decision_record
+        review_checklist: false
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+  - key: m3_eda
+    title: "Разведочный анализ и качество данных"
+    goal: "Описать данные и принять решения по очистке до построения моделей."
+    duration_days: 7
+    exit_criteria: "Отчёт ревьюирован; решения по очистке записаны."
+    steps:
+      - key: m3_quality
+        title: "Отчёт о качестве данных"
+        description: "Пропуски, дубликаты, баланс классов, выбросы; решения по очистке с обоснованием."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: data_engineer
+        alt_roles: ["ml_engineer", "product_analyst"]
+        fallback:
+          title: "Чек-лист качества данных и шаблон отчёта"
+          instruction: "Пройти чек-лист качества данных и заполнить шаблон отчёта."
+          template: tpl_dq_checklist
+        review_checklist: true
+        review_items:
+          - "Доли пропусков и дубликатов указаны?"
+          - "Баланс классов указан?"
+          - "Решения по очистке и обоснование записаны?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m3_schema
+        title: "Схема и ожидания по данным"
+        description: "Типы и допустимые диапазоны значений по полям."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: data_engineer
+        alt_roles: ["ml_engineer"]
+        fallback:
+          title: "Схема по чек-листу"
+          instruction: "Заполнить раздел схемы в шаблоне отчёта о качестве данных."
+          template: tpl_dq_checklist
+        review_checklist: true
+        review_items:
+          - "Схема с типами и диапазонами записана?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m3_review
+        title: "Разбор отчёта командой"
+        description: "Созвон 1 ч: обсуждение отчёта и решений по очистке."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+  - key: m4_baseline
+    title: "Разбиение данных и базовая модель"
+    goal: "Зафиксировать правила оценки до моделирования и получить точку отсчёта (baseline)."
+    duration_days: 7
+    exit_criteria: "Baseline посчитан и записан; тестовый набор нетронут."
+    steps:
+      - key: m4_design
+        title: "Дизайн теста"
+        description: "Схема разбиения train/val/test, метрики, защита от утечки."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["data_engineer", "product_analyst"]
+        fallback:
+          title: "Дизайн теста по шаблону"
+          instruction: "Заполнить шаблон дизайна теста: разбиение, метрики, проверка утечки и дубликатов."
+          template: tpl_test_design
+        review_checklist: true
+        review_items:
+          - "Разбиение train/val/test задано до моделирования, тест не трогали?"
+          - "Разбиение учитывает время или группы (один пользователь не в двух частях)?"
+          - "Дубликаты между частями проверены?"
+          - "Признаки проверены на утечку целевой переменной?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+      - key: m4_baseline
+        title: "Baseline: метрика и код"
+        description: "Ссылка на код/ноутбук и значение метрики простой или эвристической модели."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["data_engineer"]
+        fallback:
+          title: "Dummy-модель из scikit-learn"
+          instruction: "Использовать DummyClassifier или DummyRegressor и записать метрику."
+          template: tpl_test_design
+          url: "https://scikit-learn.org/stable/modules/generated/sklearn.dummy.DummyClassifier.html"
+        review_checklist: true
+        review_items:
+          - "Метрика baseline записана?"
+        auto_checks: ["link_https"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://scikit-learn.org/stable/modules/generated/sklearn.dummy.DummyClassifier.html"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+      - key: m4_review
+        title: "Ревью дизайна теста"
+        description: "Созвон 30-60 мин."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+  - key: m5_experiments
+    title: "Эксперименты"
+    goal: "Пройти путь от простых моделей к сложным, получить воспроизводимую модель лучше baseline."
+    duration_days: 21
+    exit_criteria: "Модель лучше baseline на согласованную заранее величину; обучение воспроизводится из чистого checkout."
+    steps:
+      - key: m5_log
+        title: "Журнал экспериментов"
+        description: "Таблица или трекер: версия данных, параметры, seed, окружение, метрика по каждому запуску."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["data_engineer"]
+        fallback:
+          title: "Журнал в таблице по шаблону"
+          instruction: "Вести журнал в таблице шаблона и использовать один предобученный или простой классический алгоритм вместо подбора архитектур."
+          template: tpl_experiment_log
+        review_checklist: true
+        review_items:
+          - "Каждый запуск записан: версия данных, параметры, seed, окружение?"
+          - "Результаты указаны как среднее и разброс по seed, а не лучший запуск?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m5_code
+        title: "Код обучения в репозитории"
+        description: "Ссылка на код обучения, запускаемый из чистого репозитория одной инструкцией."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["data_engineer", "backend"]
+        fallback:
+          title: "Один простой алгоритм и инструкция запуска"
+          instruction: "Реализовать один простой алгоритм и записать команду запуска в README."
+          template: tpl_experiment_log
+        review_checklist: true
+        review_items:
+          - "Скрипт обучения запускается из чистого репозитория?"
+        auto_checks: ["link_https", "pr_cross_review:3"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m5_code_review
+        title: "Код-ревью кода обучения"
+        description: "Ревью PR с кодом обучения участником, не автором."
+        type: ritual
+        ritual_kind: code_review
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: true
+        review_items:
+          - "Код обучения прошёл ревью другого участника?"
+        auto_checks: ["ritual_fields", "pr_cross_review:3"]
+        sources:
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+          - "https://google.github.io/eng-practices/review/reviewer/looking-for.html"
+      - key: m5_weekly
+        title: "Еженедельный разбор экспериментов"
+        description: "Созвон 1 ч: что пробовали, что дальше."
+        type: ritual
+        ritual_kind: call
+        required: false
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+      - key: m5_selected
+        title: "Выбранная модель и сравнение с baseline"
+        description: "Документ: выбранная модель, метрики, сравнение с baseline на согласованную величину."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["data_engineer"]
+        fallback:
+          title: "Сравнение по шаблону журнала"
+          instruction: "Заполнить итоговую таблицу в шаблоне журнала экспериментов."
+          template: tpl_experiment_log
+        review_checklist: true
+        review_items:
+          - "Модель лучше baseline на согласованную величину?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m5_retro
+        title: "Review и ретро спринта"
+        description: "Созвон 1-1,5 ч в конце каждого спринта (две записи за этап допустимы одной)."
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+  - key: m6_evaluation
+    title: "Оценка и model card"
+    goal: "Один раз честно оценить модель на тестовом наборе, разобрать ошибки и решить, идти ли дальше."
+    duration_days: 7
+    exit_criteria: "Минимально приемлемый уровень достигнут; решение «идём дальше / возвращаемся / останавливаемся» записано."
+    steps:
+      - key: m6_eval
+        title: "Отчёт об оценке"
+        description: "Однократная оценка на тестовом наборе; метрики общие и по срезам."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["product_analyst", "qa"]
+        fallback:
+          title: "Отчёт об оценке по шаблону"
+          instruction: "Заполнить шаблон отчёта об оценке."
+          template: tpl_eval_report
+        review_checklist: true
+        review_items:
+          - "Тестовый набор использован один раз?"
+          - "Метрики по срезам указаны?"
+          - "Минимально приемлемый уровень достигнут?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m6_errors
+        title: "Ручной разбор ошибок"
+        description: "Разбор топ-ошибок по чек-листу."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: qa
+        alt_roles: ["ml_engineer", "product_analyst"]
+        fallback:
+          title: "Чек-лист ручного разбора ошибок"
+          instruction: "Любой участник проходит чек-лист и записывает типы ошибок."
+          template: tpl_error_analysis
+        review_checklist: true
+        review_items:
+          - "Топ ошибок разобраны вручную?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m6_model_card
+        title: "Model card"
+        description: "Назначение, неподдерживаемые применения, данные, метрики, ограничения."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["product_analyst"]
+        fallback:
+          title: "Model card по шаблону"
+          instruction: "Заполнить шаблон model card платформы."
+          template: tpl_model_card
+          url: "https://arxiv.org/pdf/1810.03993"
+        review_checklist: true
+        review_items:
+          - "В model card есть назначение, неподдерживаемые применения, ограничения?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/1810.03993"
+          - "https://arxiv.org/pdf/2003.05155"
+      - key: m6_decision
+        title: "Запись решения"
+        description: "Идём дальше / возвращаемся / останавливаемся, с обоснованием."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ["ml_engineer"]
+        fallback:
+          title: "Запись решения по шаблону"
+          instruction: "Тимлид заполняет шаблон записи решения."
+          template: tpl_decision_record
+        review_checklist: true
+        review_items:
+          - "Решение (идти дальше / вернуться / стоп) записано?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://arxiv.org/pdf/2003.05155"
+      - key: m6_review
+        title: "Ревью оценки"
+        description: "Созвон 1 ч."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+  - key: m7_serving
+    title: "Сервинг, API и интеграция"
+    goal: "Обернуть модель в API с той же предобработкой, что при обучении, и подключить к интерфейсу."
+    duration_days: 11
+    exit_criteria: "Модель на сервинге даёт те же ответы на контрольной выборке; интеграционный тест проходит."
+    steps:
+      - key: m7_api_spec
+        title: "Спецификация API"
+        description: "Эндпоинты предсказания и проверки состояния: вход, выход, ошибки, ограничения."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: backend
+        alt_roles: ["ml_engineer", "system_analyst"]
+        fallback:
+          title: "Мини-спецификация по шаблону"
+          instruction: "Заполнить шаблон: эндпоинт, вход, выход, коды ошибок."
+          template: tpl_ml_api_spec
+        review_checklist: true
+        review_items:
+          - "Вход вне схемы отклоняется?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m7_inference
+        title: "Код инференса с общей предобработкой"
+        description: "Ссылка на код сервиса; предобработка общая с обучением."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["backend"]
+        fallback:
+          title: "Минимальный API-сервис в одном контейнере"
+          instruction: "Собрать минимальный сервис в одном контейнере по шаблону."
+          template: tpl_ml_api_spec
+        review_checklist: true
+        review_items:
+          - "Предобработка одна и та же при обучении и сервинге?"
+        auto_checks: ["link_https", "pr_cross_review:3"]
+        sources:
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m7_parity
+        title: "Тест «сервинг равен обучению»"
+        description: "Контрольная выборка: ответы сервиса совпадают с результатами обучения; интеграционный тест."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: qa
+        alt_roles: ["ml_engineer", "backend"]
+        fallback:
+          title: "Ручной тест на контрольной выборке"
+          instruction: "Проверить вручную по чек-листу ML Test Score (ручной тест даёт 0,5 балла, автоматический 1)."
+          template: tpl_ml_test_score_checklist
+          url: "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+        review_checklist: true
+        review_items:
+          - "На контрольной выборке сервинг выдаёт тот же результат, что обучение?"
+          - "Интеграционный тест проходит?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m7_ci
+        title: "CI на GitHub Actions"
+        description: "Ссылка на workflow: тесты и проверка сборки образа."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: devops
+        alt_roles: ["backend"]
+        fallback:
+          title: "Готовый шаблон CI GitHub Actions"
+          instruction: "Взять шаблон CI платформы под Python-проект."
+          template: tpl_ci_github_actions
+          url: "https://docs.github.com/en/actions/writing-workflows/using-starter-workflows"
+        review_checklist: false
+        auto_checks: ["link_https", "ci_workflow"]
+        sources:
+          - "https://docs.github.com/en/actions/writing-workflows/using-starter-workflows"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m7_latency
+        title: "Замеры задержки и ресурсов"
+        description: "Задержка и потребление памяти на типичной нагрузке."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: backend
+        alt_roles: ["devops", "ml_engineer"]
+        fallback:
+          title: "Замер по инструкции шаблона"
+          instruction: "Выполнить 100 запросов по инструкции шаблона и записать задержку и память."
+          template: tpl_ml_api_spec
+        review_checklist: true
+        review_items:
+          - "Задержка и ресурсы измерены?"
+        auto_checks: ["file_ok", "sha_dedup"]
+        sources:
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+      - key: m7_ui
+        title: "Интерфейс или демо-страница"
+        description: "Ссылка на страницу, где можно получить предсказание."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: frontend
+        alt_roles: ["designer"]
+        fallback:
+          title: "Готовый UI-кит и простая демо-страница"
+          instruction: "Собрать страницу из готового UI-кита (Bootstrap или shadcn/ui)."
+          template: tpl_ui_kit_guide
+          url: "https://getbootstrap.com/docs/5.3/getting-started/introduction/"
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources:
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://getbootstrap.com/docs/5.3/getting-started/introduction/"
+          - "https://ui.shadcn.com/docs"
+      - key: m7_api_review
+        title: "Ревью API командой"
+        description: "Созвон 1 ч."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m7_retro
+        title: "Review и ретро спринта"
+        description: "Созвон 1-1,5 ч."
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+  - key: m8_release
+    title: "Деплой, мониторинг, релиз и ретро"
+    goal: "Выкатить сервис с запасным вариантом и мониторингом, подвести итоги, сдать ссылки на релиз и репозиторий."
+    duration_days: 10
+    exit_criteria: "Запасной вариант работает; мониторинг включён; отчёт готов; ссылка на работающий релиз и на репозиторий проверены платформой."
+    steps:
+      - key: m8_deploy
+        title: "План деплоя и отката"
+        description: "Как выкладывается версия, как откатывается на предыдущую или эвристику; автоматическая проверка на отложенных данных перед выкладкой."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: devops
+        alt_roles: ["backend", "ml_engineer"]
+        fallback:
+          title: "План деплоя уровня MLOps 0"
+          instruction: "Заполнить шаблон плана деплоя (ручной, но воспроизводимый запуск)."
+          template: tpl_mlops0_deploy
+          url: "https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"
+        review_checklist: true
+        review_items:
+          - "Автоматическая проверка на отложенных данных перед выкладкой?"
+          - "Есть откат на предыдущую версию или эвристику?"
+          - "Выкатка поэтапная или для узкой группы?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+      - key: m8_monitoring
+        title: "План мониторинга и логирование"
+        description: "Логирование статистики входов и распределения предсказаний; условие переобучения; владелец тихих сбоев."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: devops
+        alt_roles: ["backend", "ml_engineer"]
+        fallback:
+          title: "Лог входов и предсказаний и один алерт"
+          instruction: "Логировать входы и предсказания и подключить один алерт доступности по шаблону."
+          template: tpl_mlops0_deploy
+        review_checklist: true
+        review_items:
+          - "Логируются статистика входов и распределение предсказаний?"
+          - "Назначен владелец на «тихие» сбои, описано условие переобучения?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+      - key: m8_fallback
+        title: "Запасной вариант в работе"
+        description: "Предыдущая версия или эвристика из заметки об осуществимости; ссылка и описание переключения."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: ml_engineer
+        alt_roles: ["backend"]
+        fallback:
+          title: "Эвристика из заметки об осуществимости"
+          instruction: "Использовать эвристику из шага «Заметка об осуществимости» как запасной ответ."
+          template: tpl_mlops0_deploy
+        review_checklist: false
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://developers.google.com/machine-learning/guides/rules-of-ml"
+      - key: m8_user_guide
+        title: "Руководство пользователя и отказ от ответственности"
+        description: "Как пользоваться, что модель не умеет, ответственность."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["pm", "ba"]
+        fallback:
+          title: "Руководство по шаблону"
+          instruction: "Заполнить шаблон руководства пользователя."
+          template: tpl_user_guide_ml
+        review_checklist: true
+        review_items:
+          - "Есть руководство пользователя и отказ от ответственности?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://arxiv.org/pdf/1810.03993"
+          - "https://arxiv.org/pdf/2003.05155"
+      - key: m8_test_score
+        title: "Самопроверка ML Test Score"
+        description: "Заполненный чек-лист ML Test Score с оценкой."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: qa
+        alt_roles: ["ml_engineer"]
+        fallback:
+          title: "Чек-лист ML Test Score как ручная самопроверка"
+          instruction: "Пройти чек-лист вручную и записать баллы."
+          template: tpl_ml_test_score_checklist
+          url: "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+        review_checklist: false
+        auto_checks: ["file_ok", "sha_dedup"]
+        sources:
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m8_exit
+        title: "Exit Report"
+        description: "Итоговый отчёт: что сделано, результаты, ограничения, что дальше."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ["product_analyst"]
+        fallback:
+          title: "Exit Report по шаблону"
+          instruction: "Заполнить шаблон Exit Report."
+          template: tpl_exit_report
+          url: "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Exit%20Report.md"
+        review_checklist: true
+        review_items:
+          - "Ретроспектива и Exit Report написаны?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://raw.githubusercontent.com/Azure/Azure-TDSP-ProjectTemplate/master/Docs/Project/Exit%20Report.md"
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+      - key: m8_gonogo
+        title: "Go/no-go встреча"
+        description: "Созвон 30-60 мин: проход по плану деплоя и чек-листу."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.kde.cs.uni-kassel.de/wp-content/uploads/lehre/ws2012-13/kdd/files/CRISPWP-0800.pdf"
+          - "https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf"
+      - key: m8_retro
+        title: "Ретроспектива"
+        description: "Созвон 1-1,5 ч."
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: pm
+        alt_roles: []
+        fallback:
+          title: "Ретро по шаблону из трёх вопросов"
+          instruction: "Любой участник ведёт ретро по шаблону."
+          template: tpl_retro
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+      - key: m8_final_links
+        title: "Ссылка на работающий релиз и репозиторий"
+        description: "Публичный URL работающего ML-сервиса (демо или API, см. определение релиза) и репозиторий GitHub. Обязательны для завершения проекта."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "release_alive_ml", "repo_final"]
+        sources:
+          - "https://arxiv.org/pdf/2003.05155"
+          - "https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"

@@ -1,0 +1,38 @@
+product_type: web_service
+title: "Много ошибок сразу"
+version: "9.8.0"
+total_days: 99
+stages:
+  - key: many_s1
+    title: "Этап 1"
+    goal: "Цель"
+    duration_days: 7
+    exit_criteria: "Критерий"
+    steps:
+      - key: many_step
+        title: "Шаг без запасного"
+        description: "Роль не any, запасного шага нет."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: []
+        fallback: null
+        review_checklist: false
+        auto_checks: ["file_ok", "no_such_check"]
+        sources: ["https://scrumguides.org/scrum-guide.html"]
+      - key: many_step
+        title: "Шаг с дублем ключа и неизвестной ролью"
+        description: "Ключ повторяется."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: wizard
+        alt_roles: []
+        fallback:
+          title: "Запасной"
+          instruction: "Заполнить."
+          template: tpl_does_not_exist
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources: []

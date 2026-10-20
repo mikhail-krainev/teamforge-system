@@ -64,10 +64,28 @@ describeInfra('S3-02 teams schema from a clean database', ['db'], () => {
     return rows.map((r) => String(r.table_name));
   };
 
-  it('creates the fourteen teams tables, the playbooks minimum and the notification', async () => {
+  it('creates the fourteen teams tables, the playbooks tables and the workspace tables', async () => {
     expect(await tablesOf('teams')).toEqual(TEAMS_TABLES);
-    expect(await tablesOf('playbooks')).toEqual(['playbook', 'product_type']);
-    expect(await tablesOf('workspace')).toEqual(['notification']);
+    expect(await tablesOf('playbooks')).toEqual([
+      'platform_template',
+      'playbook',
+      'product_type',
+      'stage',
+      'step',
+      'step_fallback',
+      'step_review_item',
+    ]);
+    expect(await tablesOf('workspace')).toEqual([
+      'artifact_file',
+      'checklist_item',
+      'notification',
+      'participation_confirm',
+      'project_stage',
+      'project_storage_usage',
+      'release_check',
+      'review_answer',
+      'review_risk',
+    ]);
   });
 
   it('creates the partial unique indexes with their predicates (CC-1, CC-4, FR-TEAM-07)', async () => {
@@ -95,6 +113,8 @@ describeInfra('S3-02 teams schema from a clean database', ['db'], () => {
         'team_event_team_idx',
         'notification_dedupe_uq',
         'notification_user_idx',
+        'project_stage_one_open_uq',
+        'checklist_item_stage_step_uq',
       ]),
     );
   });

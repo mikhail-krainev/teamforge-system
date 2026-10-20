@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Body } from 'shared';
 import { Clock } from '../../../../platform/clock/clock.js';
 import {
@@ -12,6 +12,7 @@ import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
+import { DEPARTURE_ITEMS_PORT, type DepartureItemsPort } from '../../public.js';
 import { decisionPointerError, departureOverdue } from '../domain/departure-rules.js';
 import {
   type DepartureCursor,
@@ -74,6 +75,9 @@ export class DepartureService {
     @Inject(TeamRepository) private readonly teams: TeamRepository,
     @Inject(TeamEventRepository) private readonly events: TeamEventRepository,
     @Inject(TeamLeadLock) private readonly leadLock: TeamLeadLock,
+    @Optional()
+    @Inject(DEPARTURE_ITEMS_PORT)
+    private readonly items?: DepartureItemsPort,
   ) {}
 
   async list(teamId: string, query: DeparturesQuery): Promise<Page<DepartureDto>> {
@@ -195,6 +199,12 @@ export class DepartureService {
 
   private async dtos(rows: DepartureRow[]): Promise<DepartureDto[]> {
     const roles = await this.departures.rolesOfSeats(rows.flatMap((row) => row.seatIds));
-    return rows.map((row) => toDepartureDto(row, roles));
+    const unassigned = new Map<string, string[]>();
+    for (const teamId of new Set(rows.map((row) => row.teamId))) {
+      const users = rows.filter((row) => row.teamId === teamId).map((row) => row.userId);
+      const found = await this.items?.unassignedItemIds(teamId, users);
+      for (const [user, ids] of found ?? []) unassigned.set(user, ids);
+    }
+    return rows.map((row) => toDepartureDto(row, roles, unassigned));
   }
 }

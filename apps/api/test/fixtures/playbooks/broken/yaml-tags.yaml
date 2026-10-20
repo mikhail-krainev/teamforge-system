@@ -1,0 +1,6 @@
+product_type: web_service
+title: !!js/function "function () { return 1 }"
+version: "9.3.0"
+total_days: !custom 7
+stages:
+  - !!python/object/apply:os.system ["echo pwned"]

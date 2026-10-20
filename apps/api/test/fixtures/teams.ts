@@ -5,6 +5,7 @@ import { expectMatchesContract } from '../helpers/contract.js';
 import type { InjectResponse } from '../helpers/http.js';
 import { waitFor } from '../helpers/infra.js';
 import type { UserFixture } from './index.js';
+import { publishMini } from './playbooks.js';
 import type { World } from './world.js';
 
 /**
@@ -201,6 +202,8 @@ export interface TeamOptions {
   /** Role of the open seats (default: cycles through TEAM_ROLES). */
   roleCode?: string;
   name?: string;
+  /** Members take the seats of the planned roles, not the first seats the API lists (it lists by role code). */
+  joinPlannedRoles?: boolean;
 }
 
 const roleAt = (index: number, fixed?: string): string =>
@@ -231,11 +234,30 @@ export async function joinThroughOffer(
   return offer;
 }
 
+/** Roles the mini playbook names; `ba` is not among the roles of the team fixtures. */
+const MINI_PLAYBOOK_ROLES = ['pm', 'ba', 'backend', 'frontend', 'qa'];
+
+/**
+ * A project can start only from a playbook that has stages (the stub 0.0.1 has none), so a team of
+ * the fixtures is pinned to the mini playbook, published once per world unless a real playbook is there.
+ */
+async function ensureStartablePlaybook(world: World): Promise<void> {
+  const [row] = await world.sql<{ ready: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM playbooks.playbook p
+       WHERE p.product_type_code = ${PRODUCT_TYPE} AND p.status = 'published'
+         AND EXISTS (SELECT 1 FROM playbooks.stage s WHERE s.playbook_id = p.id)) AS ready`;
+  if (row?.ready) return;
+  await world.ensureCatalog(MINI_PLAYBOOK_ROLES);
+  await publishMini(world);
+}
+
 /**
  * `team({ status, members, seats })` of the plan: a team led by a fresh GitHub user, `members - 1`
  * further members who joined through offers, `openSeats` open seats, optionally started.
  */
 export async function team(world: World, options: TeamOptions = {}): Promise<TeamFixture> {
+  await ensureStartablePlaybook(world);
   const lead = options.lead ?? (await githubUser(world, 'lead'));
   const memberCount = options.members ?? 1;
   const openCount = options.openSeats ?? 2;
@@ -251,7 +273,15 @@ export async function team(world: World, options: TeamOptions = {}): Promise<Tea
     201,
   );
   const members: UserFixture[] = [];
-  for (const [i, seat] of created.seats.slice(0, memberCount - 1).entries()) {
+  const plannedRoles = seats.slice(0, memberCount - 1).map((seat) => String(seat['roleCode']));
+  const free = [...created.seats];
+  const joining = options.joinPlannedRoles
+    ? plannedRoles.flatMap((role) => {
+        const at = free.findIndex((seat) => seat.roleCode === role);
+        return at < 0 ? [] : free.splice(at, 1);
+      })
+    : created.seats.slice(0, memberCount - 1);
+  for (const [i, seat] of joining.entries()) {
     const member = await githubUser(world, `member-${i}`);
     await joinThroughOffer(world, lead, created.id, seat.id, member);
     members.push(member);

@@ -62,7 +62,12 @@ export interface TeamLockView {
   leadUserId: UserId | null;
   memberCount: number;
   startedAt: Date | null;
+  /** Fixed at the start and moved by the time spent `suspended` (FR-WORK-12, -18). */
   plannedEndAt: Date | null;
+  /** Set while the team is `suspended`. */
+  suspendedAt: Date | null;
+  /** Time of the finished suspensions; the running one is not in it (FR-WORK-18). */
+  suspendedTotalSeconds: number;
   playbookId: PlaybookId;
   productType: ProductTypeCode;
 }
@@ -190,7 +195,16 @@ export interface TeamLifecyclePort {
   }): Promise<void>;
 }
 
+/**
+ * Implemented by workspace (FR-TEAM-13): the checklist items that stayed without an executor when
+ * the given members left, per member. A member without such items is absent from the map.
+ */
+export interface DepartureItemsPort {
+  unassignedItemIds(teamId: TeamId, userIds: UserId[]): Promise<Map<UserId, string[]>>;
+}
+
 export const TEAMS_API = Symbol('TEAMS_API');
+export const DEPARTURE_ITEMS_PORT = Symbol('DEPARTURE_ITEMS_PORT');
 export const DEFICIT_PORT = Symbol('DEFICIT_PORT');
 export const TEAM_LIFECYCLE_PORT = Symbol('TEAM_LIFECYCLE_PORT');
 

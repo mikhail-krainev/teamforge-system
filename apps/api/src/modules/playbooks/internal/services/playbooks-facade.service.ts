@@ -2,18 +2,35 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { DB, type Database } from '../../../../platform/db/db.module.js';
 import type {
+  PlaybookDefinition,
   PlaybookId,
   PlaybooksApi,
   ProductTypeCode,
   ProductTypeView,
   PublishedPlaybookRef,
 } from '../../public.js';
+import { PlaybookDefinitions } from '../read/playbook-definitions.js';
 import { playbook, productType } from '../schema/playbooks.js';
 
 /** Read-only facade of the playbooks module (`PlaybooksApi`). */
 @Injectable()
 export class PlaybooksFacade implements PlaybooksApi {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    @Inject(PlaybookDefinitions) private readonly definitions: PlaybookDefinitions,
+  ) {}
+
+  getDefinition(id: PlaybookId): Promise<PlaybookDefinition> {
+    return this.definitions.get(id);
+  }
+
+  async isActiveProductType(code: ProductTypeCode): Promise<boolean> {
+    const rows = await this.db
+      .select({ active: productType.active })
+      .from(productType)
+      .where(eq(productType.code, code));
+    return rows[0]?.active === true;
+  }
 
   async getLatestPublished(code: ProductTypeCode): Promise<PublishedPlaybookRef | null> {
     // Served by playbook_latest_idx: the highest published semver first.

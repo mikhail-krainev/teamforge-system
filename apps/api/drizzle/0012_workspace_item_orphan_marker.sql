@@ -1,0 +1,2 @@
+ALTER TABLE "workspace"."checklist_item" ADD COLUMN "unassigned_from_user_id" uuid;--> statement-breakpoint
+CREATE INDEX "checklist_item_orphan_idx" ON "workspace"."checklist_item" USING btree ("team_id","unassigned_from_user_id") WHERE "workspace"."checklist_item"."unassigned_from_user_id" IS NOT NULL;

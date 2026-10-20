@@ -1,0 +1,842 @@
+product_type: web_service
+title: "Веб-сервис"
+version: "1.0.0"
+total_days: 84
+stages:
+  - key: w1_start
+    title: "Старт и проблема"
+    goal: "Договориться, какую проблему решаем, для кого и в какие сроки; собрать репозиторий и доску."
+    duration_days: 7
+    exit_criteria: "Проблема описана историей; есть 3+ проверяемых допущения; appetite утверждён. Все обязательные шаги выполнены, пункты ревью «да» либо нет-пункты приняты как риск в протоколе."
+    steps:
+      - key: w1_kickoff
+        title: "Kickoff команды"
+        description: "Созвон 1 ч: цель проекта, роли, правила работы, договорённости о связи. Итоги записываются в поле итогов."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+          - "https://basecamp.com/shapeup/1.5-chapter-06"
+      - key: w1_repo_board
+        title: "Репозиторий и доска задач"
+        description: "Ссылка на репозиторий GitHub и на доску (Issues/Projects) с колонками и WIP-лимитом."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "repo_exists"]
+        sources:
+          - "https://kanbanguides.org/english/"
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w1_charter
+        title: "Устав команды, DoD v0 и appetite"
+        description: "Документ: цель, состав и роли, правила общения, Definition of Done v0, appetite в неделях, no-gos. Один человек назначен владельцем продукта."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ["ba"]
+        fallback:
+          title: "Устав по шаблону платформы"
+          instruction: "Тимлид назначает владельца продукта, один человек заполняет шаблон устава, остальные комментируют. Шаблон заменяет менеджера и аналитика."
+          template: tpl_charter
+        review_checklist: true
+        review_items:
+          - "Записаны no-gos?"
+          - "Указан appetite в неделях?"
+          - "Определение готовности (DoD v0) записано?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+          - "https://basecamp.com/shapeup/1.5-chapter-06"
+      - key: w1_problem
+        title: "Problem statement"
+        description: "Проблема как история одного конкретного человека, текущие способы решения, альтернативы, 3+ проверяемых допущения."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["ba"]
+        fallback:
+          title: "Problem statement по шаблону"
+          instruction: "Любой участник заполняет шаблон: история человека, как решает сейчас, альтернативы, допущения; самое рискованное отмечается первым."
+          template: tpl_problem_statement
+        review_checklist: true
+        review_items:
+          - "Проблема описана как история конкретного человека, а не «неудобно»?"
+          - "Указано, как люди решают проблему сейчас?"
+          - "Названы альтернативы и чем мы лучше?"
+          - "Есть 3+ проверяемых допущения, самое рискованное отмечено?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://basecamp.com/shapeup/1.5-chapter-06"
+          - "https://www.workingbackwards.com/resources/working-backwards-pr-faq/"
+      - key: w1_prfaq
+        title: "PR/FAQ-lite"
+        description: "Одностраничный «пресс-релиз из будущего» и 5-10 вопросов с ответами."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: ["ba", "product_analyst"]
+        fallback:
+          title: "PR/FAQ по шаблону платформы"
+          instruction: "Заполнить шаблон PR/FAQ: заголовок, абзац-резюме, проблема, решение, цитата пользователя, 5-10 вопросов. Ведущий выбирается любой участник."
+          template: tpl_prfaq
+        review_checklist: true
+        review_items:
+          - "PR/FAQ умещается в одну страницу плюс 5-10 вопросов?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.workingbackwards.com/resources/working-backwards-pr-faq/"
+      - key: w1_prfaq_review
+        title: "Ревью PR/FAQ всей командой"
+        description: "Созвон: команда читает PR/FAQ и Problem statement, фиксирует замечания и утверждает appetite."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.workingbackwards.com/resources/working-backwards-pr-faq/"
+          - "https://basecamp.com/shapeup/1.5-chapter-06"
+  - key: w2_research
+    title: "Исследование пользователей"
+    goal: "Проверить проблему на реальных людях из целевой группы и принять решение продолжать, менять или остановиться."
+    duration_days: 14
+    exit_criteria: "Проведено минимум 5 интервью; на каждое есть snapshot; записано явное решение продолжаем, меняем или стоп."
+    steps:
+      - key: w2_plan
+        title: "План интервью"
+        description: "Список вопросов о конкретных прошлых случаях, критерии отбора респондентов, распределение пар «интервьюер и писарь»."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["ba"]
+        fallback:
+          title: "Готовый список вопросов о прошлом поведении"
+          instruction: "Использовать шаблон набора для интервью. Интервью проводят любые двое участников."
+          template: tpl_interview_kit
+        review_checklist: true
+        review_items:
+          - "Вопросы про конкретные прошлые случаи, а не «стали бы вы пользоваться»?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.producttalk.org/interview-snapshot/"
+          - "https://www.svpg.com/dual-track-agile/"
+      - key: w2_interviews
+        title: "Интервью с целевой группой"
+        description: "5-8 интервью (не друзья из команды), работают парами. Ритуал фиксирует даты и общий итог, подробности в snapshot."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["ba"]
+        fallback:
+          title: "Интервью силами любых двух участников"
+          instruction: "Тимлид назначает пары из любых участников; используется набор для интервью с готовым списком вопросов."
+          template: tpl_interview_kit
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.producttalk.org/interview-snapshot/"
+          - "https://www.jpattonassociates.com/dual-track-development/"
+      - key: w2_snapshots
+        title: "Snapshot каждого интервью"
+        description: "Одностраничная выжимка на каждое интервью: кто, что рассказал, потребности. Минимум 5 файлов."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["ba"]
+        fallback:
+          title: "Snapshot по шаблону"
+          instruction: "Каждый писарь заполняет шаблон snapshot сразу после интервью."
+          template: tpl_interview_kit
+        review_checklist: true
+        review_items:
+          - "Минимум 5 интервью с целевой группой?"
+          - "На каждое интервью есть snapshot?"
+          - "Факты и выводы не смешаны?"
+        auto_checks: ["file_ok", "sha_dedup", "min_files:5"]
+        sources:
+          - "https://www.producttalk.org/interview-snapshot/"
+      - key: w2_synthesis
+        title: "Обсуждение выводов"
+        description: "Созвон 1 ч: общие темы, список возможностей (opportunities)."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.producttalk.org/interview-snapshot/"
+          - "https://www.svpg.com/dual-track-agile/"
+      - key: w2_decision
+        title: "Список возможностей и решение"
+        description: "Документ: найденные возможности и решение «продолжаем / меняем / стоп» с обоснованием."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["ba", "pm"]
+        fallback:
+          title: "Запись решения по шаблону"
+          instruction: "Тимлид или любой участник заполняет шаблон записи решения."
+          template: tpl_decision_record
+        review_checklist: true
+        review_items:
+          - "Записано решение продолжать / менять / остановить?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.svpg.com/dual-track-agile/"
+          - "https://www.producttalk.org/interview-snapshot/"
+  - key: w3_shaping
+    title: "Объём и требования"
+    goal: "Превратить результаты исследования в фиксированный по сроку объём: pitch, истории, критерии приёмки."
+    duration_days: 7
+    exit_criteria: "Appetite и no-gos утверждены; у каждой must-истории есть критерии приёмки."
+    steps:
+      - key: w3_pitch
+        title: "Pitch"
+        description: "Документ: проблема, appetite, решение, rabbit holes, no-gos; must отделены от «~» (необязательное)."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: ba
+        alt_roles: ["pm", "system_analyst"]
+        fallback:
+          title: "Pitch по шаблону платформы"
+          instruction: "Заполнить шаблон pitch из пяти разделов. Автор любой, утверждает владелец продукта."
+          template: tpl_pitch
+        review_checklist: true
+        review_items:
+          - "Must отделены от «~»?"
+          - "Можно выпустить продукт без любого nice-to-have?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://basecamp.com/shapeup/1.5-chapter-06"
+          - "https://basecamp.com/shapeup/3.5-chapter-14"
+      - key: w3_stories
+        title: "Story map и user stories"
+        description: "Карта историй по пути пользователя и user stories с проверяемыми критериями приёмки у каждой must-истории."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: ba
+        alt_roles: ["system_analyst", "product_analyst"]
+        fallback:
+          title: "User stories по шаблону и проверка INVEST"
+          instruction: "Использовать шаблон «Как..., я хочу..., чтобы...» и проверить каждую историю по INVEST."
+          template: tpl_user_story_kit
+          url: "https://www.agilealliance.org/glossary/invest/"
+        review_checklist: true
+        review_items:
+          - "Каждая история называет пользователя, цель и ценность?"
+          - "Истории разложены по пути пользователя, дыры видны?"
+          - "У каждой must-истории проверяемые критерии приёмки?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://www.jpattonassociates.com/user-story-mapping/"
+          - "https://www.agilealliance.org/glossary/invest/"
+      - key: w3_pitch_review
+        title: "Pitch-ревью и решение владельца продукта"
+        description: "Созвон 1-1,5 ч: обсуждение, владелец продукта утверждает объём."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://basecamp.com/shapeup/1.5-chapter-06"
+          - "https://basecamp.com/shapeup/3.5-chapter-14"
+  - key: w4_prototype
+    title: "Прототип и UI"
+    goal: "Проверить интерфейс на людях вне команды до начала разработки."
+    duration_days: 7
+    exit_criteria: "Тест проведён; главные проблемы исправлены или осознанно отложены."
+    steps:
+      - key: w4_sprint
+        title: "Мини-спринт дизайна"
+        description: "2-3 сессии по 2-3 ч: карта, скетчи (fat marker), выбор решения, сборка прототипа."
+        type: ritual
+        ritual_kind: brainstorm
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.gv.com/sprint/"
+      - key: w4_prototype
+        title: "Кликабельный прототип"
+        description: "Ссылка на прототип, выглядящий как настоящий продукт (фасад)."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: designer
+        alt_roles: []
+        fallback:
+          title: "Экраны из готового UI-кита"
+          instruction: "Собрать экраны из готового UI-кита (Bootstrap или shadcn/ui) без кастомного дизайна в первой итерации. Один кит на весь проект."
+          template: tpl_ui_kit_guide
+          url: "https://getbootstrap.com/docs/5.3/getting-started/introduction/"
+        review_checklist: true
+        review_items:
+          - "Прототип выглядит реалистично (фасад), а не схема?"
+        auto_checks: ["link_https"]
+        sources:
+          - "https://www.gv.com/sprint/"
+          - "https://getbootstrap.com/docs/5.3/getting-started/introduction/"
+          - "https://ui.shadcn.com/docs"
+      - key: w4_test_script
+        title: "Скрипт теста с задачами"
+        description: "Сценарные задачи для респондентов; что наблюдаем и что считаем проблемой."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: designer
+        alt_roles: ["product_analyst", "ba"]
+        fallback:
+          title: "Скрипт теста по шаблону"
+          instruction: "Заполнить шаблон скрипта и протокола тестов."
+          template: tpl_usability_test
+        review_checklist: true
+        review_items:
+          - "Есть скрипт теста с задачами-сценариями?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.gv.com/sprint/"
+      - key: w4_user_test
+        title: "Тест на 3-5 людях вне команды"
+        description: "Сессии тестирования прототипа; даты и итоги в ритуале."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.gv.com/sprint/"
+      - key: w4_test_report
+        title: "Протокол тестов, топ-3 проблемы"
+        description: "Протокол с наблюдениями и тремя главными проблемами: исправлены или отложены с причиной."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: product_analyst
+        alt_roles: ["designer", "ba"]
+        fallback:
+          title: "Протокол по шаблону"
+          instruction: "Заполнить шаблон протокола тестов."
+          template: tpl_usability_test
+        review_checklist: true
+        review_items:
+          - "Тест прошёл с 3-5 людьми не из команды?"
+          - "Топ-3 проблемы исправлены или отложены с причиной?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.gv.com/sprint/"
+  - key: w5_architecture
+    title: "Архитектура и API-контракт"
+    goal: "Принять и записать ключевые технические решения до написания основного кода."
+    duration_days: 7
+    exit_criteria: "Альтернативы записаны; контракт согласован frontend и backend; дизайн-ревью закрыто."
+    steps:
+      - key: w5_designdoc
+        title: "Мини design doc"
+        description: "Документ на 1-3 страницы: контекст, цели и не-цели, решение, альтернативы, trade-offs, безопасность, приватность, наблюдаемость."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: system_analyst
+        alt_roles: ["backend"]
+        fallback:
+          title: "Мини design doc по шаблону из пяти секций"
+          instruction: "Заполнить шаблон мини design doc; ревью проводит вся команда."
+          template: tpl_design_doc
+        review_checklist: true
+        review_items:
+          - "Есть контекст, объём и цели/не-цели?"
+          - "Рассмотрено 2+ альтернативы, указано почему выбрана эта?"
+          - "Описаны trade-offs, а не вставлен весь код?"
+          - "Учтены безопасность, приватность, наблюдаемость?"
+          - "Документ прочитал и прокомментировал каждый участник?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.industrialempathy.com/posts/design-docs-at-google/"
+      - key: w5_api
+        title: "API-контракт и схема данных"
+        description: "Описание эндпоинтов (запрос, ответ, коды ошибок), например OpenAPI, и схема данных."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: backend
+        alt_roles: ["system_analyst"]
+        fallback:
+          title: "Таблица эндпоинтов по шаблону"
+          instruction: "Описать каждый эндпоинт в таблице: метод, путь, запрос, ответ, коды ошибок. Формат OpenAPI не обязателен."
+          template: tpl_api_contract
+        review_checklist: true
+        review_items:
+          - "Для каждого эндпоинта указаны запрос, ответ, коды ошибок?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://www.industrialempathy.com/posts/design-docs-at-google/"
+      - key: w5_adr
+        title: "ADR: хостинг, CI, стек"
+        description: "Короткие записи решений: контекст, варианты, выбор, последствия."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: backend
+        alt_roles: ["system_analyst", "devops"]
+        fallback:
+          title: "ADR по шаблону"
+          instruction: "Заполнить шаблон ADR на каждое решение (минимум: хостинг, CI)."
+          template: tpl_adr
+        review_checklist: false
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://www.industrialempathy.com/posts/design-docs-at-google/"
+      - key: w5_review
+        title: "Дизайн-ревью всей командой"
+        description: "Созвон 1 ч: обсуждение комментариев в документе."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://www.industrialempathy.com/posts/design-docs-at-google/"
+  - key: w6_build
+    title: "Реализация (2 спринта)"
+    goal: "Сделать вертикальные срезы в двух спринтах (первый 14 дней, второй 11 дней), довести все must-истории до работающего состояния на staging."
+    duration_days: 25
+    exit_criteria: "В каждом спринте Increment отвечает DoD. В конце этапа все must-истории работают на staging."
+    steps:
+      - key: w6_board
+        title: "Доска со Sprint Backlog и WIP-лимитом"
+        description: "Ссылка на доску: колонки, WIP-лимит, возраст задач."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: pm
+        alt_roles: []
+        fallback:
+          title: "Доска по шаблону Kanban"
+          instruction: "Использовать шаблон доски GitHub Projects (колонки, WIP-лимит). Ведёт любой участник."
+          template: tpl_kanban_board
+        review_checklist: true
+        review_items:
+          - "WIP-лимит не нарушен, просроченные по возрасту задачи обсуждены?"
+        auto_checks: ["link_https"]
+        sources:
+          - "https://kanbanguides.org/english/"
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w6_ci
+        title: "CI на GitHub Actions"
+        description: "Ссылка на workflow: тесты на каждом PR, красный CI блокирует слияние."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: devops
+        alt_roles: ["backend"]
+        fallback:
+          title: "Готовый шаблон CI GitHub Actions"
+          instruction: "Взять шаблон CI платформы или starter workflow GitHub под стек проекта и подключить к репозиторию."
+          template: tpl_ci_github_actions
+          url: "https://docs.github.com/en/actions/writing-workflows/using-starter-workflows"
+        review_checklist: true
+        review_items:
+          - "Тесты запускаются на каждом PR и красный CI блокирует слияние?"
+        auto_checks: ["link_https", "ci_workflow"]
+        sources:
+          - "https://docs.github.com/en/actions/writing-workflows/using-starter-workflows"
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w6_pr_template
+        title: "Шаблон описания PR"
+        description: "Файл шаблона PR в репозитории: что и зачем сделано, как проверить."
+        type: artifact
+        submission: link
+        required: false
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources:
+          - "https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository"
+          - "https://google.github.io/eng-practices/review/developer/small-cls.html"
+      - key: w6_s1_planning
+        title: "Спринт 1: планирование"
+        description: "Созвон 1 ч: зачем, что, как; цель спринта."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w6_frontend
+        title: "Реализация интерфейса (frontend)"
+        description: "Ссылка на слитые PR с UI: вертикальные срезы, тесты в тех же PR."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: frontend
+        alt_roles: []
+        fallback:
+          title: "Срезы одним человеком, ревью у второго"
+          instruction: "Если frontend нет, backend делает срез целиком, а ревью выполняет другой участник. Использовать готовый UI-кит."
+          template: tpl_ui_kit_guide
+          url: "https://getbootstrap.com/docs/5.3/getting-started/introduction/"
+        review_checklist: false
+        auto_checks: ["link_https", "pr_cross_review:5"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+          - "https://google.github.io/eng-practices/review/developer/small-cls.html"
+      - key: w6_backend
+        title: "Реализация серверной части (backend)"
+        description: "Ссылка на слитые PR с API и данными по контракту; тесты в тех же PR."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: backend
+        alt_roles: []
+        fallback:
+          title: "Срезы одним человеком, ревью у второго"
+          instruction: "Если backend нет, frontend делает срез целиком по таблице эндпоинтов, ревью выполняет другой участник."
+          template: tpl_api_contract
+        review_checklist: false
+        auto_checks: ["link_https", "pr_cross_review:5"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+          - "https://google.github.io/eng-practices/review/developer/small-cls.html"
+      - key: w6_mobile
+        title: "Мобильный клиент (необязательный шаг)"
+        description: "Веб-сервис не требует мобильного клиента. Если в команде есть роль mobile, ссылка на слитые PR мобильного клиента; если роли нет, по желанию адаптивный веб или PWA."
+        type: artifact
+        submission: link
+        required: false
+        owner_role: mobile
+        alt_roles: []
+        fallback:
+          title: "Адаптивная вёрстка или PWA"
+          instruction: "Проверить адаптивность по чек-листу и при необходимости сделать PWA."
+          template: tpl_responsive_checklist
+          url: "https://web.dev/learn/pwa"
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources:
+          - "https://web.dev/learn/pwa"
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w6_code_review
+        title: "Перекрёстное код-ревью PR"
+        description: "Ревью каждого PR участником, не автором. Ссылка на PR с ревью, итоги в поле итогов."
+        type: ritual
+        ritual_kind: code_review
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: true
+        review_items:
+          - "PR делает одну вещь (ориентир Google: ~100 строк норма, 1000 слишком много)?"
+          - "Тесты в том же PR, и они упали бы при поломке кода?"
+          - "Первая строка описания в императиве, в теле «зачем»?"
+          - "Ревьюер прочитал каждую строку?"
+          - "Нет лишней сложности и функций «на будущее»?"
+          - "Края и ошибки обработаны?"
+          - "Имена понятны, комментарии объясняют «почему»?"
+          - "README обновлён, если изменился запуск?"
+          - "Ревью дано за один рабочий день?"
+          - "Комментарии помечены (Nit / Optional / обязательно), без личных нападок?"
+        auto_checks: ["ritual_fields", "pr_cross_review:5"]
+        sources:
+          - "https://google.github.io/eng-practices/review/reviewer/looking-for.html"
+          - "https://google.github.io/eng-practices/review/developer/small-cls.html"
+          - "https://google.github.io/eng-practices/review/reviewer/speed.html"
+          - "https://google.github.io/eng-practices/review/reviewer/comments.html"
+      - key: w6_s1_review
+        title: "Спринт 1: Review и ретро + срез объёма"
+        description: "Созвон 1-1,5 ч в конце спринта: Increment по DoD, ретроспектива, сверка с appetite (конец недели 8), срез объёма по circuit breaker."
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+          - "https://basecamp.com/shapeup/3.5-chapter-14"
+      - key: w6_s2_planning
+        title: "Спринт 2: планирование"
+        description: "Созвон 1 ч с учётом среза объёма."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w6_staging
+        title: "Все must-истории работают на staging"
+        description: "Ссылка на staging-стенд и список must-историй с отметками."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w6_s2_review
+        title: "Спринт 2: Review и ретро"
+        description: "Созвон 1-1,5 ч: Increment по DoD, ретроспектива."
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+  - key: w7_release
+    title: "Усиление и релиз"
+    goal: "Закрыть баги must-историй, проверить продукт вручную, выкатить на прод с планом отката и мониторингом."
+    duration_days: 10
+    exit_criteria: "Все пункты release checklist «да»; smoke-тест на проде пройден."
+    steps:
+      - key: w7_regression
+        title: "Ручная регрессия по чек-листу"
+        description: "Файл с результатами прохода чек-листа ручного тестирования по must-историям; найденные баги заведены."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: qa
+        alt_roles: []
+        fallback:
+          title: "Чек-лист ручного тестирования"
+          instruction: "Любые двое участников проходят по шаблону чек-листа ручного тестирования все must-истории и фиксируют результат."
+          template: tpl_manual_test_checklist
+          url: "https://sre.google/sre-book/launch-checklist/"
+        review_checklist: false
+        auto_checks: ["file_ok", "sha_dedup"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w7_release_checklist
+        title: "Release checklist"
+        description: "Заполненный чек-лист запуска: безопасность (аутентификация, HTTPS), отказ внешних зависимостей, поэтапная выкатка."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: devops
+        alt_roles: ["backend"]
+        fallback:
+          title: "Release checklist по шаблону"
+          instruction: "Заполнить шаблон release checklist платформы по мотивам SRE launch checklist."
+          template: tpl_release_checklist
+          url: "https://sre.google/sre-book/launch-checklist/"
+        review_checklist: true
+        review_items:
+          - "Рассмотрены безопасность (аутентификация, HTTPS) и отказ внешних зависимостей?"
+          - "Выкатка поэтапная или сначала для узкой группы?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+      - key: w7_deploy
+        title: "Прод и staging, повторяемый деплой"
+        description: "Ссылка на прод-стенд; деплой описан и повторяем. Хостинг выбирается из списка вариантов, доступных из РФ/СНГ."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: devops
+        alt_roles: ["backend"]
+        fallback:
+          title: "Выбор хостинга из списка и деплой по инструкции"
+          instruction: "Выбрать хостинг из списка вариантов в шаблоне release checklist (раздел про хостинг) и выполнить пошаговую инструкцию деплоя; запасной вариант демо: локальный запуск или запись."
+          template: tpl_release_checklist
+          url: "https://render.com/docs/free"
+        review_checklist: true
+        review_items:
+          - "Есть staging и prod, деплой повторяем?"
+        auto_checks: ["link_https"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+          - "https://render.com/docs/free"
+          - "https://vercel.com/docs/plans/hobby"
+          - "https://docs.fly.io/about/pricing"
+      - key: w7_rollback
+        title: "План отката и резервная копия"
+        description: "Документ: как откатить версию, как делается резервная копия данных и как проверено восстановление."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: devops
+        alt_roles: ["backend"]
+        fallback:
+          title: "План отката по шаблону"
+          instruction: "Заполнить раздел плана отката в шаблоне release checklist; восстановление из копии проверить вручную."
+          template: tpl_release_checklist
+        review_checklist: true
+        review_items:
+          - "Есть резервная копия данных и проверено восстановление?"
+          - "Есть план отката?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+      - key: w7_monitoring
+        title: "Мониторинг доступности и алерт"
+        description: "Ссылка на проверку доступности и описание алерта «сервис недоступен»."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: devops
+        alt_roles: ["backend"]
+        fallback:
+          title: "Точка проверки и внешняя проверка доступности"
+          instruction: "Сделать endpoint проверки состояния и подключить любой бесплатный сервис проверки доступности с уведомлением; инструкция в шаблоне release checklist."
+          template: tpl_release_checklist
+        review_checklist: true
+        review_items:
+          - "Есть мониторинг и алерт «сервис недоступен»?"
+        auto_checks: ["file_ok", "sha_dedup", "link_https"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+      - key: w7_smoke
+        title: "Smoke-тест на проде"
+        description: "Ссылка на прод и файл или запись результата smoke-теста главного сценария."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: qa
+        alt_roles: []
+        fallback:
+          title: "Чек-лист smoke-теста"
+          instruction: "Любой участник проходит короткий чек-лист smoke-теста главного сценария на проде."
+          template: tpl_manual_test_checklist
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+      - key: w7_gonogo
+        title: "Go/no-go встреча"
+        description: "Созвон 30-60 мин: проход по release checklist, решение о выкладке."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+  - key: w8_wrapup
+    title: "Ретроспектива и итоги"
+    goal: "Разобрать проект, зафиксировать действия и подготовить итоговое описание для портфолио; сдать ссылки на релиз и репозиторий."
+    duration_days: 7
+    exit_criteria: "Не более 3 действий с владельцем и сроком; ссылка на работающий релиз и на репозиторий проверены платформой."
+    steps:
+      - key: w8_demo
+        title: "Итоговое демо"
+        description: "Созвон: показ работающего продукта (запись допускается)."
+        type: ritual
+        ritual_kind: call
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w8_retro
+        title: "Ретроспектива проекта"
+        description: "Созвон 1-1,5 ч: что получилось, что нет, что меняем."
+        type: ritual
+        ritual_kind: retro
+        required: true
+        owner_role: pm
+        alt_roles: []
+        fallback:
+          title: "Ретро по шаблону из трёх вопросов"
+          instruction: "Любой участник ведёт ретро по шаблону: что получилось, что нет, что меняем."
+          template: tpl_retro
+        review_checklist: false
+        auto_checks: ["ritual_fields"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w8_retro_doc
+        title: "Retro-документ и backlog улучшений"
+        description: "Не более 3 действий с владельцем и сроком; проверены действия прошлых ретро."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: pm
+        alt_roles: []
+        fallback:
+          title: "Retro-документ по шаблону"
+          instruction: "Заполнить шаблон ретро."
+          template: tpl_retro
+        review_checklist: true
+        review_items:
+          - "Обсуждено, что получилось, что нет, что меняем?"
+          - "Не более 3 действий с владельцем и сроком?"
+          - "Действия прошлой ретроспективы проверены?"
+        auto_checks: ["file_ok", "sha_dedup", "md_headings"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+      - key: w8_portfolio
+        title: "Описание проекта для портфолио"
+        description: "Описание: проблема, решение, роли, стек, результаты, ссылки."
+        type: artifact
+        submission: either
+        required: true
+        owner_role: pm
+        alt_roles: []
+        fallback:
+          title: "Описание проекта по шаблону"
+          instruction: "Заполнить шаблон описания проекта для портфолио."
+          template: tpl_portfolio
+        review_checklist: false
+        auto_checks: ["file_ok", "sha_dedup", "link_https", "md_headings"]
+        sources:
+          - "https://scrumguides.org/scrum-guide.html"
+          - "https://www.workingbackwards.com/resources/working-backwards-pr-faq/"
+      - key: w8_final_links
+        title: "Ссылка на работающий релиз и репозиторий"
+        description: "Две ссылки: публичный URL работающего релиза и репозиторий GitHub. Обязательны для завершения проекта."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "release_alive_web", "repo_final"]
+        sources:
+          - "https://sre.google/sre-book/launch-checklist/"
+          - "https://scrumguides.org/scrum-guide.html"

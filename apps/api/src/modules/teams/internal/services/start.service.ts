@@ -32,31 +32,40 @@ export class StartService {
   async start(userId: string, teamId: string): Promise<TeamDto> {
     const row = await this.teams.find(teamId);
     if (row === undefined) throw new DomainError('NOT_FOUND', 404);
-    const playbookDays = await this.pinnedPlaybookDays(row);
-    await this.tx.run(() => this.startInTx(userId, teamId, playbookDays));
+    const pinned = { playbookId: row.playbookId, days: await this.pinnedPlaybookDays(row) };
+    await this.tx.run(() => this.startInTx(userId, teamId, pinned));
     return this.view.team(teamId, userId);
   }
 
   /**
-   * Reference read before BEGIN (architecture 3.4: no foreign module under a lock). The facade
-   * only knows the latest published playbook; when the team pinned an older one the planned end
-   * falls back to the C-06 maximum until workspace plans the stages (slice 5).
+   * Reference read before BEGIN (architecture 3.4: no foreign module under a lock). The pinned
+   * playbook is immutable once published, so its length is the planned length of the project
+   * (FR-WORK-12); an unreadable playbook falls back to the C-06 maximum.
    */
   private async pinnedPlaybookDays(row: TeamRow): Promise<number | null> {
-    const latest = await this.playbooks.getLatestPublished(row.productTypeCode);
-    return latest?.id === row.playbookId ? latest.totalDays : null;
+    try {
+      return (await this.playbooks.getDefinition(row.playbookId)).totalDays;
+    } catch (error) {
+      if (error instanceof DomainError && error.status === 404) return null;
+      throw error;
+    }
   }
 
   private async startInTx(
     userId: string,
     teamId: string,
-    playbookDays: number | null,
+    pinned: { playbookId: string; days: number | null },
   ): Promise<void> {
     const locked = await this.leadLock.lock(teamId, userId);
     const refusal = startError(locked.status);
     if (refusal !== undefined) throw new DomainError(refusal, 409);
     const row = await this.teams.find(teamId);
     if (row === undefined) throw new DomainError('NOT_FOUND', 404);
+    // A forming team can be rebound (a stub moved to a real playbook) between the reference read and the
+    // lock. Published playbooks are immutable and take no lock, so the one extra read in the transaction
+    // is harmless; a second transaction is not allowed under one Idempotency-Key.
+    const playbookDays =
+      row.playbookId === pinned.playbookId ? pinned.days : await this.pinnedPlaybookDays(row);
     const now = this.clock.now();
     await this.teams.update(teamId, {
       status: 'active',

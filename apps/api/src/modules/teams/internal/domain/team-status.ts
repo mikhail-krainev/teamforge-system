@@ -75,6 +75,27 @@ export function plannedEnd(startedAt: Date, playbookDays: number | null): Date {
 }
 
 /**
+ * Planned end shown to the team (FR-WORK-12, -18): the date fixed at the start, moved by the time
+ * the team spent suspended: the closed suspensions (`suspended_total_seconds`) and the running one.
+ */
+export function extendedPlannedEnd(
+  team: {
+    plannedEndAt: Date | null;
+    status: string;
+    suspendedAt: Date | null;
+    suspendedTotalSeconds: number;
+  },
+  now: Date,
+): Date | null {
+  if (team.plannedEndAt === null) return null;
+  const running =
+    team.status === 'suspended' && team.suspendedAt !== null
+      ? Math.max(0, now.getTime() - team.suspendedAt.getTime())
+      : 0;
+  return new Date(team.plannedEndAt.getTime() + team.suspendedTotalSeconds * 1000 + running);
+}
+
+/**
  * C-06 / FR-TEAM-27: whether an active project has run for the maximum duration. The time a
  * project spent suspended does not count (FR-WORK-18).
  */
@@ -86,4 +107,22 @@ export function maxDurationReached(
   const limit =
     team.startedAt.getTime() + MAX_PROJECT_DAYS * DAY_MS + team.suspendedTotalSeconds * 1000;
   return now.getTime() >= limit;
+}
+
+/**
+ * FR-WORK-18: a team that leaves `suspended` for good (resumed, archived) adds the time it spent
+ * suspended to `suspended_total_seconds` and clears `suspended_at`. `voting` is not the end: a vote
+ * on a suspended team returns to `suspended` and the same suspension goes on. `undefined` when
+ * there is nothing to settle.
+ */
+export function settledSuspension(
+  team: { suspendedAt: Date | null; suspendedTotalSeconds: number },
+  nextStatus: string,
+  at: Date,
+): { suspendedAt: null; suspendedTotalSeconds: number } | undefined {
+  if (team.suspendedAt === null || nextStatus === 'suspended' || nextStatus === 'voting') {
+    return undefined;
+  }
+  const spent = Math.max(0, Math.floor((at.getTime() - team.suspendedAt.getTime()) / 1000));
+  return { suspendedAt: null, suspendedTotalSeconds: team.suspendedTotalSeconds + spent };
 }

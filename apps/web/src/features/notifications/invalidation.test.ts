@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import { ME_QUERY_KEY } from '@/features/auth/session';
+import { teamKey } from '@/features/teams/api';
 import { createInvalidator } from '@/lib/realtime';
 import { keysFor } from './invalidation';
 
@@ -38,6 +39,19 @@ describe('keysFor', () => {
     const keys = keysFor({ type: 'member.joined', channel: `team:${ID}` });
     expect(keys).toContainEqual(['demand']);
     expect(keys).toContainEqual(['recommendations']);
+  });
+
+  it('stage events refresh the whole workspace of the project and the team', () => {
+    for (const type of ['stage.opened', 'stage.closed']) {
+      const keys = keysFor({ type, channel: `team:${ID}` });
+      expect(keys).toContainEqual(['workspace', ID]);
+      expect(keys).toContainEqual(teamKey(ID));
+    }
+  });
+
+  it('item events do not re-read the checklists under an open form (FR-WORK-07)', () => {
+    const keys = keysFor({ type: 'item.updated', channel: `team:${ID}` });
+    expect(keys).not.toContainEqual(['workspace', ID]);
   });
 
   it('session.revoked re-reads the current user', () => {

@@ -1,0 +1,50 @@
+product_type: web_service
+title: "Дубли ключей"
+version: "9.5.0"
+total_days: 14
+stages:
+  - key: dup_s1
+    title: "Этап 1"
+    goal: "Цель"
+    duration_days: 7
+    exit_criteria: "Критерий"
+    steps:
+      - key: dup_step
+        title: "Шаг"
+        description: "Описание"
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources: ["https://scrumguides.org/scrum-guide.html"]
+      - key: dup_step
+        title: "Шаг повторно"
+        description: "Описание"
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources: ["https://scrumguides.org/scrum-guide.html"]
+  - key: dup_s1
+    title: "Этап 1 повторно"
+    goal: "Цель"
+    duration_days: 7
+    exit_criteria: "Критерий"
+    steps:
+      - key: dup_final_links
+        title: "Ссылка на релиз"
+        description: "Публичный URL релиза и репозиторий."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "release_alive_web", "repo_final"]
+        sources: ["https://sre.google/sre-book/launch-checklist/"]

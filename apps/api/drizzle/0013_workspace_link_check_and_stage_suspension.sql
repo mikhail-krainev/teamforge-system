@@ -1,0 +1,2 @@
+ALTER TABLE "workspace"."project_stage" ADD COLUMN "suspended_applied_seconds" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+CREATE INDEX "checklist_item_link_unchecked_idx" ON "workspace"."checklist_item" USING btree ("updated_at") WHERE "workspace"."checklist_item"."link_status" = 'unchecked';

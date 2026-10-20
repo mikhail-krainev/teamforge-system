@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { Clock } from '../../../../platform/clock/clock.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { ACTIVE_PROJECT_STATUSES } from '../domain/team-rules.js';
+import { settledSuspension } from '../domain/team-status.js';
 import { membership, seatAssignment, team } from '../schema/teams.js';
 
 export type TeamRow = typeof team.$inferSelect;
@@ -11,7 +13,10 @@ export type AssignmentRow = typeof seatAssignment.$inferSelect;
 /** Writes and single-team reads of `teams.team` / `teams.membership` (architecture 3.4). */
 @Injectable()
 export class TeamRepository {
-  constructor(@Inject(TxRunner) private readonly tx: TxRunner) {}
+  constructor(
+    @Inject(TxRunner) private readonly tx: TxRunner,
+    @Inject(Clock) private readonly clock: Clock,
+  ) {}
 
   async insertTeam(row: typeof team.$inferInsert): Promise<void> {
     await this.tx.tx.insert(team).values(row);
@@ -26,8 +31,27 @@ export class TeamRepository {
     return rows[0];
   }
 
+  /**
+   * Every status change goes through here, so the one place that ends a suspension also settles it
+   * (FR-WORK-18): the caller holds the team lock, so the row read here cannot change meanwhile.
+   */
   async update(teamId: string, set: Partial<typeof team.$inferInsert>): Promise<void> {
-    await this.tx.tx.update(team).set(set).where(eq(team.id, teamId));
+    const settled =
+      typeof set.status === 'string' ? await this.settleSuspension(teamId, set) : undefined;
+    await this.tx.tx
+      .update(team)
+      .set({ ...set, ...settled })
+      .where(eq(team.id, teamId));
+  }
+
+  private async settleSuspension(
+    teamId: string,
+    set: Partial<typeof team.$inferInsert>,
+  ): Promise<ReturnType<typeof settledSuspension>> {
+    const current = await this.find(teamId);
+    if (current === undefined || typeof set.status !== 'string') return undefined;
+    const at = set.updatedAt instanceof Date ? set.updatedAt : this.clock.now();
+    return settledSuspension(current, set.status, at);
   }
 
   /** Teams suspended for want of a lead (FR-TEAM-20) since `cutoff` or earlier, the oldest first. */

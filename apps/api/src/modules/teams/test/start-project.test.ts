@@ -62,13 +62,19 @@ describeInfra(
         expectReplayed(replay);
       });
 
-      it('FR-TEAM-10: the stub TeamLifecyclePort changes the status only (slice 3 opens no stages)', async () => {
+      it('FR-TEAM-10: workspace opens the route in the start transaction: one stage per playbook stage, at most one open', async () => {
         const t = await team(world);
         await world.as(t.lead).post(`/v1/teams/${t.id}/start`);
-        const rows = await world.sql<{ n: number }[]>`
-        SELECT count(*)::int AS n FROM information_schema.tables
-         WHERE table_schema = 'workspace' AND table_name = 'project_stage'`;
-        expect(rows[0]?.n ?? 0).toBe(0);
+        const rows = await world.sql<{ stages: number; open: number; expected: number }[]>`
+          SELECT (SELECT count(*)::int FROM workspace.project_stage WHERE team_id = ${t.id}) AS stages,
+                 (SELECT count(*)::int FROM workspace.project_stage
+                   WHERE team_id = ${t.id} AND status = 'open') AS open,
+                 (SELECT count(*)::int FROM playbooks.stage s
+                    JOIN teams.team tm ON tm.playbook_id = s.playbook_id
+                   WHERE tm.id = ${t.id}) AS expected`;
+        const counts = rows[0];
+        expect(counts?.stages).toBe(counts?.expected);
+        expect(counts?.open).toBe(counts?.expected === 0 ? 0 : 1);
       });
 
       it('FR-TEAM-10: a member who is not the lead -> 403 NOT_TEAM_LEAD; a stranger -> 404', async () => {

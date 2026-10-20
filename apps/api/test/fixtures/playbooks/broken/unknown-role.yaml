@@ -1,0 +1,48 @@
+product_type: web_service
+title: "Неизвестные роли"
+version: "9.6.0"
+total_days: 7
+stages:
+  - key: role_s1
+    title: "Этап 1"
+    goal: "Цель"
+    duration_days: 7
+    exit_criteria: "Критерий"
+    steps:
+      - key: role_board
+        title: "Доска"
+        description: "Ссылка на доску."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https"]
+        sources: ["https://kanbanguides.org/english/"]
+      - key: role_wizard
+        title: "Шаг волшебника"
+        description: "Шаг с неизвестной ролью."
+        type: artifact
+        submission: file
+        required: true
+        owner_role: wizard
+        alt_roles: ["sorcerer", "backend"]
+        fallback:
+          title: "Запасной"
+          instruction: "Заполнить шаблон."
+          template: tpl_charter
+        review_checklist: false
+        auto_checks: ["file_ok"]
+        sources: ["https://scrumguides.org/scrum-guide.html"]
+      - key: role_final_links
+        title: "Ссылка на релиз"
+        description: "Публичный URL релиза и репозиторий."
+        type: artifact
+        submission: link
+        required: true
+        owner_role: any
+        fallback: null
+        review_checklist: false
+        auto_checks: ["link_https", "release_alive_web", "repo_final"]
+        sources: ["https://sre.google/sre-book/launch-checklist/"]

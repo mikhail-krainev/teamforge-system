@@ -3,6 +3,7 @@ import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { PLAYBOOKS_API, type PlaybooksApi } from '../../../playbooks/public.js';
 import { PROFILES_API, type ProfilesApi } from '../../../profiles/public.js';
+import { extendedPlannedEnd } from '../domain/team-status.js';
 import { isInTrial } from '../domain/trial-rules.js';
 import { SeatRepository } from '../repositories/seat.repository.js';
 import { TeamRepository } from '../repositories/team.repository.js';
@@ -54,6 +55,7 @@ export class TeamViewService {
       playbookVersion: versions.get(row.playbookId) ?? '',
       seats: seatRows.map(toSeatDto),
       members,
+      plannedEndAt: extendedPlannedEnd(row, now),
     });
   }
 

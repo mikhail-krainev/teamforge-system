@@ -1,0 +1,37 @@
+{
+  "upload": "Загрузить файл",
+  "uploadHint": "PDF, PNG, JPG, WebP, MD, TXT, DOCX, PPTX или ZIP, от 1 КБ до 10 МБ.",
+  "files": "Файлы пункта",
+  "noFiles": "Файлов пока нет.",
+  "uploading": "Загружаем {name}: {percent}%",
+  "progress": "Загрузка файла",
+  "download": "Скачать {name}",
+  "downloadLoading": "Готовим ссылку на скачивание {name}…",
+  "downloadFailed": "Не удалось получить ссылку на {name}.",
+  "downloadRetry": "Повторить для {name}",
+  "sizeKb": "{value} КБ",
+  "sizeMb": "{value} МБ",
+  "remove": "Удалить файл {name}",
+  "removeConfirmOpen": "Удалить",
+  "removeAsk": "Удалить файл {name}? Это действие нельзя отменить.",
+  "removeConfirm": "Да, удалить",
+  "removeCancel": "Отмена",
+  "removing": "Удаляем…",
+  "closedItemNotice": "Пункт выполнен: чтобы менять файлы, снимите отметку «Выполнен».",
+  "client": {
+    "wrongType": "Этот тип файла не подходит. Допустимы PDF, PNG, JPG, WebP, MD, TXT, DOCX, PPTX и ZIP.",
+    "tooLarge": "Файл больше 10 МБ.",
+    "tooSmall": "Файл меньше 1 КБ."
+  },
+  "errors": {
+    "FILE_TYPE_REJECTED": "Тип файла не разрешён. Допустимы PDF, PNG, JPG, WebP, MD, TXT, DOCX, PPTX и ZIP; исполняемые файлы запрещены.",
+    "FILE_TOO_LARGE": "Файл больше 10 МБ.",
+    "FILE_TOO_SMALL": "Файл меньше 1 КБ.",
+    "PROJECT_STORAGE_LIMIT": "Достигнут лимит хранилища проекта: не больше 30 файлов и 50 МБ. Удалите ненужные файлы.",
+    "INVALID_STATE": "Файлы нельзя менять: пункт выполнен или этап закрыт.",
+    "RATE_LIMITED": "Файлы загружаются слишком часто. Подождите немного и повторите.",
+    "VERSION_CONFLICT": "Пункт изменился во время загрузки. Обновите страницу и повторите.",
+    "FORBIDDEN": "Удалить файл может только его автор или тимлид.",
+    "unknown": "Не удалось выполнить действие с файлом. Повторите попытку."
+  }
+}

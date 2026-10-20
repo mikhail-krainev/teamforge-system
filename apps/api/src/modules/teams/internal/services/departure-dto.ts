@@ -3,11 +3,12 @@ import type { DepartureRow } from '../repositories/departure.repository.js';
 
 export type DepartureDto = Schema<'Departure'>;
 
-/**
- * `unassignedItemIds` stays empty until workspace owns checklists (slice 5, FR-TEAM-13); the field
- * is part of the contract already.
- */
-export function toDepartureDto(row: DepartureRow, roles: Map<string, string>): DepartureDto {
+/** `unassignedItemIds` comes from workspace (FR-TEAM-13): the items the leaver carried, per member. */
+export function toDepartureDto(
+  row: DepartureRow,
+  roles: Map<string, string>,
+  unassigned: ReadonlyMap<string, string[]> = new Map(),
+): DepartureDto {
   return {
     id: row.id,
     userId: row.userId,
@@ -17,6 +18,6 @@ export function toDepartureDto(row: DepartureRow, roles: Map<string, string>): D
     decision: row.decision as DepartureDto['decision'],
     dueAt: row.dueAt.toISOString(),
     decidedAt: row.decidedAt?.toISOString() ?? null,
-    unassignedItemIds: [],
+    unassignedItemIds: unassigned.get(row.userId) ?? [],
   };
 }
