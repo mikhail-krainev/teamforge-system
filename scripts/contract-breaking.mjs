@@ -37,10 +37,19 @@ const docker = run(
     `${dir}:/base:ro`,
     '-v',
     `${path.join(root, 'docs/api')}:/head:ro`,
+    '-v',
+    `${path.join(root, 'scripts/oasdiff-severity.txt')}:/rules/severity.txt:ro`,
     OASDIFF_IMAGE,
     'breaking',
     '/base/base.yaml',
     '/head/openapi.yaml',
+    // allOf branches are merged before comparing, so flattening a schema is not a break.
+    '--flatten-allof',
+    // Only response-property-enum-value-added is lowered to WARN (owner decision 2026-10-21): ErrorCode
+    // and other response enums only grow, clients treat an unknown value as a generic case.
+    // Every other rule keeps its level. The file format has no comments.
+    '--severity-levels',
+    '/rules/severity.txt',
     '--fail-on',
     'ERR',
   ],
