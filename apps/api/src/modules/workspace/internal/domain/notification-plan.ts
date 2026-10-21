@@ -116,6 +116,28 @@ const planRepoUnlinked: Planner = async ({ id, payload: p }, teamId, audience) =
   return lead ? [draft(lead, 'repo_unlinked', `repo_unlinked:${id}`, { teamId, reason })] : [];
 };
 
+/**
+ * SEC-04: the batch of reviews of a project was published. One notification per subject, with the project
+ * only (never an author or a count); the text is here because the feed shows it as it is. A subject whose
+ * reviews were withheld gets no event, hence no notification.
+ */
+const planReviewsPublished: Planner = async ({ payload: p }, teamId) => {
+  const userId = str(p['userId']);
+  if (teamId === undefined || userId === undefined) return [];
+  const teamName = str(p['teamName']);
+  const text =
+    teamName === undefined
+      ? 'Получены отзывы по проекту'
+      : `Получены отзывы по проекту «${teamName}»`;
+  return [
+    draft(userId, 'reviews_published', `reviews_published:${teamId}`, {
+      teamId,
+      teamName: teamName ?? null,
+      text,
+    }),
+  ];
+};
+
 const PLANNERS: Record<string, Planner> = {
   'teams.offer_created': planOffer,
   'teams.invitation_accepted': planForLead('invitation_accepted'),
@@ -130,6 +152,7 @@ const PLANNERS: Record<string, Planner> = {
   'teams.vote_updated': planVote,
   'matching.auto_added': planAutoAdded,
   'github.repo_unlinked': planRepoUnlinked,
+  'profiles.reviews_published': planReviewsPublished,
 };
 
 /**

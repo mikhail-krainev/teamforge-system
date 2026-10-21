@@ -341,10 +341,10 @@ export interface CompletionSnapshot {               // immutable, captured in th
 export interface WorkspaceApi {
   getCompletion(teamId: TeamId): Promise<{ completedAt: Date; plannedEndAt: Date; overdueDays: number } | null>;
   getCompletionSnapshot(teamId: TeamId): Promise<CompletionSnapshot>;
-  getAntifraudFacts(teamId: TeamId): Promise<AntifraudFacts>;       // per-day contribution counts, stage close times, artifact hashes
+  getAntifraudFacts(teamId: TeamId): Promise<AntifraudFacts>;       // { stages: [{ordinal, plannedDays, openedAt, closedAt}], artifacts: [{name, sizeBytes, sha256, sameHashInOtherTeam}], releasePlaceholder }
   findTeamsWithArtifactHashes(hashes: string[], excludeTeamId: TeamId): Promise<TeamId[]>;
   /** Safety net for lost events (credit-run-scan, review-eligibility-scan): completions since a moment, keyset by (completedAt, teamId). */
-  listCompletedTeamsSince(since: Date, q: PageQuery): Promise<Page<{ teamId: TeamId; completedAt: Date }>>;
+  listCompletedTeamsSince(since: Date, page: { limit: number; after?: { completedAt: Date; teamId: TeamId } }): Promise<{ teamId: TeamId; completedAt: Date }[]>;
 }
 // + TeamLifecyclePort implementation (teams/public.ts) registered under token TEAM_LIFECYCLE_PORT
 ```
@@ -367,8 +367,9 @@ export interface GithubApi {
   /** Enqueues a check; result arrives as github.repo_checked {teamId, kind, checkId}. */
   requestRepositoryCheck(teamId: TeamId, kind: 'exists' | 'final', correlationId: string): Promise<void>;
   getLatestRepositoryCheck(teamId: TeamId, kind: 'exists' | 'final'): Promise<RepoFinalCheck | null>;
-  getAccountChecks(userIds: UserId[]): Promise<Map<UserId, { ok: boolean; checkedAt: Date }>>;   // FR-GH-09
-  getPullRequestStats(teamId: TeamId): Promise<{ changedLines: number; maxPrShare: number; crossReviewed: number; ciGreen: boolean | null }>;
+  getAccountChecks(userIds: UserId[]): Promise<Map<UserId, { eligibility: { status: 'eligible' | 'pending_account' | 'unknown'; reasons: string[] }; ageDays: number | null; hasPublicActivity: boolean | null }>>;   // FR-GH-09, AF-16; сохранённые проверки, без вызовов GitHub
+  getPullRequestStats(teamId: TeamId): Promise<{ changedLines: number; maxPrShare: number }>;     // AF-05: additions + deletions слитых PR
+  getRepositoryFacts(teamId: TeamId): Promise<{ repositoryId: number; createdAt: Date; heldByOtherProject: boolean; forkWithoutOwnCommits: boolean } | null>;   // AF-01, AF-03
   /** @requiresTx. Called in the completion transaction (AF-01). */
   markRepositoryCompleted(teamId: TeamId): Promise<void>;
 }
@@ -390,9 +391,11 @@ export interface RewardsApi {
 }
 ```
 
-Публикует: `rewards.credits_changed {userId, roleCodes, counters}`, `rewards.award_granted {userId, badgeCode, teamId}`, `rewards.award_revoked`, `rewards.case_opened`. Слушает: `workspace.project_completed` (создание `credit_run`, антифрод фазы "завершение"), `auth.user_deletion_requested` (удаление наград, счётчиков, кредитов пользователя).
+Публикует: `rewards.credits_changed {v, userId, roleCodes, counters, total}` (`counters` - `{ roleCode: число зачтённых проектов }` после изменения, роль, упавшая до нуля, остаётся со значением 0, потому что matching заменяет сохранённое число; `total` - общий счётчик; событие доставляется потребителям matching в той же транзакции через `InlineDelivery`, ретранслятор доставит его ещё раз, `inbox_event` пропустит), `rewards.award_granted {userId, badgeCode, teamId}`, `rewards.award_revoked {userId, badgeCode, teamId}`, `rewards.case_opened {teamId, caseId}`. Слушает: `workspace.project_completed` (создание `credit_run`, антифрод фазы "завершение"), `auth.user_deletion_requested` (удаление наград, счётчиков, кредитов пользователя).
 
 Модуль rewards не импортирует profiles и не получает событий об отзывах (FR-REW-13); правило `dependency-cruiser` `rewards-not-profiles` проверяет это в CI.
+
+Реализация среза 7 (S7-02..S7-06): код в `modules/rewards/internal/{schema,domain,repositories,services,admin,read,controllers,events,jobs,fraud}`; токен фасада `REWARDS_API` в `public.ts` (`getUserAwards`, `getCounters`, `getCreditStatus`; последний даёт `null` для проекта без `credit_run` и для не участника). Чтения (`listBadges`, `listUserAwards`, `getUserCounters`, `getTeamCredit`) идут обычными запросами по индексам без кэша: зачёт и отзыв должны быть видны сразу, а кэш витрины с инвалидацией по `credits_changed` / `award_revoked` не заведён (открытый вопрос, раздел 17). Таймер `rewards-cooling-end` (очередь `timers`) обрабатывается через реестр `TimerHandlers` (`platform/queues/maintenance-tasks.ts`): у очереди один рабочий (`TeamsTimersProcessor`), имена задач других модулей (`rewards-cooling-end`, `review-publish`) он берёт из реестра. Сканеры `credit-run-scan` (10 минут) и `pending-account-recheck` (сутки) - `MaintenanceTasks`. CLI `run-job rewards-cooling-end` и `run-job review-publish` (закрытый список `CLI_JOB_NAMES`) - обход всех проектов, у которых срок вышел (`credit_run_cooling_idx`, `review_eligibility.window_until`), тем же кодом, что и таймер. Для фактов антифрода добавлены методы фасадов нижних модулей (пакетные, без запроса на элемент): `AuthApi.getAccountFacts(userIds)` (время регистрации, GitHub id, совпадение с надгробием), `TeamsApi.getTeamBriefs(teamIds)` (название, описание, даты), `WorkspaceApi.getAntifraudFacts`, `findTeamsWithArtifactHashes`, `listCompletedTeamsSince`, `GithubApi.getAccountChecks`, `getPullRequestStats`, `getRepositoryFacts`; в снимок завершения добавлено необязательное поле `roster.seats[].desiredChangedAt` (AF-14; в записях до среза 7 его нет, правило тогда молчит). Профили: порт `COMPLETED_PROJECTS_PORT` (объявлен в `profiles/public.ts`, реализован в workspace) для сканера `review-eligibility-scan`; публикация отзывов пишет событие `profiles.reviews_published {teamId, userId}`, из которого workspace делает уведомление `reviews_published`.
 
 ---
 
@@ -1512,6 +1515,18 @@ COMMIT;
 
 Счётчики меняются только по факту вставки строки (`RETURNING`), поэтому повторный или параллельный запуск не даёт +2. Командный бонус и индивидуальные награды вставляются с `ON CONFLICT DO NOTHING` на уникальные индексы `award_*`.
 
+Уточнения реализации (срез 7):
+
+- Строка `credit` создаётся для каждой роли, по которой у человека есть вклад (FR-REW-02); у отказанного без вклада - для его ролей из снимка, со статусом `denied` и причиной, чтобы участник видел, почему (`reason` лежит в `project_credit`; коды `NO_CONTRIBUTION`, `TOO_FEW_STAGES`, `ACCOUNT_TOO_YOUNG`, `ACCOUNT_NO_PUBLIC_ACTIVITY`, `ACCOUNT_NOT_CHECKED`). Вышедший досрочно в снимке не состоит и строк не получает.
+- Этап засчитывается человеку, если он вступил до закрытия окна этапа и имеет вклад этого этапа или подтверждение тимлида; порог `ceil(60 % этапов)` считается в целых числах.
+- Флаг `deficit_at_join` берётся из записи места в teams (`TeamsApi.getRoster`) в момент зачёта, а не из копии в снимке: флаг пишется один раз при вступлении и никогда не пересчитывается, поэтому значение то же; запись teams главная.
+- Серии награждаются по `count(DISTINCT roster_hash)` зачтённых проектов, числу различных ролей в `credit` и типов продукта в `project_credit` после вставки строк; чтобы две одновременные транзакции одного человека видели друг друга, счётчики обновляются раньше выборки (строки счётчиков сортируются: один порядок блокировок). Недоступные ступени (`badge_def.available = false`) не выдаются.
+- Решение администратора `ok` зачитывает проект сразу, даже в охлаждении (10.4 ниже), если он ещё `cooling` или `frozen`; на уже зачтённом проекте не делает ничего. Данные снимка и проверки аккаунтов для `ok` читаются в той же транзакции до блокировки #11 (решение - операция с ключом идемпотентности, а вторая транзакция в запросе запрещена); блокировка берётся только после этих чтений.
+- Жалоба (`createDispute`): блокировка #11, затем проверка: проект `frozen` или `cooling` и `now < cooling_until`, иначе 409 `INVALID_STATE`; один человек - одна жалоба (`dispute_team_user_uq`); жалоба замораживает `cooling`-проект и присоединяется к открытому делу (одно открытое дело на команду).
+- Кабинет администратора показывает в `signals[].data` только числа, флаги, короткие коды и размеры списков; идентификаторы людей, адреса, хэши и тексты в ответ не попадают (SEC-13).
+- Удаление ПД (`rewards.user-deletion`): награды, счётчики, зачёты и жалобы человека удаляются, его идентификатор вычищается из `fraud_signal.data`; журнал `admin_audit` остаётся. Модуль `rewards` входит в `EXPECTED_DELETION_MODULES` саги.
+- Часы `FakeClock` в тестах общие для всех проектов мира: время, прошедшее при сборке проектов, переводит и чужие `pending_account` в готовые к зачёту.
+
 ### 10.3 Правила наград (FR-REW-04..10)
 
 | Награда | Правило в транзакции зачёта |
@@ -1533,6 +1548,8 @@ COMMIT;
 ### 10.5 Антифрод (spec 8)
 
 Данные для правил мультиаккаунтов (SEC-13): AF-17, AF-19, AF-21 сравнивают `AuthApi.getIdentitySignals(members, since)` (HMAC подсети /24, User-Agent, cookie устройства из `auth.identity_signal`) между участниками команды и с участниками других команд; AF-15 использует `AuthApi.matchesTombstone` (совпадение GitHub id или email с удалённой учёткой - сигнал). Сырые IP и User-Agent нигде не хранятся.
+
+Правило AF-18 (одинаковые тексты профиля) подключено к фактам пустым: отпечатки текста лежат в profiles (`profile.text_fingerprint`), а `rewards` не имеет права обращаться к profiles (FR-REW-13, `rewards-not-profiles`); правило покрыто модульным тестом и ждёт порта, объявленного в rewards и реализованного адаптером вне модулей (раздел 17). Правило AF-19 срабатывает на любом проекте тестового мира (учётные записи создаются за секунды), поэтому сценарии AF-22 в `fraud-signals.test.ts` берут общую подсеть двух участников (+1) вместе с AF-19 (+1).
 
 AF-22 (не более 1 зачтённого проекта за 14 дней при сумме сигналов >= 2) реализуется как флаг фазы `cooling_end`: проект уходит в ручную проверку, а не получает автоматический отказ (раздел 16, Р-13).
 
@@ -2159,6 +2176,7 @@ CI: (а) скрипт проверяет, что у каждой операци�
 9. Изоляция разбора резюме (13.15) проверяется прототипом в срезе "профиль": запуск дочернего процесса под другим uid в контейнере с `cap_add: [SETUID, SETGID]`, флаг `--disallow-code-generation-from-strings` совместим с unpdf/PDF.js (при `isEvalSupported: false` PDF.js не использует `new Function`); если нет - запасной вариант: дочерний процесс под тем же uid, а секрет `redis-resume` передаётся родителю через файловый дескриптор и не остаётся ни в ФС, ни в окружении. Отдельный контейнер на каждый файл не применяется: он требует доступа процесса к Docker API (равносильно root на хосте). **Результат прототипа (S2-10):** запасной вариант не понадобился, но схема изменена: родитель работает как root только с `SETUID`/`SETGID` (непривилегированный родитель не может сменить uid в Docker), `--frozen-intrinsics` не используется (см. 13.15).
 10. На машине нет Node.js и Docker: `redocly lint` и генерация типов будут выполнены в срезе "каркас"; на ревью фазы 3 `openapi.yaml` дополнительно разобран PyYAML 6.0.3; после исправлений по аудиту безопасности - повторно (OpenAPI 3.1.0, 99 путей, 114 операций, 130 схем, все `$ref` разрешаются, у каждой операции есть `x-authz`, идентификаторы `chain` совпадают с параметрами пути).
 11. `oasdiff` для проверки обратной совместимости контракта - Go-бинарник, в CI запускается из официального Docker-образа.
+12. Срез 7: кэш витрины наград (`listUserAwards`, `getUserCounters`) не заведён; AF-18 ждёт порта отпечатков текста между profiles и rewards (адаптер вне модулей, чтобы не нарушить FR-REW-13); метрика `credit_run_missing_total` не заведена; сканеры повторно не ставят потерянный таймер `rewards-cooling-end` (обход по сроку - CLI `run-job rewards-cooling-end`).
 
 Проверка контракта на этой фазе: `docs/api/openapi.yaml` сгенерирован из структурированного описания и разобран независимым парсером подмножества YAML (обратное сравнение со структурой-источником совпало); проверены: разрешение всех `$ref`, уникальность `operationId`, совпадение параметров пути с шаблоном, наличие `Idempotency-Key` у изменяющих операций (кроме исключений Р-11), курсор у списочных ответов, `required` только из `properties`, отсутствие неиспользуемых схем, отсутствие эндпоинтов рейтинга (FR-REW-14). Первоначально PyYAML на машине не было, поэтому стандартным парсером файл был проверен позже, на ревью.
 

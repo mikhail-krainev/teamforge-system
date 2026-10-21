@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { UserFixture } from '../../../../test/fixtures/index.js';
 import {
   awardNames,
@@ -106,6 +106,8 @@ describeInfra('S7 rewards: a late project (FR-REW-07, FR-REW-08)', ['db', 'redis
   beforeAll(async () => {
     rw = await startRewardsWorld();
     project = await completedProject(rw.world, { daysBeforeFinish: 40 });
+    // the joining of the fixture records deficit_at_join = true (one open seat, nobody queued); this scenario is about delay
+    await plantDeficit(rw.world, project.fx.team.id, project.frontend, false);
     await plantHistory(rw.world, project.backend, [
       { roles: ['backend'], completedDaysAgo: 300, overdueDays: 0 },
       { roles: ['backend'], completedDaysAgo: 200, overdueDays: 0 },

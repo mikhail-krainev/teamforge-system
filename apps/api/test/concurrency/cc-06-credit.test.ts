@@ -197,7 +197,15 @@ describeInfra(
       await endCooling(project, { plant: false });
       await waitCreditRun(rw.world, project.fx.team.id, 'credited');
       expect(await counterValue(rw.world, project.frontend.id)).toBe(0);
-      const eventsBefore = await rewardsOutbox(rw.world, 'credits_changed');
+      // The events of THIS person: the recheck credits every pending member of the world, and the pending member
+      // of the earlier test grows old enough through the shared fake clock while this project is built.
+      const eventsOf = async (): Promise<number> =>
+        (
+          await rw.world.sql<{ n: number }[]>`
+            SELECT count(*)::int AS n FROM platform.outbox_event
+             WHERE module = 'rewards' AND type = 'credits_changed' AND aggregate_id = ${project.frontend.id}`
+        )[0]?.n ?? 0;
+      const eventsBefore = await eventsOf();
       await plantAccounts(rw.world, [project.frontend]);
       const outcomes: JobOutcome[] = await withWorkers(() => runPendingRecheck(rw.world, N));
       expect(outcomes).toHaveLength(N);
@@ -209,7 +217,7 @@ describeInfra(
           (r) => r.user_id === project.frontend.id,
         )?.status,
       ).toBe('credited');
-      expect(await rewardsOutbox(rw.world, 'credits_changed')).toBe(eventsBefore + 1);
+      expect(await eventsOf()).toBe(eventsBefore + 1);
     }, 300_000);
   },
 );

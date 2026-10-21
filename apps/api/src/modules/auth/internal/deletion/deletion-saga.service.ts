@@ -31,10 +31,14 @@ const TOMBSTONE_MS = 180 * 24 * 3_600_000;
 
 /**
  * Modules whose step must be reported before auth erases the account itself (architecture 13.9).
- * Slices 2 and 4 know `profiles` and `matching`; teams, workspace, github and rewards add
+ * Slices 2, 4 and 7 know `profiles`, `matching` and `rewards`; teams, workspace and github add
  * themselves in their slices (and subscribe to the same event).
  */
-export const EXPECTED_DELETION_MODULES: readonly DeletionModule[] = ['profiles', 'matching'];
+export const EXPECTED_DELETION_MODULES: readonly DeletionModule[] = [
+  'profiles',
+  'matching',
+  'rewards',
+];
 
 interface UserSnapshot {
   email: string | null;

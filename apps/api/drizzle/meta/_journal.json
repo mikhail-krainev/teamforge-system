@@ -134,6 +134,13 @@
       "when": 1792440251174,
       "tag": "0018_release_key_canonical_host",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792609293663,
+      "tag": "0019_slice7_rewards_reviews",
+      "breakpoints": true
     }
   ]
 }

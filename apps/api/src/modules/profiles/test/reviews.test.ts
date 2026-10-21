@@ -247,8 +247,11 @@ describeInfra('S7 profiles: peer reviews, SEC-04 (FR-PROF-08)', ['db', 'redis', 
     });
 
     it('SEC-04: neither the text nor the subject of a review is written to the application log', async () => {
+      // The request line names the caller (`user_id`: the author of the request); the subject comes in the body only.
+      const withoutCaller = (l: string): string => l.replace(/"user_id":"[^"]*",?/, '');
       const lines = rw.world.logs.filter(
-        (l) => l.includes(MARKER) || (l.includes('/reviews') && l.includes(backend().id)),
+        (l) =>
+          l.includes(MARKER) || (l.includes('/reviews') && withoutCaller(l).includes(backend().id)),
       );
       expect(lines).toEqual([]);
     });

@@ -274,3 +274,14 @@ HIGH и основные MEDIUM исправлены в `feat/playbooks`. Ост
 - LOW аудита: `state` в `idempotency_key.response_body`; 5 МиБ буферизуются до проверки подписи без общего потолка; авторство коммитов (FR-GH-08) подделываемо; client id/secret App вне fail-fast; user-токен не отзывается после использования.
 - Среда: `env:init` не дополняет старый `.env` заглушками GitHub App, api не стартует без `GITHUB_APP_*`.
 - Тесты: редкий флейк `installation.test.ts` ("not the lead gets 403", счёт `gh_state:*` в общем Redis) и `edge-sync` "429 Retry-After 0" в частичных прогонах.
+
+## Фаза 6, срез 7 (награды, антифрод, отзывы)
+
+- MEDIUM: кэш витрины наград (S7-06) не заведён: `listUserAwards` и `getUserCounters` читают индексы напрямую. Если нагрузочная проверка CC-6 покажет нагрузку на профиль, добавить кэш Redis с ключом по пользователю и сбросом по `rewards.credits_changed` и `award_revoked`.
+- MEDIUM: AF-18 (одинаковые тексты) и часть AF-21 (общий текст) не работают на реальных данных: `rewards` не читает profiles (FR-REW-13). Нужен порт отпечатков в `rewards/public.ts` и адаптер вне `modules/`.
+- MEDIUM: AF-19 срабатывает на любой тестовой команде (регистрации и вступления за секунды); пересмотреть порог по реальным данным (C-61 и сумма сигналов), для разработки и e2e это шум.
+- MEDIUM: сканеры не ставят потерянный таймер `rewards-cooling-end` повторно: проект с вышедшим сроком зачитывает только CLI `run-job rewards-cooling-end`. Добавить обход по `credit_run_cooling_idx` с запасом по времени в `credit-run-scan`.
+- LOW: метрика `credit_run_missing_total` и событие `rewards.case_opened` без подписчика (уведомление администратору не создаётся).
+- LOW: уведомление "получены отзывы" (`reviews_published`) требует ключа в `apps/web` `notifications.json`; текст сейчас на русском в `payload.text`.
+- LOW: `team-participant` для `getTeamCredit` и `createDispute` пускает и вышедших до завершения (они есть в `departedUserIds` снимка): они видят статус проекта, но не награды.
+- LOW: сценарий `fraud-signals.test.ts` (AF-22) и `cc-06-credit.test.ts` (рассчитаны на общие часы мира) поправлены под шум AF-19 и чужой `pending_account`; при смене фикстур проверить заново.

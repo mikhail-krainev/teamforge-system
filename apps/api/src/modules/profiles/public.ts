@@ -55,3 +55,29 @@ export interface ProfilesApi {
 
 /** Injection token of the ProfilesApi implementation. */
 export const PROFILES_API = Symbol('PROFILES_API');
+
+/** Outbox event of the publication of a batch of reviews: one per subject, `{ teamId, teamName, userId }` (no author data). */
+export const REVIEWS_PUBLISHED = 'reviews_published' as const;
+
+/** A completed project as the review window needs it (FR-PROF-08, C-27). */
+export interface CompletedProject {
+  teamId: string;
+  teamName: string;
+  completedAt: Date;
+  /** The participants of the record of the completion. */
+  memberUserIds: string[];
+}
+
+/**
+ * Port of the safety-net scanner `review-eligibility-scan`: profiles may not import workspace (architecture
+ * 2.2), so workspace implements it and binds `COMPLETED_PROJECTS_PORT`. Completions dated `since` or later,
+ * oldest first, keyset by `(completedAt, teamId)`; `after` is the last row of the previous page.
+ */
+export interface CompletedProjectsPort {
+  listCompletedSince(
+    since: Date,
+    page: { limit: number; after?: { completedAt: Date; teamId: string } },
+  ): Promise<CompletedProject[]>;
+}
+
+export const COMPLETED_PROJECTS_PORT = Symbol('COMPLETED_PROJECTS_PORT');

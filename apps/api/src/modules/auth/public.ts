@@ -25,6 +25,15 @@ export interface IdentitySignal {
   valueHmac: string;
 }
 
+/** What the anti-fraud rules (AF-15, AF-19, AF-16) read about an account; no address, no name (SEC-13). */
+export interface AccountFacts {
+  userId: UserId;
+  githubUserId: number | null;
+  registeredAt: Date;
+  /** The GitHub id or the e-mail of the account matches a tombstone of a deleted one. */
+  tombstoneMatch: boolean;
+}
+
 /**
  * Facade of the auth module (architecture 3.1). `reportDeletionStep` and `matchesTombstone` join
  * it with the deletion saga (S2-07).
@@ -69,6 +78,11 @@ export interface AuthApi {
     module: DeletionModule,
     counts: Record<string, number>,
   ): Promise<void>;
+  /**
+   * AF-15, AF-16, AF-19 in one batch: registration time, GitHub id and the tombstone match of each existing
+   * account (a missing account is absent from the result). Three statements however many users.
+   */
+  getAccountFacts(userIds: UserId[]): Promise<Map<UserId, AccountFacts>>;
   /** SEC-13: true when the github_user_id or e-mail of the user matches a tombstone of a deleted account (AF-15). */
   matchesTombstone(userId: UserId): Promise<boolean>;
 }

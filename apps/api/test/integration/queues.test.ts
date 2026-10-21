@@ -93,9 +93,10 @@ describeInfra(
         const left = await db.sql`SELECT count(*)::int AS n FROM platform.idempotency_key`;
         expect(left[0]?.n).toBe(0);
         const schedulers = await queues.getQueue('maintenance').getJobSchedulers();
-        // the platform's own tasks plus the ones modules register (slice 2: deletion, resume scan, orphan objects; slice 3: teams; slice 4: matching; slice 5: stage deadlines, link check sweep; slice 6: webhook sweeper and cleanup, daily sync, check of completion)
+        // the platform's own tasks plus the ones modules register (slice 2: deletion, resume scan, orphan objects; slice 3: teams; slice 4: matching; slice 5: stage deadlines, link check sweep; slice 6: webhook sweeper and cleanup, daily sync, check of completion; slice 7: credit scan and recheck, reviews)
         expect(schedulers.map((s) => s.key).sort()).toEqual([
           'completion-check-sweep',
+          'credit-run-scan',
           'deletion-scheduler',
           'github-sync',
           'github-sync-resume',
@@ -107,7 +108,11 @@ describeInfra(
           'orphan-artifact-objects',
           'orphan-objects',
           'outbox-cleanup',
+          'pending-account-recheck',
           'resume-stuck-scan',
+          'review-eligibility-scan',
+          'review-publish-sweep',
+          'review-purge',
           'stage-due-notify',
           'vote-deadline-scan',
           'webhook-cleanup',

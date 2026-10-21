@@ -3,14 +3,18 @@ import { Clock } from '../../../../platform/clock/clock.js';
 import { InvariantError } from '../../../../platform/errors/domain-error.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
+  AccountCheckView,
   AccountEligibility,
   GithubApi,
   GithubContributionSource,
+  PullRequestStats,
   RepoExistsResult,
   RepoFinalResult,
   RepoLinkView,
+  RepositoryFacts,
 } from '../../public.js';
 import { ItemRepository } from '../webhook/item.repository.js';
+import { AntifraudFactsService } from './antifraud-facts.service.js';
 import { RepoChecksService } from './repo-checks.service.js';
 import { RepoLinkRepository } from './repo-link.repository.js';
 
@@ -25,6 +29,7 @@ export class GithubFacade implements GithubApi {
     @Inject(RepoLinkRepository) private readonly links: RepoLinkRepository,
     @Inject(RepoChecksService) private readonly checks: RepoChecksService,
     @Inject(ItemRepository) private readonly items: ItemRepository,
+    @Inject(AntifraudFactsService) private readonly antifraud: AntifraudFactsService,
   ) {}
 
   async getRepoLink(teamId: string): Promise<RepoLinkView | null> {
@@ -63,6 +68,18 @@ export class GithubFacade implements GithubApi {
 
   getAccountEligibility(userId: string): Promise<AccountEligibility> {
     return this.checks.accountEligibility(userId);
+  }
+
+  getAccountChecks(userIds: string[]): Promise<Map<string, AccountCheckView>> {
+    return this.antifraud.accountChecks(userIds);
+  }
+
+  getPullRequestStats(teamId: string): Promise<PullRequestStats> {
+    return this.antifraud.pullRequestStats(teamId);
+  }
+
+  getRepositoryFacts(teamId: string): Promise<RepositoryFacts | null> {
+    return this.antifraud.repositoryFacts(teamId);
   }
 
   async isContributionSourceStanding(

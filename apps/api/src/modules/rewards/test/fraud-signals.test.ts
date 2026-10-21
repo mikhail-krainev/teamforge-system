@@ -136,8 +136,10 @@ describeInfra(
       );
     }, 300_000);
 
+    // The accounts of the fixture register and join within seconds, so AF-19 gives +1 to every project: a shared
+    // subnet of two members (+1) makes the score of 2 these two scenarios need (three members would give 2 + 1 = 3).
     it('AF-22, Р-13: with a score of 2 and a second credited project of the same person within 14 days the end of the cooling opens a case instead of crediting', async () => {
-      const project = await sharedProject(['ip24'], (p) => [p.lead, p.backend, p.frontend]);
+      const project = await sharedProject(['ip24'], (p) => [p.backend, p.frontend]);
       expect((await creditRunRow(rw.world, project.fx.team.id))?.status).toBe('cooling');
       await plantHistory(rw.world, project.backend, [{ roles: ['backend'], completedDaysAgo: 3 }]);
       await endCooling(project);
@@ -154,7 +156,7 @@ describeInfra(
     }, 400_000);
 
     it('AF-22: a score of 2 and no other credited project of the people in 14 days -> the credit goes through', async () => {
-      const project = await sharedProject(['ip24'], (p) => [p.lead, p.backend, p.frontend]);
+      const project = await sharedProject(['ip24'], (p) => [p.backend, p.frontend]);
       await endCooling(project);
       expect((await creditRunRow(rw.world, project.fx.team.id))?.status).toBe('credited');
       expect(await signalOf(project, 'AF-22')).toBeUndefined();

@@ -62,6 +62,14 @@ const config = {
       from: { path: `${SRC}platform/` },
       to: { path: MODULES_DIR },
     },
+    {
+      name: 'received-reviews-no-authorship',
+      severity: 'error',
+      comment:
+        'The code that shows reviews to a subject must not reach the authorship of a review (SEC-04, architecture 5.3).',
+      from: { path: `${MODULES_DIR}profiles/internal/reviews/received-reviews[.]query[.]ts$` },
+      to: { path: `${MODULES_DIR}profiles/internal/reviews/review-authorship[.]repository[.]ts$` },
+    },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },

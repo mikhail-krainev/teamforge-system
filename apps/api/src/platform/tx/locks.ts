@@ -16,6 +16,8 @@ export interface LockTarget {
   schema: string;
   table: string;
   mode: LockMode;
+  /** The column that holds the key, default `id` (`rewards.credit_run` is keyed by `team_id`). */
+  keyColumn?: string;
 }
 
 /** Global lock order (architecture 12.1). A transaction may skip levels, never go back. */
@@ -37,7 +39,13 @@ export const LOCK_TARGETS = {
   leaderVote: { level: 7, schema: 'teams', table: 'leader_vote', mode: 'FOR UPDATE' },
   projectStage: { level: 8, schema: 'workspace', table: 'project_stage', mode: 'FOR UPDATE' },
   repoLink: { level: 10, schema: 'github', table: 'repo_link', mode: 'FOR UPDATE' },
-  creditRun: { level: 11, schema: 'rewards', table: 'credit_run', mode: 'FOR UPDATE' },
+  creditRun: {
+    level: 11,
+    schema: 'rewards',
+    table: 'credit_run',
+    mode: 'FOR UPDATE',
+    keyColumn: 'team_id',
+  },
 } as const satisfies Record<string, LockTarget>;
 
 /** Level 9 (workspace.checklist_item) is never locked: it uses a conditional UPDATE by version. */
@@ -152,12 +160,13 @@ export class LockService {
     this.checkOrder(target);
     const sorted = [...new Set(ids)].sort();
     if (sorted.length === 0) return [];
+    const keyColumn = target.keyColumn ?? 'id';
     const idList = sql.join(
       sorted.map((id) => sql`${id}::uuid`),
       sql`, `,
     );
     const query: SQL = sql`SELECT * FROM ${sql.identifier(target.schema)}.${sql.identifier(target.table)}
-      WHERE id IN (${idList}) ORDER BY id ${sql.raw(target.mode)}`;
+      WHERE ${sql.identifier(keyColumn)} IN (${idList}) ORDER BY ${sql.identifier(keyColumn)} ${sql.raw(target.mode)}`;
     const rows = await this.host.tx.execute(query);
     return [...rows] as T[];
   }

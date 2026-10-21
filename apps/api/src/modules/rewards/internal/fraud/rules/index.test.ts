@@ -26,8 +26,11 @@ const signal = (action: Signal['action'], score: number, ruleCode = 'AF-99'): Si
 function twoPoints(phase: FraudFacts['phase']): FraudFacts {
   const facts = cleanFacts({ phase, desiredMarks: [{ roleCode: 'backend', changedAt: at(2) }] });
   const base = facts.stages[0]?.openedAt ?? facts.now;
+  // Every stage opens with the first one (a parallel route), so closing three of them within an hour does not
+  // also close a stage faster than 24 hours after its opening (AF-10), which would be a block, not two points.
   facts.stages = facts.stages.map((s, i) => ({
     ...s,
+    openedAt: base,
     closedAt: new Date(base.getTime() + 20 * 24 * 3_600_000 + i * 10 * MINUTE_MS),
   }));
   facts.members = facts.members.map((m) =>

@@ -10,10 +10,18 @@ import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
 import type { CompletionSnapshot } from '../domain/completion-snapshot.js';
 import { CompletionRepository } from '../repositories/completion.repository.js';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The policy runs before the validation of the path, so a malformed id is refused here (400), not by the database (500). */
 function teamIdOf(ctx: ActorContext): string {
   const params = (ctx.request.params ?? {}) as Record<string, string | undefined>;
   const teamId = params['teamId'];
   if (teamId === undefined) throw new DomainError('NOT_FOUND', 404);
+  if (!UUID.test(teamId)) {
+    throw new DomainError('VALIDATION_FAILED', 400, {
+      errors: [{ pointer: '/teamId', code: 'format', message: 'Must be a UUID' }],
+    });
+  }
   return teamId;
 }
 

@@ -43,8 +43,10 @@ describeInfra(
 
     beforeAll(async () => {
       rw = await startReviewWorld();
-      a = await reviewProject(rw);
+      // Building a project moves the shared clock by more than the window of C-27 (17 days): B is built
+      // first, so that the window of A, which the tests write into, is still open.
       b = await reviewProject(rw);
+      a = await reviewProject(rw);
       unfinished = await routeTeam(rw.world);
       stranger = await githubUser(rw.world, 'idor7r-stranger');
     }, 600_000);

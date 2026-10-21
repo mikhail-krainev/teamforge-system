@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gt, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { contribution } from '../schema/contribution.js';
 import { completionCheck, projectCompletion } from '../schema/completion.js';
@@ -268,6 +268,27 @@ export class CompletionRepository {
       .from(projectCompletion)
       .where(eq(projectCompletion.teamId, teamId));
     return row;
+  }
+
+  /**
+   * Completions dated `since` or later, oldest first, keyset by `(completed_at, team_id)` on
+   * `project_completion_completed_idx` (the safety-net scanners of rewards and profiles).
+   */
+  completedSince(
+    since: Date,
+    after: { completedAt: Date; teamId: string } | undefined,
+    limit: number,
+  ): Promise<{ teamId: string; completedAt: Date }[]> {
+    const keyset =
+      after === undefined
+        ? undefined
+        : sql`(${projectCompletion.completedAt}, ${projectCompletion.teamId}) > (${after.completedAt.toISOString()}::timestamptz, ${after.teamId}::uuid)`;
+    return this.tx.tx
+      .select({ teamId: projectCompletion.teamId, completedAt: projectCompletion.completedAt })
+      .from(projectCompletion)
+      .where(and(gte(projectCompletion.completedAt, since), keyset))
+      .orderBy(asc(projectCompletion.completedAt), asc(projectCompletion.teamId))
+      .limit(limit);
   }
 
   /**

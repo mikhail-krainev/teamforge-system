@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { UserFixture } from '../../../../test/fixtures/index.js';
 import {
   buildProject,
