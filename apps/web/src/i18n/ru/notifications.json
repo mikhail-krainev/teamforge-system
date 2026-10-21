@@ -33,6 +33,7 @@
     "member_joined_actor": "В команду вступил участник {name}",
     "member_left_actor": "Участник {name} покинул команду",
     "lead_changed_actor": "Новый тимлид команды: {name}",
-    "team_started": "Команда начала работу над проектом"
+    "team_started": "Команда начала работу над проектом",
+    "reviews_published": "Получены отзывы по проекту"
   }
 }

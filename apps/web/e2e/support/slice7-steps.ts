@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from './axe';
+import { ROLE } from './slice4-ui';
 import { world as routeWorld } from './slice5-world';
 import { teamId } from './slice6-world';
 import { awardsUi, BADGES, creditUi, ROUTES } from './slice7-ui';
@@ -121,7 +122,7 @@ async function expectAwardsBlock(page: Page, url: string, backendCount?: number)
   );
   if (backendCount !== undefined) {
     await expect(awardsUi.counters(page)).toContainText(
-      awardsUi.counterText('Backend', backendCount),
+      awardsUi.counterText(ROLE.backend.label, backendCount),
     );
   }
   await expect(awardsUi.catalogItem(page, BADGES.collector)).toContainText(awardsUi.unavailable);

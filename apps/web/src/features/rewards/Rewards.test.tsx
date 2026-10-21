@@ -8,7 +8,7 @@ import { API, renderWithClient } from '@/test/support';
 import { TEAM_ID } from '@/features/teams/fixtures';
 import { AwardsBlock } from './AwardsBlock';
 import { CreditPage } from './CreditPage';
-import { formatCountdown, shortRoleName } from './model';
+import { formatCountdown } from './model';
 
 vi.mock('@/lib/api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api/client')>();
@@ -72,7 +72,7 @@ describe('FR-REW-05, FR-PROF-06: the awards block', () => {
     expect(within(badges).getByText('Ступень 1')).toBeTruthy();
     const counters = within(region).getByRole('region', { name: /счётчики/i });
     expect(counters.textContent).toMatch(/Зачтённых проектов: 1/);
-    expect(counters.textContent).toMatch(/Backend: 1/);
+    expect(counters.textContent).toMatch(/Backend-разработчик: 1/);
     const catalog = within(region).getByRole('region', { name: 'Каталог значков' });
     const closed = within(catalog)
       .getAllByRole('listitem')
@@ -90,11 +90,6 @@ describe('FR-REW-05, FR-PROF-06: the awards block', () => {
 });
 
 describe('model', () => {
-  it('shortens a role name that starts with a Latin word and a hyphen', () => {
-    expect(shortRoleName('Backend-разработчик')).toBe('Backend');
-    expect(shortRoleName('Менеджер проекта')).toBe('Менеджер проекта');
-  });
-
   it('counts the cooling down to the minute and stops at zero', () => {
     const now = new Date('2026-01-01T00:00:00Z');
     const until = new Date(now.getTime() + 6 * DAY_MS + 23 * 3_600_000 + 59 * 60_000).toISOString();

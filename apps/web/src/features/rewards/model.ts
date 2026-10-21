@@ -10,12 +10,6 @@ const DAY_MS = 24 * HOUR_MS;
 const MIN_DISPUTE_LENGTH = 20;
 export const MAX_DISPUTE_LENGTH = 4000;
 
-/** "Backend-разработчик" -> "Backend": a Latin head before a hyphen is the compact label. */
-export function shortRoleName(name: string): string {
-  const match = /^([A-Za-z][A-Za-z0-9.+#]*)-/.exec(name);
-  return match?.[1] ?? name;
-}
-
 /** "6 д 23 ч 59 мин"; `null` once the moment has passed. */
 export function formatCountdown(untilIso: string, now: Date): string | null {
   const left = Date.parse(untilIso) - now.getTime();

@@ -1,6 +1,6 @@
 import { t } from '@/i18n';
 import type { Award, Badge, Counters } from './api';
-import { shortRoleName, stepLabel } from './model';
+import { stepLabel } from './model';
 
 export function BadgeList({ awards }: { awards: readonly Award[] }) {
   return (
@@ -33,7 +33,7 @@ export function CounterList({
         {counters.byRole.map((row) => (
           <li key={row.roleCode}>
             {t('rewards.awards.counters.byRole', {
-              role: shortRoleName(roleName(row.roleCode)),
+              role: roleName(row.roleCode),
               value: row.value,
             })}
           </li>
