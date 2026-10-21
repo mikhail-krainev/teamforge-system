@@ -76,6 +76,15 @@ describe('log serializers (SEC-07)', () => {
         '*.text',
         '*.extractedText',
         '*.outcome',
+        'req.query.state',
+        'req.query.code',
+        'query.state',
+        'query.code',
+        '*.oauthState',
+        '*.oauthCode',
+        '*.userToken',
+        '*.installationToken',
+        '*.privateKey',
       ]),
     );
   });

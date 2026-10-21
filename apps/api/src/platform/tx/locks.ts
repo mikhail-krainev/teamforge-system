@@ -119,6 +119,23 @@ export class LockService {
     return this.lockOne<T>(LOCK_TARGETS.creditRun, id);
   }
 
+  /**
+   * Level 4, after the row of the team: the completions of projects with the same release address
+   * (AF-02) wait for each other, so the second one sees the first one's committed completion. A
+   * transaction-scoped advisory lock (PgBouncer-safe) on the hash of the normalized address; it is
+   * released at the end of the transaction. The only lock taken after it is on rows of its own team.
+   */
+  async lockReleaseAddress(releaseKey: string): Promise<void> {
+    if (!this.host.isTransactionActive()) {
+      throw new InvariantError('Advisory lock on a release address outside a transaction');
+    }
+    assertAttemptAlive(this.cls);
+    this.checkOrder({ level: 4, schema: 'teams', table: 'release_address', mode: 'FOR UPDATE' });
+    await this.host.tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${releaseKey}, 0))`,
+    );
+  }
+
   /** Generic entry used by the typed helpers. */
   async lockOne<T extends Row>(target: LockTarget, id: string): Promise<T | undefined> {
     const rows = await this.lockMany<T>(target, [id]);

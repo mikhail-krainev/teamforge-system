@@ -1534,7 +1534,7 @@ export interface paths {
         put?: never;
         /**
          * Запустить проверку готовности к завершению (тимлид)
-         * @description Асинхронно: repo_final, повторные проверки ссылок и релиза. Результат действителен 1 ч.
+         * @description Асинхронно: repo_final, повторные проверки ссылок и релиза. Результат действителен 1 ч. Одна проверка за раз: пока предыдущая queued/running (и не старше 30 мин) - 409 INVALID_STATE; не чаще 30 запросов в час на команду (429 RATE_LIMITED).
          */
         post: operations["requestCompletionCheck"];
         delete?: never;
@@ -2905,6 +2905,31 @@ export interface components {
                 status: "cooling" | "frozen" | "credited" | "revoked";
                 /** Format: date-time */
                 coolingUntil: string;
+            };
+            /** @description Итоги из неизменяемого снимка завершения (FR-WORK-13, FR-WORK-17): состав с ролями и дефицитом при вступлении, вклад по ролям (метки зафиксированы), этапы, просрочка. */
+            snapshot?: {
+                members: {
+                    /** Format: uuid */
+                    userId: string;
+                    isLead: boolean;
+                    roles: {
+                        roleCode: string;
+                        deficitAtJoin: boolean;
+                    }[];
+                }[];
+                contributionByRole: {
+                    roleCode: string;
+                    count: number;
+                }[];
+                stages: {
+                    ordinal: number;
+                    stageKey: string;
+                    /** Format: date-time */
+                    openedAt: string | null;
+                    /** Format: date-time */
+                    closedAt: string | null;
+                }[];
+                overdueDays: number;
             };
         };
         Notification: {

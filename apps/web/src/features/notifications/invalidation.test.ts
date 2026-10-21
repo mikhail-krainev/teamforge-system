@@ -54,6 +54,18 @@ describe('keysFor', () => {
     expect(keys).not.toContainEqual(['workspace', ID]);
   });
 
+  it('contribution.recorded re-reads the feed and the contribution summary of the team (S6-10)', () => {
+    const keys = keysFor({ type: 'contribution.recorded', channel: `team:${ID}` });
+    expect(keys).toContainEqual(['feed', ID]);
+  });
+
+  it('project.completed re-reads the team, the feed and the results of the project (S6-11)', () => {
+    const keys = keysFor({ type: 'project.completed', channel: `team:${ID}` });
+    expect(keys).toContainEqual(teamKey(ID));
+    expect(keys).toContainEqual(['feed', ID]);
+    expect(keys).toContainEqual(['workspace', ID]);
+  });
+
   it('session.revoked re-reads the current user', () => {
     expect(keysFor({ type: 'session.revoked', channel: `user:${ID}` })).toEqual([ME_QUERY_KEY]);
   });

@@ -25,7 +25,11 @@ export const RATE_LIMITS = {
   apiWrite: { limit: 60, windowMs: MINUTE },
   linkCheckTeam: { limit: 30, windowMs: HOUR },
   linkCheckUser: { limit: 30, windowMs: HOUR },
+  /** requestCompletionCheck (S6SEC-02, SEC-27): every check queues a job per link of the project; counted per team, accepted requests only. */
+  completionCheckTeam: { limit: 10, windowMs: HOUR },
   githubWebhook: { limit: 600, windowMs: MINUTE },
+  /** Per source address, before the body is read (backlog: the addresses of GitHub are shared, so the limit is high). */
+  githubWebhookIp: { limit: 3000, windowMs: MINUTE },
   deletionCancel: { limit: 10, windowMs: HOUR },
   /** previewInvitation and acceptInvitation: token guesses per user (FR-TEAM-09). */
   invitationToken: { limit: 60, windowMs: 15 * MINUTE },

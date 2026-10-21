@@ -1,25 +1,11 @@
 import { z } from 'zod';
+import { githubAppIssues } from './github-app-env.js';
+import { isWeakSecret } from './secrets.js';
+
+export { isWeakSecret } from './secrets.js';
 
 /** Long-running process roles. The migrate job has its own minimal config (see loadMigrateConfig). */
 export type ProcessRole = 'api' | 'worker';
-
-const WEAK_SECRETS = new Set([
-  'changeme',
-  'change-me',
-  'secret',
-  'password',
-  'default',
-  'example',
-  'test',
-  'development',
-]);
-
-/** A secret is weak when it is short, a known placeholder, or has too few distinct characters. */
-export function isWeakSecret(value: string, minLength = 32): boolean {
-  if (value.length < minLength) return true;
-  if (WEAK_SECRETS.has(value.toLowerCase())) return true;
-  return new Set(value).size < 10;
-}
 
 const secret = (minLength = 32) =>
   z.string().refine((v) => !isWeakSecret(v, minLength), { message: 'weak' });
@@ -115,6 +101,11 @@ export const envSchema = z.object({
   GITHUB_OAUTH_BASE_URL: optionalString.pipe(httpUrl.optional()),
   GITHUB_API_BASE_URL: optionalString.pipe(httpUrl.optional()),
   GITHUB_WEBHOOK_SECRET: optionalString,
+  /** Pages (100 items each) one run of the reconciliation reads per feed before it continues in the next run. */
+  GITHUB_SYNC_MAX_PAGES: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(1).max(100).default(30),
+  ),
   DATA_ENCRYPTION_KEY: encryptionKey,
   IP_HASH_SALT: secret(),
   BACKUP_AGE_RECIPIENT: optionalString,
@@ -167,6 +158,7 @@ function environmentIssues(parsed: z.infer<typeof envSchema>): ConfigIssue[] {
       issues.push({ name: 'GITHUB_API_BASE_URL', reason: 'invalid' });
     }
   }
+  issues.push(...githubAppIssues(parsed, parsed.NODE_ENV === 'production'));
   return issues;
 }
 

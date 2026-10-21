@@ -70,6 +70,11 @@ export interface TeamLockView {
   suspendedTotalSeconds: number;
   playbookId: PlaybookId;
   productType: ProductTypeCode;
+  name: string;
+  /** Copied from the release step of the last stage (FR-WORK-14); `null` until it is saved. */
+  releaseUrl: string | null;
+  /** The normalized form of `releaseUrl` (AF-02), made by the database; `null` when there is no address. */
+  releaseKey: string | null;
 }
 
 export interface RosterMember {
@@ -166,12 +171,17 @@ export interface TeamsApi {
   seatBelongsToTeam(teamId: TeamId, seatId: SeatId): Promise<boolean>;
   /** Names of the teams; absent ids are absent from the map. */
   getTeamNames(teamIds: TeamId[]): Promise<Map<TeamId, string>>;
-  /** @requiresTx, the team must be locked by the caller. Stub until slice 6. */
+  /** @requiresTx, the team must be locked by the caller: members, seats with `desired`, and those who left. */
   getCompletionRosterSnapshot(teamId: TeamId): Promise<RosterSnapshot>;
   /** @requiresTx */
   markCompleted(teamId: TeamId, completedAt: Date): Promise<void>;
-  /** @requiresTx */
-  setReleaseUrl(teamId: TeamId, url: string): Promise<void>;
+  /** @requiresTx, the team must be locked by the caller (T7, FR-WORK-14). `null` clears it. */
+  setReleaseUrl(teamId: TeamId, url: string | null): Promise<void>;
+  /**
+   * Teams with status `completed` whose normalized release address equals `releaseKey` (AF-02), the team
+   * `exceptTeamId` left out. An equality lookup on an index: all of them, no limit.
+   */
+  listCompletedTeamsByReleaseKey(releaseKey: string, exceptTeamId: TeamId): Promise<TeamId[]>;
 }
 
 /** Ports declared by teams, implemented by upper modules and bound in AppModule. */

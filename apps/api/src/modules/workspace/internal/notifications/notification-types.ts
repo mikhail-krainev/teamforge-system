@@ -16,6 +16,7 @@ export const NOTIFICATION_TYPES = [
   'leader_offer',
   'auto_added',
   'stage_due',
+  'repo_unlinked',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

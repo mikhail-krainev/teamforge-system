@@ -2,7 +2,10 @@
 import artifacts from './ru/artifacts.json';
 import auth from './ru/auth.json';
 import checklist from './ru/checklist.json';
+import completion from './ru/completion.json';
 import errors from './ru/errors.json';
+import feed from './ru/feed.json';
+import github from './ru/github.json';
 import home from './ru/home.json';
 import invitations from './ru/invitations.json';
 import matching from './ru/matching.json';
@@ -22,7 +25,10 @@ export const ruDictionaries = {
   "artifacts": artifacts,
   "auth": auth,
   "checklist": checklist,
+  "completion": completion,
   "errors": errors,
+  "feed": feed,
+  "github": github,
   "home": home,
   "invitations": invitations,
   "matching": matching,

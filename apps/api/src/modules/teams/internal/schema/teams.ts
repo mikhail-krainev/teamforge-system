@@ -43,6 +43,11 @@ export const team = teamsSchema.table(
     suspendedAt: tstz('suspended_at'),
     suspendedTotalSeconds: integer('suspended_total_seconds').notNull().default(0),
     releaseUrl: text('release_url'),
+    /**
+     * AF-02: the normalized release address (`teams.release_address_key`), kept by the trigger
+     * `team_release_key_trg` whenever `release_url` is written. Never written by the application.
+     */
+    releaseKey: text('release_key'),
     leadLastActiveAt: tstz('lead_last_active_at'),
     version: integer('version').notNull().default(1),
     createdBy: uuid('created_by').notNull(),
@@ -60,6 +65,10 @@ export const team = teamsSchema.table(
       .on(t.status, t.productTypeCode, t.createdAt.desc(), t.id.desc())
       .where(sql`${t.status} IN ('forming','active')`),
     index('team_status_started_idx').on(t.status, t.startedAt),
+    /** AF-02: "does a completed project hold this address?" is an equality lookup. */
+    index('team_release_key_idx')
+      .on(t.releaseKey)
+      .where(sql`${t.releaseKey} IS NOT NULL`),
   ],
 );
 

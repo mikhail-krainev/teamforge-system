@@ -24,6 +24,19 @@ export class ItemRepository {
     return rows[0];
   }
 
+  /**
+   * The item with `FOR SHARE`: the reader sees the state that no writer can change until it commits.
+   * Used by the consumer that mirrors the item in a contribution (a write of the item waits for it).
+   */
+  async findItemShared(teamId: string, itemId: string): Promise<ItemRow | undefined> {
+    const rows = await this.tx.tx
+      .select()
+      .from(checklistItem)
+      .where(and(eq(checklistItem.id, itemId), eq(checklistItem.teamId, teamId)))
+      .for('share');
+    return rows[0];
+  }
+
   async findStage(teamId: string, stageId: string): Promise<StageRow | undefined> {
     const rows = await this.tx.tx
       .select()

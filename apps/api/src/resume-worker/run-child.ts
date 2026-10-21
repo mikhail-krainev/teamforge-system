@@ -22,12 +22,20 @@ const failed = (reason: Extract<ParseOutcome, { ok: false }>['reason']): ParseOu
   reason,
 });
 
+/**
+ * `tsx` as an absolute address: a bare `tsx` is looked up from the working directory of the parent, which
+ * is the repository root when the tests are started from there and has no `tsx` of its own.
+ */
+function tsxEntry(): string {
+  return import.meta.resolve('tsx');
+}
+
 function nodeArguments(options: ChildOptions, extra: string[]): string[] {
   return [
     '--max-old-space-size=256',
     '--disallow-code-generation-from-strings',
     ...(options.nodeFlags ?? []),
-    ...(options.childPath.endsWith('.ts') ? ['--import', 'tsx'] : []),
+    ...(options.childPath.endsWith('.ts') ? ['--import', tsxEntry()] : []),
     options.childPath,
     ...extra,
   ];

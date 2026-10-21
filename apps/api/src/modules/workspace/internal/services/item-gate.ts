@@ -26,6 +26,8 @@ export interface GateOptions {
   lead?: string;
   /** The caller must be an active member. */
   member?: string;
+  /** Lock #4 mode; `update` for a write that also changes the team (the release link, T7). Default `share`. */
+  teamLock?: 'update' | 'share';
 }
 
 /** FR-WORK-18: a suspended project is read-only; a vote also stops the lead's operations. */
@@ -51,7 +53,7 @@ export class ItemGate {
   ) {}
 
   async open(teamId: string, itemId: string, who: GateOptions): Promise<OpenedItem> {
-    const team = await this.teams.lockTeam(teamId, 'share');
+    const team = await this.teams.lockTeam(teamId, who.teamLock ?? 'share');
     if (who.lead !== undefined && team.leadUserId !== who.lead) {
       throw new DomainError('NOT_TEAM_LEAD', 403);
     }

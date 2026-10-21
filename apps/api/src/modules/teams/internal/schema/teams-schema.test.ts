@@ -64,7 +64,7 @@ describeInfra('S3-02 teams schema from a clean database', ['db'], () => {
     return rows.map((r) => String(r.table_name));
   };
 
-  it('creates the fourteen teams tables, the playbooks tables and the workspace tables', async () => {
+  it('creates the fourteen teams tables, the playbooks tables and the workspace tables (S6-03 adds contribution and completion)', async () => {
     expect(await tablesOf('teams')).toEqual(TEAMS_TABLES);
     expect(await tablesOf('playbooks')).toEqual([
       'platform_template',
@@ -78,8 +78,11 @@ describeInfra('S3-02 teams schema from a clean database', ['db'], () => {
     expect(await tablesOf('workspace')).toEqual([
       'artifact_file',
       'checklist_item',
+      'completion_check',
+      'contribution',
       'notification',
       'participation_confirm',
+      'project_completion',
       'project_stage',
       'project_storage_usage',
       'release_check',

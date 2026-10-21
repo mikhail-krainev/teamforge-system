@@ -21,6 +21,7 @@ import type {
   TeamsApi,
   UserId,
 } from '../../public.js';
+import { canonicalReleaseUrl } from '../domain/release-url.js';
 import { extendedPlannedEnd } from '../domain/team-status.js';
 import { membership, seat, seatAssignment, team } from '../schema/teams.js';
 import { JoinService } from './join.service.js';
@@ -39,6 +40,9 @@ function toView(row: TeamRow, now: Date): TeamLockView {
     suspendedTotalSeconds: row.suspendedTotalSeconds,
     playbookId: row.playbookId,
     productType: row.productTypeCode,
+    name: row.name,
+    releaseUrl: row.releaseUrl,
+    releaseKey: row.releaseKey,
   };
 }
 
@@ -211,8 +215,8 @@ export class TeamsFacade implements TeamsApi {
   }
 
   /**
-   * Stub until slice 6: the current roster and seats, nobody departed. The real snapshot adds the
-   * members who left during the project (FR-REW-02).
+   * The current roster and seats, and the members who left during the project (FR-REW-02): a member who
+   * left and came back is in the roster, so he is not listed as departed.
    */
   async getCompletionRosterSnapshot(teamId: TeamId): Promise<RosterSnapshot> {
     const members = await this.getRoster(teamId);
@@ -225,6 +229,12 @@ export class TeamsFacade implements TeamsApi {
       .select()
       .from(seatAssignment)
       .where(and(eq(seatAssignment.teamId, teamId), isNull(seatAssignment.endedAt)));
+    const left = await this.tx.tx
+      .select({ userId: membership.userId })
+      .from(membership)
+      .where(and(eq(membership.teamId, teamId), inArray(membership.status, ['left', 'removed'])))
+      .orderBy(asc(membership.userId));
+    const activeIds = new Set(members.map((m) => m.userId));
     return {
       members,
       seats: seats
@@ -236,7 +246,7 @@ export class TeamsFacade implements TeamsApi {
           desiredChangedAt: s.desiredChangedAt,
           holderUserId: holders.find((h) => h.seatId === s.id)?.userId ?? null,
         })),
-      departedUserIds: [],
+      departedUserIds: [...new Set(left.map((m) => m.userId))].filter((id) => !activeIds.has(id)),
     };
   }
 
@@ -244,8 +254,25 @@ export class TeamsFacade implements TeamsApi {
     await this.updateLocked(teamId, { status: 'completed', completedAt, updatedAt: completedAt });
   }
 
-  async setReleaseUrl(teamId: TeamId, url: string): Promise<void> {
-    await this.updateLocked(teamId, { releaseUrl: url });
+  async setReleaseUrl(teamId: TeamId, url: string | null): Promise<void> {
+    await this.updateLocked(teamId, { releaseUrl: url === null ? null : canonicalReleaseUrl(url) });
+  }
+
+  async listCompletedTeamsByReleaseKey(
+    releaseKey: string,
+    exceptTeamId: TeamId,
+  ): Promise<TeamId[]> {
+    const rows = await this.tx.tx
+      .select({ teamId: team.id })
+      .from(team)
+      .where(
+        and(
+          eq(team.releaseKey, releaseKey),
+          eq(team.status, 'completed'),
+          sql`${team.id} <> ${exceptTeamId}`,
+        ),
+      );
+    return rows.map((r) => r.teamId);
   }
 
   private async updateLocked(teamId: TeamId, set: Partial<TeamRow>): Promise<void> {

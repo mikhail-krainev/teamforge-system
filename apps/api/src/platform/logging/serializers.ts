@@ -135,4 +135,16 @@ export const REDACT_PATHS = [
   '*.text',
   '*.extractedText',
   '*.outcome',
+  // GitHub App installation (S6-03, SEC-07): the one-time `state` and the OAuth `code` of the callback,
+  // the user token of the exchange, the installation tokens and the App key. The serializers above
+  // already keep the query string out of request lines; these paths cover any object logged by name.
+  'req.query.state',
+  'req.query.code',
+  'query.state',
+  'query.code',
+  '*.oauthState',
+  '*.oauthCode',
+  '*.userToken',
+  '*.installationToken',
+  '*.privateKey',
 ];

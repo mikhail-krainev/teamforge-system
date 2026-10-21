@@ -105,6 +105,17 @@ const planVote: Planner = async (event, teamId, audience) => {
   return (team?.memberUserIds ?? []).map((id) => draft(id, type, `${type}:${voteId}`, ids));
 };
 
+/** Reason of `github.repo_unlinked` when the lead himself removed the link: nobody needs to be told. */
+const UNLINKED_BY_LEAD = 'lead';
+
+/** FR-GH-07: the repository was unlinked by an event of GitHub, the lead is told why (a code, not a name). */
+const planRepoUnlinked: Planner = async ({ id, payload: p }, teamId, audience) => {
+  const reason = str(p['reason']);
+  if (teamId === undefined || reason === undefined || reason === UNLINKED_BY_LEAD) return [];
+  const lead = await leadOf(teamId, audience);
+  return lead ? [draft(lead, 'repo_unlinked', `repo_unlinked:${id}`, { teamId, reason })] : [];
+};
+
 const PLANNERS: Record<string, Planner> = {
   'teams.offer_created': planOffer,
   'teams.invitation_accepted': planForLead('invitation_accepted'),
@@ -118,6 +129,7 @@ const PLANNERS: Record<string, Planner> = {
   'teams.lead_changed': planLeadChanged,
   'teams.vote_updated': planVote,
   'matching.auto_added': planAutoAdded,
+  'github.repo_unlinked': planRepoUnlinked,
 };
 
 /**

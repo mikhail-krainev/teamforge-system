@@ -765,11 +765,14 @@ CREATE TABLE teams.team (
   seat_count smallint NOT NULL DEFAULT 0 CHECK (seat_count BETWEEN 0 AND 12),      -- C-04 (open+filled)
   started_at timestamptz, planned_end_at timestamptz, completed_at timestamptz,
   suspended_at timestamptz, suspended_total_seconds int NOT NULL DEFAULT 0,
-  release_url text, lead_last_active_at timestamptz,
+  release_url text,                       -- адрес в форме WHATWG URL (`new URL(raw).href`), пишет только `TeamsApi.setReleaseUrl`
+  release_key text,                       -- AF-02: нормализованный адрес `host/path`, ведёт триггер `team_release_key_trg` (функция `teams.release_address_key`, IMMUTABLE)
+  lead_last_active_at timestamptz,
   version int NOT NULL DEFAULT 1, created_by uuid NOT NULL, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
 );
 CREATE INDEX team_catalog_idx ON teams.team (status, product_type_code, created_at DESC, id DESC) WHERE status IN ('forming','active');
 CREATE INDEX team_status_started_idx ON teams.team (status, started_at);           -- max_duration, неактивность
+CREATE INDEX team_release_key_idx ON teams.team (release_key) WHERE release_key IS NOT NULL;  -- AF-02: поиск владельца адреса равенством, без LIMIT и ILIKE
 
 CREATE TABLE teams.seat (
   id uuid PRIMARY KEY,
@@ -1110,6 +1113,8 @@ CREATE TABLE github.gh_pr_review (
 );
 CREATE TABLE github.repo_sync_state (
   repository_id bigint PRIMARY KEY, issues_etag text, pulls_etag text, last_synced_at timestamptz,
+  issues_resume_page int, pulls_resume_page int,       -- курсор: страница ленты, с которой продолжит незавершённый раунд (NULL - лента дочитана)
+  pending_sync_started_at timestamptz,                 -- начало первого прогона незавершённого раунда; станет last_synced_at в конце раунда
   ci_state text, ci_checked_at timestamptz
 );
 CREATE TABLE github.repo_check (
@@ -1354,6 +1359,8 @@ sequenceDiagram
 ### 7.4 Суточная сверка, проверки, лимиты
 
 - `github-reconcile` раз в сутки (C-57) на каждую активную `repo_link`, разнесённо по времени (`jobId` = `reconcile_<repoId>_<date>`): `GET /repos/{id}/issues?state=closed&since=<last_synced_at>` и `GET /repos/{id}/pulls?state=closed&sort=updated` с `If-None-Match` (ETag в `repo_sync_state`). 304 не расходует лимит. Найденные пропуски проходят тот же код, что и вебхук (идемпотентно через `gh_item` PK и `contribution_uq`) (FR-GH-06).
+  - Курсор и возобновление. За один прогон читается не больше `GITHUB_SYNC_MAX_PAGES` страниц (по 100 элементов, по умолчанию 30) каждой ленты. Если лента длиннее, `last_synced_at` не двигается, номер следующей страницы сохраняется в `issues_resume_page` / `pulls_resume_page`, а начало раунда - в `pending_sync_started_at`. Почасовая задача `github-sync-resume` считает репозиторий с незавершённым раундом устаревшим и продолжает с сохранённой страницы; когда обе ленты дочитаны до позиции прошлого полного раунда, `last_synced_at` получает значение `pending_sync_started_at`. ETag первой страницы сохраняется только прогоном, который начал с первой страницы и дошёл до конца.
+  - Порядок версий одного элемента. `updated_at` GitHub точен до секунды, поэтому при равных `updated_at` версия, ушедшая дальше по шагу (open < closed < merged), применяется, а при равном шаге применяется версия с другими метками или исполнителями (`supersedes` в `item.repository.ts`). Тот же критерий решает в сверке, нужно ли обрабатывать элемент ленты.
 - Проверка `repo_exists` при сохранении пункта `*_repo*` и `repo_final` в задаче `completion-check` (FR-GH-08): существование по `repository_id`, `archived=false`, `private=false`, форк с собственными коммитами, не менее C-58 = 10 коммитов и авторы (числовые `id`) не менее чем от 2 привязанных участников - по `GET /repos/{id}/contributors` (Metadata read, Contents не нужен, 7.1). Результат в `repo_check`, событие `github.repo_checked`.
 - `github-account-check` (FR-GH-09): `GET /user/{id}` (возраст >= C-59 = 30 дней, `public_repos > 0` или публичные события) для участников при завершении и ежедневно для `pending_account`.
 - `ci_workflow` (сигнальная, балл 0): `GET /repos/{id}/actions/runs?per_page=10` (право Actions: read, 7.1); есть ли хотя бы один завершённый запуск с `conclusion=success` на ветке по умолчанию - пишется в `repo_sync_state.ci_state`, `ci_checked_at`; для установки без этого права ответ 403 даёт `ci_state = NULL` ("не проверено"), ошибкой это не считается.
@@ -1361,7 +1368,7 @@ sequenceDiagram
 
 ### 7.5 Токены
 
-- Токен установки: `@octokit/auth-app` с внешним кэшем в Redis `gh_inst_token:<installationId>` (TTL 55 мин, значение зашифровано AES-256-GCM ключом `DATA_ENCRYPTION_KEY`), в БД не хранится (FR-GH-01).
+- Токен установки: `@octokit/auth-app` с внешним кэшем в Redis `gh_inst_token:<installationId>` (TTL 55 мин, значение зашифровано AES-256-GCM ключом `DATA_ENCRYPTION_KEY`), в БД не хранится (FR-GH-01). Префикс `gh_inst_token:*` разрешён ACL-пользователям `api` (список репозиториев при установке) и `worker`; кэш пропускает токен, до конца которого меньше минуты, а отказ GitHub (401) заменяет токен один раз. В Redis `state` установки лежит под хэшем (`gh_state:<sha256 base64url>`), не под самим значением.
 - Приватный ключ App, секрет вебхука, client secret - только в переменных окружения, проверяются при старте (13.11).
 
 ### 7.6 Атрибуция вклада к роли (FR-WORK-17)
@@ -1589,8 +1596,8 @@ COMMIT;
 
 ### 11.4 Завершение проекта (FR-WORK-13, CC-13)
 
-1. Тимлид запускает `requestCompletionCheck` (202). Задача `completion-check`: `repo_final`, повторная проверка ссылок `link_https` и релиза (`release_alive_*`, вторая проверка не ранее C-53 = 24 ч после первой; если первой нет или она моложе 24 ч, проверка сообщает, когда можно повторить), антифрод-блоки по фактам GitHub. Результат в `completion_check` с `valid_until = finished_at + 1 ч`.
-2. `completeProject` - транзакция T6: lock команды; статус `active`; актуальная успешная `completion_check` (не старше `valid_until`); все этапы `closed`; участников >= C-01 = 3; длительность >= C-06a = 14 дней от открытия первого этапа и >= C-09 = 3 календарных дня с вкладом; вклад >= C-52 = 10 (слитые PR + закрытые задачи, активные) от >= 2 разных GitHub-аккаунтов; этапы не закрывались быстрее 24 ч (AF-10). Иначе 409 `COMPLETION_BLOCKED` с `unmet[]`. Коды `unmet[].code` - перечисление `UnmetCode` в контракте (MEDIUM ревью): `STAGES_NOT_CLOSED`, `COMPLETION_CHECK_MISSING`, `COMPLETION_CHECK_EXPIRED`, `REPO_FINAL_FAILED`, `RELEASE_CHECK_FAILED`, `LINK_CHECK_FAILED`, `MEMBERS_BELOW_MIN`, `DURATION_TOO_SHORT`, `CONTRIBUTION_DAYS_TOO_FEW`, `CONTRIBUTION_TOO_LOW`, `CONTRIBUTORS_TOO_FEW`, `STAGE_CLOSED_TOO_FAST`, `FRAUD_BLOCK`; для перехода этапа (11.3) - `REQUIRED_ITEMS_OPEN`, `FALLBACK_ASSIGNEE_MISSING`, `REVIEW_NOT_PASSED`, `MIN_TIME_NOT_ELAPSED`, `AUTO_CHECKS_FAILED`. Новый код добавляется в контракт до использования в коде.
+1. Тимлид запускает `requestCompletionCheck` (202). Задача `completion-check`: `repo_final`, повторная проверка ссылок `link_https` и релиза (`release_alive_*`, вторая проверка не ранее C-53 = 24 ч после первой; если первой нет или она моложе 24 ч, проверка сообщает, когда можно повторить), антифрод-блоки по фактам GitHub. Результат в `completion_check` с `valid_until = finished_at + 1 ч`. Одна проверка за раз: `requestCompletionCheck` берёт #4 `team` в режиме `FOR NO KEY UPDATE`, и пока у команды есть проверка `queued`/`running` моложе 30 мин (`CHECK_GIVE_UP_AFTER_MS`), ответ 409 `INVALID_STATE`; лимит `completionCheckTeam` 10/ч на команду (13.6) считает только принятые запросы, отказ 409 квоту не тратит.
+2. `completeProject` - транзакция T6: lock команды; статус `active`; актуальная успешная `completion_check` (не старше `valid_until`); все этапы `closed`; участников >= C-01 = 3; длительность >= C-06a = 14 дней от открытия первого этапа и >= C-09 = 3 календарных дня с вкладом; вклад >= C-52 = 10 (слитые PR + закрытые задачи, активные) от >= 2 разных GitHub-аккаунтов; этапы не закрывались быстрее 24 ч (AF-10); вклад считается по различным элементам `source` + `ref`, а не по строкам (задача с двумя исполнителями - один элемент, AF-04); адрес релиза не шаблонный и не совпадает по `team.release_key` с адресом завершённого проекта (AF-02: хост в форме WHATWG URL без `www.`, путь без `index.html`, без слеша на конце и без query; сравнение равенством по индексу, учитываются завершения с `completed_at <= now()` БД). Перед проверкой AF-02 берётся `pg_advisory_xact_lock(hashtextextended(release_key, 0))` после #4 (12.1), поэтому два проекта с одним адресом завершаются по очереди и второй видит первый. Иначе 409 `COMPLETION_BLOCKED` с `unmet[]`. Коды `unmet[].code` - перечисление `UnmetCode` в контракте (MEDIUM ревью): `STAGES_NOT_CLOSED`, `COMPLETION_CHECK_MISSING`, `COMPLETION_CHECK_EXPIRED`, `REPO_FINAL_FAILED`, `RELEASE_CHECK_FAILED`, `LINK_CHECK_FAILED`, `MEMBERS_BELOW_MIN`, `DURATION_TOO_SHORT`, `CONTRIBUTION_DAYS_TOO_FEW`, `CONTRIBUTION_TOO_LOW`, `CONTRIBUTORS_TOO_FEW`, `STAGE_CLOSED_TOO_FAST`, `FRAUD_BLOCK`; для перехода этапа (11.3) - `REQUIRED_ITEMS_OPEN`, `FALLBACK_ASSIGNEE_MISSING`, `REVIEW_NOT_PASSED`, `MIN_TIME_NOT_ELAPSED`, `AUTO_CHECKS_FAILED`. Новый код добавляется в контракт до использования в коде.
 3. Успех: `INSERT project_completion (team_id PK)` со снимком, `overdue_days = max(0, ceil((completed_at - planned_end_at) / 1 день))`, `TeamsApi.markCompleted`, `GithubApi.markRepositoryCompleted`, `contribution.role_locked = true`, outbox `workspace.project_completed`.
 
 Плановая дата (FR-WORK-12): `planned_end_at = started_at + total_days` при старте; при выходе из `suspended` увеличивается на длительность приостановки (`suspended_total_seconds`), сроки открытого этапа (`due_at`) сдвигаются так же.
@@ -1620,9 +1627,11 @@ COMMIT;
 | 10 | `github.repo_link` | `FOR UPDATE` |
 | 11 | `rewards.credit_run` | `FOR UPDATE` |
 
+  Транзакционная advisory-блокировка адреса релиза (`pg_advisory_xact_lock(hashtextextended(release_key, 0))`, `LockService.lockReleaseAddress`) стоит на уровне 4 сразу после строки `team`: её берёт только `completeProject` перед проверкой AF-02, после неё блокируются лишь строки собственной команды, поэтому цикл ожидания невозможен.
+
   Транзакция может пропускать уровни, но не брать их в обратном порядке. Если действие выполняет не вступающий (тимлид принимает заявку кандидата, `acceptSeatOffer` при `direction='user_to_lead'`), идентификатор вступающего берётся из строки предложения обычным чтением до `BEGIN`; в транзакции сначала блокируется #1 (вступающий), затем #3 (предложение), после чего строка предложения перечитывается и сверяется с прочитанным (не совпала - 409 `INVALID_STATE`). Для родительских строк используется `FOR NO KEY UPDATE`, чтобы не блокировать вставки дочерних строк с FK (они берут `FOR KEY SHARE`). Правило проверяется ревью и тестом-гонкой "все CC-сценарии одновременно на одной команде" (нет `40P01 deadlock_detected`).
 - В каждой изменяющей транзакции первым оператором `SET LOCAL lock_timeout = '5s'` (C-62) и `SET LOCAL statement_timeout = '10s'`. `SET LOCAL` действует до конца транзакции и совместим с PgBouncer в режиме транзакций. Ошибка `55P03` -> 503 `LOCK_TIMEOUT` с `Retry-After: 1`; `40P01`/`40001` -> до 3 повторов транзакции целиком с джиттером (до 500 мс), затем 503. Каждая попытка ограничена сроком 15 с на уровне приложения: по истечении клиент получает 503, попытка помечается прерванной, и следующий оператор в ней (`TxRunner.tx`, блокировки, outbox) и проверка перед коммитом бросают ошибку, поэтому транзакция откатывается и никогда не коммитится после ответа 503 (после последней проверки срок уже не действует, ждётся реальный итог), запрос целиком - жёстким сроком 70 с (4 попытки x 15 с + джиттер + захват и запись ключа идемпотентности), после которого новые попытки не начинаются и возвращается 503. От этого срока считается `locked_until` ключа идемпотентности (12.4).
-- Ограничения PgBouncer (transaction pooling): только транзакционное состояние - нет `SET` без `LOCAL`, нет сессионных advisory-блокировок (`pg_advisory_lock`); допустимы только `pg_advisory_xact_lock` (в текущем дизайне не нужны), нет `LISTEN/NOTIFY` (используется Redis), нет `PREPARE` и именованных подготовленных выражений: драйвер `postgres` с `prepare: false`; нет временных таблиц и курсоров `WITH HOLD` вне транзакции. Миграции и длинные административные операции идут через `DATABASE_DIRECT_URL` в обход PgBouncer.
+- Ограничения PgBouncer (transaction pooling): только транзакционное состояние - нет `SET` без `LOCAL`, нет сессионных advisory-блокировок (`pg_advisory_lock`); допустимы только `pg_advisory_xact_lock` (используется один раз: адрес релиза при завершении, AF-02), нет `LISTEN/NOTIFY` (используется Redis), нет `PREPARE` и именованных подготовленных выражений: драйвер `postgres` с `prepare: false`; нет временных таблиц и курсоров `WITH HOLD` вне транзакции. Миграции и длинные административные операции идут через `DATABASE_DIRECT_URL` в обход PgBouncer.
 - Уровень изоляции - `READ COMMITTED` (по умолчанию); корректность обеспечивают блокировки и ограничения, а не `SERIALIZABLE`.
 - Время сравнивается с параметром `:now` из `Clock`, не с `now()` в SQL (тесты двигают часы).
 
@@ -1657,6 +1666,9 @@ COMMIT;
 | Квота файлов проекта C-48/C-49 | условный `UPDATE project_storage_usage SET files_count = files_count + 1, bytes_total = bytes_total + :n WHERE team_id=:t AND files_count < 30 AND bytes_total + :n <= 52428800 RETURNING` (0 строк -> 409 `PROJECT_STORAGE_LIMIT`); при откате загрузки - обратный `UPDATE` |
 | Пометка "желательная" против завершения | обе операции под #4; снимок завершения видит пометку до или после, но не промежуточное состояние |
 | Смена роли вклада против завершения | `relabelContribution`: `TeamsApi.lockTeam(teamId, 'share')` (#4 в разделяемом режиме, `FOR SHARE` выполняет teams, а не workspace) и проверка `status='active'`; завершение держит `FOR NO KEY UPDATE` - конфликт сериализует |
+| Вклад по вебхуку или сверке против завершения | `ContributionConsumer.credit` и `takeBack`: `TeamsApi.lockTeam(teamId, 'share')` (#4) и пропуск записи, если команда `completed`/`archived`; завершение держит `FOR NO KEY UPDATE`, поэтому вклад целиком попадает в снимок или не пишется, строк вне снимка не бывает |
+| Два проекта с одним адресом релиза завершаются одновременно (AF-02) | #4 своей команды -> advisory-блокировка `hashtextextended(release_key, 0)` -> проверка `listCompletedTeamsByReleaseKey` -> `project_completion`; второй ждёт коммита первого и видит его завершение |
+| Одновременные `requestCompletionCheck` | #4 `team FOR NO KEY UPDATE`; поиск `completion_check` в `queued`/`running` моложе 30 мин под блокировкой; проигравший - 409 `INVALID_STATE` |
 | Файл артефакта против изменения пункта (загрузка, удаление, `status='done'`) | `uploadArtifactFile` / `deleteArtifactFile`: `SELECT ... FROM checklist_item WHERE id=:id FOR UPDATE` (#9) после `project_stage FOR SHARE` (#8); статус пункта `open` проверяется под блокировкой (иначе 409 `INVALID_STATE`), операция увеличивает `version` пункта. Параллельный `PATCH status='done'` с прежней версией получает 409 `VERSION_CONFLICT`, поэтому пункт не может стать `done` без файла, удалённого параллельным запросом |
 | Предложения и заявки на место (лимиты `OFFER_LIMIT`, Р-5) | заявка кандидата: число его `pending` заявок (`direction='user_to_lead'`) <= 10 считается под #1 `auth.user` (до вставки); предложения тимлида: число `pending` предложений команды (`lead_to_user`) <= 30 считается под #4 `team`; превышение - 409 `OFFER_LIMIT`. Пара (место, пользователь) защищена `seat_offer_pending_uq` |
 | Удаление аккаунта против вступления | сага удаления сначала ставит `auth.user.status='deleting'` под #1; вступление под #1 видит `deleting` -> отказ `USER_INACTIVE` |
@@ -1770,7 +1782,8 @@ Redis, скользящее окно (Lua-скрипт, атомарно), кл�
 | Загрузка артефактов (C-34) | 30/ч | пользователь |
 | Общий API | 120/мин; изменяющие 60/мин | пользователь (или IP для анонимных) |
 | WebSocket | см. раздел 9 | пользователь |
-| Исходящие проверки ссылок (SEC-05) | 30/ч на команду и 30/ч на пользователя (сохранение ссылок, `requestCompletionCheck`) | команда; пользователь |
+| Исходящие проверки ссылок (SEC-05) | 30/ч на команду и 30/ч на пользователя (сохранение ссылок) | команда; пользователь |
+| Проверка готовности к завершению (SEC-27, `completionCheckTeam`) | 10/ч на команду, считаются принятые запросы (отказ 409 `INVALID_STATE` квоту не тратит) | команда |
 | Вебхук GitHub (SEC-06) | вне общего лимита по IP; 600/мин | `installation_id` |
 | Отмена удаления по ссылке | 10/ч | IP |
 
@@ -1847,6 +1860,7 @@ Redis, скользящее окно (Lua-скрипт, атомарно), кл�
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_ORIGIN` | api | Better Auth, CSRF |
 | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` (необязательные) | api | вход; по умолчанию равны `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` (7.1), задаются только при переходе на отдельное OAuth App |
 | `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_WEBHOOK_SECRET` | api, worker | GitHub App |
+| `GITHUB_SYNC_MAX_PAGES` (необязательная, 1..100, по умолчанию 30) | worker | страниц ленты на прогон суточной сверки (7.4) |
 | `DATA_ENCRYPTION_KEY`, `IP_HASH_SALT` | api, worker | шифрование, хэши (IP, email в ключах лимитов, приглашения, `identity_signal`, `identity_tombstone`) |
 | `BACKUP_AGE_RECIPIENT` | backup | публичный ключ age для шифрования копий; закрытый ключ на сервере не хранится (13.17) |
 | `SMTP_URL`, `MAIL_FROM` | worker | письма magic link и уведомлений |

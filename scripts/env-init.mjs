@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Generates `.env` from `.env.example` with random development secrets. Never overwrites an existing `.env`.
 // Usage: pnpm run env:init
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,12 +10,29 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const hex = (bytes) => randomBytes(bytes).toString('hex');
 
+/**
+ * A throwaway RSA key on one line (`\n` escapes): an `.env` file holds no line breaks. It only lets the api
+ * start without a GitHub App (S6-03 validates the key at startup); replace the four GITHUB_APP_* values with
+ * the real App to install it on repositories.
+ */
+function developmentAppKey() {
+  const { privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+  return privateKey.trim().replaceAll('\n', '\\n');
+}
+
 /** Variables that get a random value when empty in the template. */
 export const GENERATORS = {
   BETTER_AUTH_SECRET: () => randomBytes(32).toString('base64url'),
   IP_HASH_SALT: () => randomBytes(32).toString('base64url'),
   DATA_ENCRYPTION_KEY: () => hex(32),
   GITHUB_WEBHOOK_SECRET: () => hex(24),
+  GITHUB_APP_ID: () => '1',
+  GITHUB_APP_SLUG: () => 'teamforge-dev',
+  GITHUB_APP_PRIVATE_KEY: developmentAppKey,
   POSTGRES_PASSWORD: () => hex(16),
   TF_MIGRATOR_PASSWORD: () => hex(16),
   TF_APP_PASSWORD: () => hex(16),

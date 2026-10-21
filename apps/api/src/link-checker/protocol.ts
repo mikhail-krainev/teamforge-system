@@ -19,6 +19,8 @@ export const linkCheckJobSchema = z.object({
   version: z.number().int().positive(),
   url: z.string().min(1).max(MAX_URL_LENGTH),
   requestId: z.string().optional(),
+  /** When the link was saved (the clock of the application); echoed in the answer, which may come later. */
+  savedAt: z.iso.datetime().optional(),
   /** Set by the consumer when the check first met a busy domain (`Date.now()`); the limit on waiting counts from it. */
   firstBusyAt: z.number().int().positive().optional(),
 });
@@ -41,6 +43,7 @@ export const linkCheckResultSchema = z.object({
   itemId: z.uuid(),
   version: z.number().int().positive(),
   url: z.string(),
+  savedAt: z.iso.datetime().optional(),
   outcome: z.object({
     ok: z.boolean(),
     reason: reasonSchema.nullable(),

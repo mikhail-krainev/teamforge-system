@@ -34,3 +34,7 @@ regexes = [
   '''^tftestsecretkey0123456789$''',
   '''^env\.S3_SECRET_KEY$''',
 ]
+
+[[allowlists]]
+description = "Fake S3 keys of the in-process signer in a storage test (false positives)"
+paths = ['''(^|/)apps/api/test/integration/artifact-signed-url\.test\.ts$''']

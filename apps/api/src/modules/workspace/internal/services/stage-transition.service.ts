@@ -5,6 +5,7 @@ import { DomainError, type UnmetCondition } from '../../../../platform/errors/do
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
+import { GITHUB_API, type GithubApi } from '../../../github/public.js';
 import { PLAYBOOKS_API, type PlaybooksApi } from '../../../playbooks/public.js';
 import { TEAMS_API, type TeamLockView, type TeamsApi } from '../../../teams/public.js';
 import { WORKSPACE_MODULE } from '../../public.js';
@@ -36,6 +37,7 @@ export class StageTransitionService {
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
     @Inject(PLAYBOOKS_API) private readonly playbooks: PlaybooksApi,
+    @Inject(GITHUB_API) private readonly github: GithubApi,
     @Inject(RouteRepository) private readonly route: RouteRepository,
     @Inject(ItemRepository) private readonly items: ItemRepository,
     @Inject(TransitionRepository) private readonly transitions: TransitionRepository,
@@ -97,9 +99,13 @@ export class StageTransitionService {
       team.teamId,
       rows.map((row) => row.id),
     );
+    // The repository is looked up only when a step of the stage asks for `repo_exists`.
+    const needsRepo = steps.some((step) => step.autoChecks.some((key) => key === 'repo_exists'));
+    const repoLinked = needsRepo ? (await this.github.getRepoLink(team.teamId)) !== null : undefined;
     const withFiles = rows.map((row) => ({
       ...row,
       filesCount: files.filter((file) => file.checklistItemId === row.id).length,
+      ...(repoLinked === undefined ? {} : { repoLinked }),
     }));
     return unmetConditions({
       items: rows,
