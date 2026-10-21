@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { ConsentService } from '../consent/consent.service.js';
 import { user } from '../schema/auth.js';
@@ -36,9 +37,17 @@ export type GithubAccountDto = MeDto['github'];
 @Injectable()
 export class MeService {
   constructor(
-    @Inject(DB) private readonly db: Database,
+    @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(ConsentService) private readonly consent: ConsentService,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   async getGithubAccount(userId: string): Promise<GithubAccountDto> {
     const rows = await this.db

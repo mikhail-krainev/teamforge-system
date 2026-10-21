@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../../../../platform/db/db.module.js';
 import type { RateLimiter } from '../../../../platform/ratelimit/rate-limiter.js';
+import type { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type { Auth } from '../better-auth/create-auth.js';
 import { MagicLinkService } from './magic-link.service.js';
 
@@ -22,7 +23,10 @@ function build(stored: string | undefined) {
     emailSubject: (email: string) => `email:${email}`,
   } as unknown as RateLimiter;
   const auth = { api: { signInMagicLink } } as unknown as Auth;
-  return { service: new MagicLinkService(auth, db, limiter), signInMagicLink };
+  return {
+    service: new MagicLinkService(auth, { tx: db } as unknown as TxRunner, limiter),
+    signInMagicLink,
+  };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gt, ilike, like, or, sql, type SQL } from 'drizzle-orm';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
 import { registerConstraint } from '../../../../platform/errors/constraints.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { role, stackTag } from '../schema/profiles.js';
@@ -43,10 +43,15 @@ function prefixMatch(prefix: string): SQL {
 /** SQL of the two catalogs (profiles.role, profiles.stack_tag). Writes join the active transaction. */
 @Injectable()
 export class CatalogRepository {
-  constructor(
-    @Inject(DB) private readonly db: Database,
-    @Inject(TxRunner) private readonly tx: TxRunner,
-  ) {}
+  constructor(@Inject(TxRunner) private readonly tx: TxRunner) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   listRoles(includeInactive: boolean): Promise<CatalogEntry[]> {
     return this.db

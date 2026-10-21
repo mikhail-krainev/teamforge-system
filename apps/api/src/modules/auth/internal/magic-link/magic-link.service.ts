@@ -3,7 +3,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { isAPIError } from 'better-auth/api';
 import { eq } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { findPgError, PG_UNIQUE_VIOLATION } from '../../../../platform/errors/pg-errors.js';
 import { RateLimiter } from '../../../../platform/ratelimit/rate-limiter.js';
@@ -36,9 +37,17 @@ function refused(code: string, message: string): DomainError {
 export class MagicLinkService {
   constructor(
     @Inject(AUTH) private readonly auth: Auth,
-    @Inject(DB) private readonly db: Database,
+    @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(RateLimiter) private readonly limiter: RateLimiter,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   /** Checks and limits first, then lets the library store the token and call `queueMail`. */
   async request(request: FastifyRequest, email: string): Promise<{ status: true }> {

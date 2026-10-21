@@ -4,9 +4,10 @@ import { and, eq, gt, gte, inArray, isNotNull } from 'drizzle-orm';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
 import { hmacBytes } from '../../../../platform/crypto/secret-box.js';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
   AuthApi,
   DeletionModule,
@@ -26,13 +27,21 @@ type UserStatus = JoinEligibility['status'];
 @Injectable()
 export class AuthService implements AuthApi {
   constructor(
-    @Inject(DB) private readonly db: Database,
+    @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(LockService) private readonly locks: LockService,
     @Inject(ConsentService) private readonly consent: ConsentService,
     @Inject(DeletionSagaService) private readonly saga: DeletionSagaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(ClsService) private readonly cls: ClsService,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   async lockUserForJoin(userId: UserId): Promise<JoinEligibility> {
     const row = await this.locks.lockUser<{

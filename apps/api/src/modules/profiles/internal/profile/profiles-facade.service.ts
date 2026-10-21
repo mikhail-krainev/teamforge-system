@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gt, inArray } from 'drizzle-orm';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import {
   buildPage,
   clampLimit,
@@ -24,9 +25,17 @@ import { profile, profileRolePref, profileStack, role, stackTag } from '../schem
 @Injectable()
 export class ProfilesFacade implements ProfilesApi {
   constructor(
-    @Inject(DB) private readonly db: Database,
+    @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(AUTH_API) private readonly auth: AuthApi,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   async getMatchingProfiles(
     userIds: UserId[],
