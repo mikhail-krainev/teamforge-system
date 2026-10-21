@@ -161,6 +161,9 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
           <Link href={`/teams/${data.id}/feed`}>{t('feed.links.feed')}</Link>
           <Link href={`/teams/${data.id}/github`}>{t('github.links.github')}</Link>
           <Link href={`/teams/${data.id}/complete`}>{t('completion.links.complete')}</Link>
+          {data.status === 'completed' || data.status === 'archived' ? (
+            <Link href={`/teams/${data.id}/credit`}>{t('rewards.credit.link')}</Link>
+          ) : null}
         </p>
       ) : null}
       <Summary team={data} typeName={typeName} />
