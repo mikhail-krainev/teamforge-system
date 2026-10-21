@@ -70,3 +70,16 @@ test('compose: only the web container is trusted for X-Forwarded-For, by default
 test('env template: no proxy is trusted by default', () => {
   assert.match(read('.env.example'), /^TRUSTED_PROXY_CIDRS=$/m);
 });
+
+test('compose: every service that calls GitHub maps host.docker.internal (the e2e double on a Linux host)', () => {
+  assert.ok(
+    'GITHUB_API_BASE_URL' in appEnv,
+    'the GitHub base URL is part of the shared environment',
+  );
+  for (const service of ['api', 'worker']) {
+    assert.ok(
+      dev.services[service].extra_hosts?.includes('host.docker.internal:host-gateway'),
+      `${service} resolves host.docker.internal also without Docker Desktop`,
+    );
+  }
+});
