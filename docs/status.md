@@ -16,8 +16,11 @@
 
 ## Следующая фаза
 
-Срез 7 (награды), ветка `feat/rewards` от `feat/workspace-github`: S7-01..S7-11 (`docs/plan.md`, раздел "Срез 7"), затем фаза 6 среза 7, затем фаза 7 (`docs/release.md`).
-Нужно от пользователя: `brew install gh` и `gh auth login`, чтобы открыть PR срезов 5, 6, 7 (цепочкой: 5 в main, затем 6, затем 7).
+ПАУЗА 2026-10-22 по просьбе пользователя. Срезы 5 и 6 слиты в main (PR #17, #18).
+Срез 7, ветка `feat/rewards`: S7-01..S7-10 сделаны (integration 3574/3574, concurrency x3), коммит `e9850b7` - WIP правок e2e, не проверен. Ревью и аудит: `docs/reviews/slice7-code-review.md` (C-1 чтения через общий `DB` внутри транзакции в FraudFactsService/FraudCaseService, H-1 зачёт удалённого пользователя, H-2 `user_id` автора в логе отзыва и ослабленный тест), `docs/reviews/slice7-security-audit.md` (S7SEC-01 решение "в порядке" обходит охлаждение и AF-22). Дальше: e2e slice1-7 на полном стеке, исправить CRITICAL/HIGH/MEDIUM, повторное ревью, S7-11, PR, слияние.
+B1 (`docs/release.md` 5.6): пул соединений исчерпывается, когда внутри транзакции читают через общий клиент `DB`. Ветка `fix/pool-starvation`, коммит `42b57e3` - WIP, не проверен (тест `cc-14-pool-starvation`, `shared-client-guard`). Дальше: довести, PR в main, слить main в `feat/rewards`.
+Фаза 7: ветка `docs/release` (`docs/release.md`, `scripts/load/` k6), после B1 и среза 7 повторить нагрузку, PR.
+Тесты из нескольких worktree одновременно на общем стеке `tf-test` ломают друг друга (общий `tf_template`): каждому свой стек.
 
 ## Открытые вопросы
 
