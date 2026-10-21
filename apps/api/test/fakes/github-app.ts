@@ -100,7 +100,12 @@ export class GithubAppTwin {
    * (401 in the middle of a parallel run). A random start keeps the keys of one world apart from another's.
    */
   nextInstallationId = 70_000_000 + Math.floor(Math.random() * 1_000_000_000);
-  nextRepoId = 810_000_000;
+  /**
+   * Repository ids are stored (`repo_link.repository_id` is unique among active links) and the database outlives a
+   * double: a Playwright retry restarts the worker, and a double that counted from the same number again would meet
+   * its own earlier binding as REPO_TAKEN. A random start keeps the ids of one double apart from another's.
+   */
+  nextRepoId = 810_000_000 + Math.floor(Math.random() * 1_000_000_000);
   nextRunId = 9_000_000;
   quotaRemaining = DEFAULT_QUOTA;
   quotaResetAt = 0;

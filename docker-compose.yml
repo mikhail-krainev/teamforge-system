@@ -263,6 +263,9 @@ services:
     image: teamforge-api:local
     restart: unless-stopped
     command: ['node', 'dist/worker.js']
+    # The worker calls GitHub too (sync, completion checks): same host mapping for the e2e double as api.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     environment:
       <<: *app-env
       REDIS_URL: redis://worker:${REDIS_WORKER_PASSWORD}@redis:6379
