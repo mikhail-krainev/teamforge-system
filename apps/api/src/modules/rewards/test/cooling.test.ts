@@ -54,7 +54,7 @@ describeInfra('S7 rewards: credit_run and the cooling (FR-REW-11, AF-24)', ['db'
     const run = await creditRunRow(rw.world, teamId());
     expect(run).toBeDefined();
     expect(run?.status).toBe('cooling');
-    expect(run?.cooling_until.getTime() - (run?.completed_at.getTime() ?? 0)).toBe(COOLING_MS);
+    expect((run?.cooling_until.getTime() ?? 0) - (run?.completed_at.getTime() ?? 0)).toBe(COOLING_MS);
     expect(run?.completed_at.toISOString()).toBe(new Date(project.completion?.completedAt ?? '').toISOString());
     expect(run?.credited_at).toBeNull();
     expect(run?.roster_hash.length).toBe(32);
