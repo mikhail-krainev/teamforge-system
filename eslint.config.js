@@ -105,6 +105,18 @@ export default tseslint.config(
     rules: { 'no-console': 'off' },
   },
   {
+    // Load-test preparation and k6 scenarios (docs/release.md, section 5): command-line tools.
+    files: ['scripts/load/**/*.{js,mjs}'],
+    rules: { 'no-console': 'off', 'max-lines-per-function': 'off' },
+  },
+  {
+    // k6 scenarios run in the k6 runtime, which provides these globals instead of Node.
+    files: ['scripts/load/**/*.js'],
+    languageOptions: {
+      globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly', open: 'readonly' },
+    },
+  },
+  {
     files: ['**/*.test.*'],
     rules: { 'max-lines-per-function': 'off' },
   },

@@ -1,0 +1,2 @@
+# Fixtures hold session cookies and the webhook secret of the throwaway load stack.
+.data/

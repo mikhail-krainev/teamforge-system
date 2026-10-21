@@ -1,0 +1,15 @@
+# Overlay for the load-test stack (docs/release.md, section 5): own image names so that building this
+# worktree never re-tags the images of the dev stack (`teamforge-*:local`).
+services:
+  migrate:
+    image: teamforge-release-api:local
+  api:
+    image: teamforge-release-api:local
+  worker:
+    image: teamforge-release-api:local
+  link-checker:
+    image: teamforge-release-api:local
+  resume-worker:
+    image: teamforge-release-resume-worker:local
+  web:
+    image: teamforge-release-web:local
