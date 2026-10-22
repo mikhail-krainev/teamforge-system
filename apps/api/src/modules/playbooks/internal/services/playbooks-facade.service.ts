@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
   PlaybookDefinition,
   PlaybookId,
@@ -16,9 +17,17 @@ import { playbook, productType } from '../schema/playbooks.js';
 @Injectable()
 export class PlaybooksFacade implements PlaybooksApi {
   constructor(
-    @Inject(DB) private readonly db: Database,
+    @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(PlaybookDefinitions) private readonly definitions: PlaybookDefinitions,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   getDefinition(id: PlaybookId): Promise<PlaybookDefinition> {
     return this.definitions.get(id);

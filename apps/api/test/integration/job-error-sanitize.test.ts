@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { DB, type Database } from '../../src/platform/db/db.module.js';
 import { EventConsumers } from '../../src/platform/outbox/event-consumers.js';
 import { OutboxService } from '../../src/platform/outbox/outbox.service.js';
 import { REDIS_BULL } from '../../src/platform/redis/redis.module.js';
@@ -38,10 +37,12 @@ describeInfra(
         types: ['platform.leak'],
         handle: async () => {
           // A real unique violation with the secrets as bound parameters.
-          const database = worker.context.get<Database>(DB);
-          await database.execute(
-            sql`INSERT INTO public.tf_test_account (email, token) VALUES (${secretEmail}, ${secretToken})`,
-          );
+          // Inside the consumer's transaction: through the transaction client, as every consumer does.
+          await worker.context
+            .get(TxRunner)
+            .tx.execute(
+              sql`INSERT INTO public.tf_test_account (email, token) VALUES (${secretEmail}, ${secretToken})`,
+            );
         },
       });
     });

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, or, sql, type SQL } from 'drizzle-orm';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type { PlaybookDefinition, StageDefinition, StepDefinition } from '../../public.js';
 import {
   platformTemplate,
@@ -114,10 +115,18 @@ export interface TemplateRow {
   bodyMd: string;
 }
 
-/** SQL of the read side. Reads go through the application connection, never inside a write transaction. */
+/** SQL of the read side. Reads join the active transaction (the facade is called from write scenarios) or use the pool. */
 @Injectable()
 export class PlaybookReader {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(@Inject(TxRunner) private readonly tx: TxRunner) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   async findRow(id: string): Promise<PlaybookRow | undefined> {
     const [row] = await this.db.select().from(playbook).where(eq(playbook.id, id));

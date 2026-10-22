@@ -39,6 +39,8 @@ import { SessionRevoker } from './internal/services/session-revoker.js';
   providers: [
     {
       provide: AUTH,
+      // The only module use of the shared client (see the no-restricted-imports rule): Better Auth runs
+      // its own statements in the sign-in handlers, never inside a TxRunner transaction.
       inject: [DB, REDIS, APP_CONFIG, AuthCallbacksImpl],
       useFactory: (db: Database, redis: Redis, config: AppConfig, callbacks: AuthCallbacksImpl) =>
         createAuth({ db, redis, config, callbacks }),

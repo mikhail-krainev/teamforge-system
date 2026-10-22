@@ -97,6 +97,27 @@ export default tseslint.config(
   },
   boundariesConfig,
   {
+    // B1 (architecture 12.1): a module reads and writes through `TxRunner.tx` (the active transaction,
+    // else the pool). The shared client `DB` takes a second pooled connection inside a transaction.
+    files: ['apps/api/src/modules/**/*.ts'],
+    ignores: ['apps/api/src/modules/auth/auth.module.ts', '**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/platform/db/db.module.js'],
+              importNames: ['DB', 'PG_CLIENT'],
+              message:
+                'Do not inject the shared database client in a module: use TxRunner.tx, which joins the active transaction (pool starvation, architecture 12.1)',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.cjs'],
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

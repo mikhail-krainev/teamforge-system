@@ -5,7 +5,8 @@ import { Clock } from '../../../../platform/clock/clock.js';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
 import { hmacBytes } from '../../../../platform/crypto/secret-box.js';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { identitySignal } from '../schema/auth.js';
 
 /** IPv4 /24 and IPv6 /48 prefix of an address; `null` for anything that is not an IP. */
@@ -34,10 +35,18 @@ function expandIpv6(ip: string): string[] {
 @Injectable()
 export class IdentitySignalsService {
   constructor(
-    @Inject(DB) private readonly db: Database,
+    @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   /** Upserts `ip24` and `ua` signals of a sign-in (device cookie signals are written by the web layer). */
   async record(
