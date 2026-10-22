@@ -16,11 +16,11 @@
 
 ## Следующая фаза
 
-ПАУЗА 2026-10-22 по просьбе пользователя. Срезы 5 и 6 слиты в main (PR #17, #18).
-Срез 7, ветка `feat/rewards`: S7-01..S7-10 сделаны (integration 3574/3574, concurrency x3), коммит `e9850b7` - WIP правок e2e, не проверен. Ревью и аудит: `docs/reviews/slice7-code-review.md` (C-1 чтения через общий `DB` внутри транзакции в FraudFactsService/FraudCaseService, H-1 зачёт удалённого пользователя, H-2 `user_id` автора в логе отзыва и ослабленный тест), `docs/reviews/slice7-security-audit.md` (S7SEC-01 решение "в порядке" обходит охлаждение и AF-22). Дальше: e2e slice1-7 на полном стеке, исправить CRITICAL/HIGH/MEDIUM, повторное ревью, S7-11, PR, слияние.
-B1 (`docs/release.md` 5.6): пул соединений исчерпывается, когда внутри транзакции читают через общий клиент `DB`. Ветка `fix/pool-starvation`, коммит `42b57e3` - WIP, не проверен (тест `cc-14-pool-starvation`, `shared-client-guard`). Дальше: довести, PR в main, слить main в `feat/rewards`.
-Фаза 7: ветка `docs/release` (`docs/release.md`, `scripts/load/` k6), после B1 и среза 7 повторить нагрузку, PR.
-Тесты из нескольких worktree одновременно на общем стеке `tf-test` ломают друг друга (общий `tf_template`): каждому свой стек.
+ПАУЗА 2026-10-22 по просьбе пользователя. В main: срезы 1-6 и исправление B1 (PR #19, пул соединений: внутри транзакции только `TxRunner.tx`, `guardSharedClient` в dev/test).
+Срез 7, ветка `feat/rewards` (main слита): S7-01..S7-10 сделаны, e2e slice1-7 61/61 дважды на полном стеке. Последний коммит - WIP исправлений по `docs/reviews/slice7-code-review.md` и `slice7-security-audit.md`, не проверен (начато: H-1 зачёт удалённого пользователя, H-2 `user_id` автора в логе отзыва `platform/logging/request-line.ts`, тесты границ AF и зачёта).
+Дальше: довести C-1, H-1, H-2, S7SEC-01 и MEDIUM, записать остаток и ревью B1 (пробелы guard: `db.query`, `batch`, статический `getInstance`) в `docs/backlog.md`; повторное ревью; S7-11; PR; слияние.
+Фаза 7: ветка `docs/release` (`docs/release.md`, `scripts/load/` k6); после среза 7 повторить нагрузку, PR.
+Тесты: каждому worktree свой тестовый стек и шаблон БД (общий `tf_template` ломает параллельные прогоны).
 
 ## Открытые вопросы
 
