@@ -31,8 +31,10 @@ import {
  *     `rewards.credit_run` and `profiles.review_eligibility` in the throwaway database and running the
  *     worker jobs `rewards-cooling-end` and `review-publish` once through `dist/cli/run-job.js`, so both
  *     names must be on the closed list of apps/api/src/platform/queues/cli-jobs.ts (S7-02, S7-07);
- *   - a second release address (E2E_SECOND_RELEASE_URL, a page the link-checker container can reach;
- *     default https://www.mozilla.org/) for the second project, because AF-02 wants the address unique;
+ *   - release addresses of their own (pages the link-checker container can reach), because AF-02 wants an
+ *     address unique among the completed projects and slice 6 holds the default one: E2E_FIRST_RELEASE_URL
+ *     (default https://www.python.org/) for the first project, E2E_SECOND_RELEASE_URL (default
+ *     https://www.mozilla.org/) for the second;
  *   - the GitHub accounts of the double are old enough for FR-GH-09 (the double says 2020).
  */
 
@@ -40,6 +42,7 @@ const PEOPLE: PersonKey[] = ['admin', 'a', 'b', 'c', 'd'];
 
 function fixtureTests(): void {
   test('FR-PLAY-03, FR-TEAM-10, FR-WORK-01: the playbook is published and a team of three starts the project (fixture of slices 3-5)', async () => {
+    steps.chooseTheReleaseAddress();
     await test.step(
       'FR-PLAY-03, FR-TEAM-10: the administrator publishes the scenario, the team starts',
       fixture.setupPlaybookAndStartedTeam,
@@ -66,6 +69,10 @@ function fixtureTests(): void {
     await test.step(
       'FR-WORK-14: the release checks',
       fixture.leadPastesTheReleaseLinkAndRunsTheChecks,
+    );
+    await test.step(
+      'AF-11, AF-16, AF-17: the team is days old, its members are independent people',
+      steps.theTeamIsIndependent,
     );
     await test.step('FR-WORK-13: "Завершить"', fixture.leadCompletesTheProject);
     await test.step(

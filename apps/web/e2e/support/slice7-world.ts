@@ -94,6 +94,34 @@ export function advanceCooling(teamId: string, days: number): void {
   runCliJob('review-publish');
 }
 
+/**
+ * The people of the scenario are strangers to the anti-fraud, the way real team mates are: the browsers of the
+ * e2e share one address, one User-Agent and sign in within seconds, and the team is minutes old, which
+ * AF-17 (+2), AF-19 (+1) and AF-11 (a flag) rightly report, and the project would freeze before the credit
+ * that the scenario follows (the freezing has its own step, step 5). So, as the stage time is moved,
+ * the facts that need days are moved too, and only documented columns are touched:
+ *   - `teams.team.created_at` and `teams.membership.joined_at`: the team is `days` old (AF-11), and its members
+ *     joined at its start, before the stages that `makeProjectOlder` (slice 6) moved the same way (FR-REW-01 (3));
+ *   - `auth.identity_signal.first_seen/last_seen`: the sign-ins were long ago, out of the 90 days window (AF-17);
+ *   - `github.account_check`: the daily `github-sync` has looked at the GitHub accounts of the members; the
+ *     double says they were created in 2020 and have public activity (FR-GH-09, AF-16).
+ */
+export function makeTheTeamIndependent(teamId: string, days = 15): void {
+  const members = `SELECT user_id FROM teams.membership WHERE team_id = '${teamId}'`;
+  sql(
+    `UPDATE teams.team SET created_at = created_at - interval '${days} days' WHERE id = '${teamId}'`,
+  );
+  sql(
+    `UPDATE teams.membership SET joined_at = joined_at - interval '${days} days' WHERE team_id = '${teamId}'`,
+  );
+  sql(
+    `UPDATE auth.identity_signal SET first_seen = first_seen - interval '100 days', last_seen = last_seen - interval '100 days' WHERE user_id IN (${members})`,
+  );
+  sql(
+    `INSERT INTO github.account_check (github_user_id, account_created_at, public_repos, has_public_activity, checked_at) SELECT a.account_id::bigint, timestamptz '2020-01-01', 3, true, now() FROM auth.account a WHERE a.provider_id = 'github' AND a.user_id IN (${members}) ON CONFLICT (github_user_id) DO NOTHING`,
+  );
+}
+
 // ---- reads through the API used by several steps ----------------------------------------------------------
 
 export interface CreditBody {

@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from './axe';
 import { ROLE } from './slice4-ui';
 import { world as routeWorld } from './slice5-world';
-import { teamId } from './slice6-world';
+import { teamId, world as fixtureWorld } from './slice6-world';
 import { awardsUi, BADGES, creditUi, ROUTES } from './slice7-ui';
 import {
   advanceCooling,
@@ -13,6 +13,7 @@ import {
   runCliJob,
   waitForCreditStatus,
   world,
+  makeTheTeamIndependent,
   type Person,
 } from './slice7-world';
 
@@ -45,6 +46,23 @@ const ROLES_OF = {
 } as const;
 
 // ---- step 1: the fixture, the finished project of slices 3-6 ---------------------------------------
+
+/** The release address of this scenario's first project (a page the link-checker container can reach). */
+const FIRST_RELEASE_URL = process.env.E2E_FIRST_RELEASE_URL ?? 'https://www.python.org/';
+
+/**
+ * AF-02: a release address held by a completed project is refused ("FRAUD_BLOCK"). On a stack where slice 6
+ * ran before, its project holds the default address, so the fixture of this scenario takes one of its own
+ * (and the second project of step 6 another one, support/slice7-project-steps.ts).
+ */
+export function chooseTheReleaseAddress(): void {
+  fixtureWorld.releaseUrl = FIRST_RELEASE_URL;
+}
+
+/** The team of step 1 is a few days old and its members are not linked by the network (see `makeTheTeamIndependent`). */
+export function theTeamIsIndependent(): void {
+  makeTheTeamIndependent(teamId());
+}
 
 export async function firstProjectIsFinished(): Promise<void> {
   world.firstTeamId = teamId();

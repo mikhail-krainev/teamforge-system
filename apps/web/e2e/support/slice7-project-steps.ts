@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect } from '@playwright/test';
 import { ORIGIN_HEADERS } from './api';
-import { CHECKS_TEST_TIMEOUT_MS } from './slice6-steps';
+import { CHECKS_TEST_TIMEOUT_MS, nextInstallationInANewOrganization } from './slice6-steps';
 import * as slice5steps from './slice5-steps';
 import {
   artifactFile,
@@ -61,6 +61,7 @@ export async function secondProjectStarts(): Promise<void> {
   world.secondTeamId = routeWorld.teamId;
   world.secondTeamName = routeWorld.teamName;
   expect(world.secondTeamId).not.toBe(world.firstTeamId);
+  nextInstallationInANewOrganization();
 }
 
 // ---- the work: six closed issues and four tiny merged pull requests ------------------------------------
