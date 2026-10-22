@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InlineDelivery } from '../../../../platform/outbox/inline-delivery.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import type { NewOutboxEvent } from '../../../../platform/outbox/outbox.types.js';
+import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import type { CompletionSnapshot } from '../../../workspace/public.js';
 import { individualBadges, teamBonusRecipients } from '../domain/award-rules.js';
 import { BADGE } from '../domain/constants.js';
@@ -39,15 +40,33 @@ export class CreditApplier {
     @Inject(AwardRepository) private readonly awards: AwardRepository,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(InlineDelivery) private readonly inline: InlineDelivery,
+    @Inject(AUTH_API) private readonly auth: AuthApi,
   ) {}
+
+  /**
+   * The snapshot of the completion is immutable and still names a person who asked for the deletion of the account
+   * during the cooling. Rows of such a person would bring back what the deletion saga removed (152-FZ), so the
+   * credit sees only the members whose account is `active` now. Read inside the transaction, under lock #11.
+   */
+  private async activeOnly(snapshot: CompletionSnapshot): Promise<CompletionSnapshot> {
+    const active = await this.auth.filterActive(snapshot.roster.members.map((m) => m.userId));
+    return {
+      ...snapshot,
+      roster: {
+        ...snapshot.roster,
+        members: snapshot.roster.members.filter((m) => active.has(m.userId)),
+      },
+    };
+  }
 
   /** The credit of the project (FR-REW-01..10): the run becomes `credited`. Returns the people credited now. */
   async apply(
     run: CreditRunRow,
-    snapshot: CompletionSnapshot,
+    full: CompletionSnapshot,
     accounts: ReadonlyMap<string, AccountVerdict>,
     now: Date,
   ): Promise<number> {
+    const snapshot = await this.activeOnly(full);
     const decisions = decideMembers(snapshot, accounts);
     const inserted = await this.credits.insertProjectCredits(
       decisions.map((d) => ({
@@ -90,11 +109,17 @@ export class CreditApplier {
   /** FR-GH-09: people whose account has grown up move from `pending_account` to `credited` (a run that is `credited`). */
   async promote(
     run: CreditRunRow,
-    snapshot: CompletionSnapshot,
+    full: CompletionSnapshot,
     userIds: string[],
     now: Date,
   ): Promise<number> {
-    const roles = await this.credits.promote(run.teamId, userIds, now);
+    const snapshot = await this.activeOnly(full);
+    const staying = new Set(snapshot.roster.members.map((m) => m.userId));
+    const roles = await this.credits.promote(
+      run.teamId,
+      userIds.filter((id) => staying.has(id)),
+      now,
+    );
     const users = [...new Set(roles.map((r) => r.userId))];
     if (users.length > 0) await this.settle(run, snapshot, now, { users, roles });
     return users.length;

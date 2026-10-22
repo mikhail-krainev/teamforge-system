@@ -141,6 +141,15 @@ export class AuthService implements AuthApi {
     return this.consent.usersWithValidConsent(active.map((row) => row.id));
   }
 
+  async filterActive(userIds: UserId[]): Promise<Set<UserId>> {
+    if (userIds.length === 0) return new Set();
+    const rows = await this.db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(inArray(user.id, userIds), eq(user.status, 'active')));
+    return new Set(rows.map((row) => row.id));
+  }
+
   async getIdentitySignals(userIds: UserId[], since: Date): Promise<IdentitySignal[]> {
     if (userIds.length === 0) return [];
     const rows = await this.db

@@ -246,12 +246,11 @@ describeInfra('S7 profiles: peer reviews, SEC-04 (FR-PROF-08)', ['db', 'redis', 
       expect(await reviewCountFor(rw.world, teamId, lead().id)).toBe(1);
     });
 
-    it('SEC-04: neither the text nor the subject of a review is written to the application log', async () => {
-      // The request line names the caller (`user_id`: the author of the request); the subject comes in the body only.
-      const withoutCaller = (l: string): string => l.replace(/"user_id":"[^"]*",?/, '');
+    it('SEC-04, FR-PROF-08: neither the text, the subject nor the author of a review is written to the application log', async () => {
+      // Every id of the project's people is checked on the lines of the review routes: the request line must not name the caller either.
+      const people = [lead(), backend(), frontend()].map((p) => p.id);
       const lines = rw.world.logs.filter(
-        (l) =>
-          l.includes(MARKER) || (l.includes('/reviews') && withoutCaller(l).includes(backend().id)),
+        (l) => l.includes(MARKER) || (l.includes('/reviews') && people.some((id) => l.includes(id))),
       );
       expect(lines).toEqual([]);
     });

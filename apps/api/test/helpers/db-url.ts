@@ -1,4 +1,4 @@
-export const TEMPLATE_DB = 'tf_template';
+export const TEMPLATE_DB = process.env.TF_TEST_TEMPLATE_DB ?? 'tf_template';
 
 /** Same server and credentials, different database name. */
 export function databaseUrlFor(url: string, database: string): string {

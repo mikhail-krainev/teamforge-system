@@ -6,6 +6,7 @@ import { LoggerModule, PinoLogger } from 'nestjs-pino';
 import type { DestinationStream } from 'pino';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/config.js';
+import { loggedUserId } from './request-line.js';
 import { REDACT_PATHS, serializeErr, serializeReq, serializeRes } from './serializers.js';
 
 export interface LoggingOptions {
@@ -32,7 +33,7 @@ export class RequestLogHook implements OnModuleInit {
         request_id: request.id,
         route: request.routeOptions?.url ?? 'unmatched',
         operation_id: request.tf?.operationId,
-        user_id: request.tf?.userId,
+        user_id: loggedUserId(request.tf),
         status,
         duration_ms: Math.round(reply.elapsedTime),
       };

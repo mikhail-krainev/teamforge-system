@@ -68,6 +68,12 @@ export interface AuthApi {
    * consent of the current text is valid. One batch, no per-user queries.
    */
   filterMatchable(userIds: UserId[]): Promise<Set<UserId>>;
+  /**
+   * The users whose account is `active`: not being deleted and not deleted (FR-AUTH-09). Unlike `filterMatchable` it
+   * does not look at the consent. A module that writes rows about people it knows from an old snapshot (rewards) uses it
+   * so that it never writes data of a person who asked for the deletion. One batch.
+   */
+  filterActive(userIds: UserId[]): Promise<Set<UserId>>;
   getIdentitySignals(userIds: UserId[], since: Date): Promise<IdentitySignal[]>;
   /**
    * Called by a module when its step of the deletion saga is done (idempotent, joins the caller's

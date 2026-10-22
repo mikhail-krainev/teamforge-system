@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { QueuesService } from '../../../../platform/queues/queues.service.js';
+import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import type { CompletedProject } from '../../public.js';
 import { ReviewEligibilityRepository } from './review-eligibility.repository.js';
 import { REVIEW_PUBLISH_JOB, reviewPublishJobId, windowUntilOf } from './review-rules.js';
@@ -16,13 +17,16 @@ export class EligibilityService {
     @Inject(ReviewEligibilityRepository) private readonly eligibility: ReviewEligibilityRepository,
     @Inject(QueuesService) private readonly queues: QueuesService,
     @Inject(Clock) private readonly clock: Clock,
+    @Inject(AUTH_API) private readonly auth: AuthApi,
   ) {}
 
   /** Must run in a transaction; a failure to reach Redis is thrown, so the rows are not kept without the timer. */
   async record(project: CompletedProject): Promise<number> {
     const windowUntil = windowUntilOf(project.completedAt);
+    // A person whose account is being deleted or is gone gets no right back from the list of the completion (FR-AUTH-09).
+    const active = await this.auth.filterActive([...new Set(project.memberUserIds)]);
     const inserted = await this.eligibility.insertMany(
-      [...new Set(project.memberUserIds)].map((userId) => ({
+      [...active].map((userId) => ({
         teamId: project.teamId,
         userId,
         teamName: project.teamName,
