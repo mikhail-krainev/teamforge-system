@@ -10,6 +10,7 @@ import { ActorPolicies } from '../../../../platform/authz/actor-policies.js';
 import type { Database } from '../../../../platform/db/db.module.js';
 import { runMigrations } from '../../../../platform/db/migrate.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
+import type { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { AdminProbe } from '../read/admin-probe.js';
 import { PlaybookDefinitions } from '../read/playbook-definitions.js';
 import { PlaybookReadService } from '../read/playbook-read.service.js';
@@ -22,6 +23,8 @@ const API_ROOT = path.resolve(import.meta.dirname, '../../../../..');
 const read = (...parts: string[]): string => readFileSync(path.join(API_ROOT, ...parts), 'utf8');
 const SYSTEM = '00000000-0000-0000-0000-000000000000';
 const NOW = new Date('2026-10-17T10:00:00Z');
+/** The reads under test run outside a transaction: the "current client" is the plain database. */
+const plain = (db: Database): TxRunner => ({ tx: db }) as unknown as TxRunner;
 
 describeInfra('S5-02/S5-03 playbook loader, publication and reading (database)', ['db'], () => {
   const quiet = { prepare: false, onnotice: () => undefined } as const;
@@ -95,7 +98,10 @@ describeInfra('S5-02/S5-03 playbook loader, publication and reading (database)',
       expect(web.outcome).toBe('published');
       expect(web.playbook).toMatchObject({ version: '1.0.0', status: 'published', totalDays: 84 });
       expect(ml.playbook).toMatchObject({ version: '1.0.0', status: 'published', totalDays: 91 });
-      const facade = new PlaybooksFacade(db, new PlaybookDefinitions(new PlaybookReader(db)));
+      const facade = new PlaybooksFacade(
+        plain(db),
+        new PlaybookDefinitions(new PlaybookReader(plain(db))),
+      );
       expect(await facade.getLatestPublished('web_service')).toMatchObject({
         id: web.playbook.id,
         version: '1.0.0',
@@ -137,7 +143,10 @@ describeInfra('S5-02/S5-03 playbook loader, publication and reading (database)',
     });
 
     it('FR-PLAY-01: getDefinition is the stored tree, frozen and cached by id (one object for every call)', async () => {
-      const facade = new PlaybooksFacade(db, new PlaybookDefinitions(new PlaybookReader(db)));
+      const facade = new PlaybooksFacade(
+        plain(db),
+        new PlaybookDefinitions(new PlaybookReader(plain(db))),
+      );
       const latest = await facade.getLatestPublished('web_service');
       const definition = await facade.getDefinition(latest?.id ?? '');
       expect(definition).toMatchObject({
@@ -162,7 +171,10 @@ describeInfra('S5-02/S5-03 playbook loader, publication and reading (database)',
     });
 
     it('PlaybooksApi: a draft or an unknown id has no definition (404), and the failure is not cached', async () => {
-      const facade = new PlaybooksFacade(db, new PlaybookDefinitions(new PlaybookReader(db)));
+      const facade = new PlaybooksFacade(
+        plain(db),
+        new PlaybookDefinitions(new PlaybookReader(plain(db))),
+      );
       const draft = await inTx((tx) => loader.upload(tx, mini('9.1.0'), SYSTEM, roles));
       expect((await refused(facade.getDefinition(draft.playbook.id))).status).toBe(404);
       expect((await refused(facade.getDefinition(randomUUID()))).status).toBe(404);
@@ -171,7 +183,10 @@ describeInfra('S5-02/S5-03 playbook loader, publication and reading (database)',
     });
 
     it('FR-PLAY-06: isActiveProductType follows product_type.active', async () => {
-      const facade = new PlaybooksFacade(db, new PlaybookDefinitions(new PlaybookReader(db)));
+      const facade = new PlaybooksFacade(
+        plain(db),
+        new PlaybookDefinitions(new PlaybookReader(plain(db))),
+      );
       expect(await facade.isActiveProductType('web_service')).toBe(true);
       expect(await facade.isActiveProductType('no_such_type')).toBe(false);
     });
@@ -326,7 +341,7 @@ describeInfra('S5-02/S5-03 playbook loader, publication and reading (database)',
     let service: PlaybookReadService;
 
     beforeAll(() => {
-      service = new PlaybookReadService(new PlaybookReader(db), new AdminProbe(policies));
+      service = new PlaybookReadService(new PlaybookReader(plain(db)), new AdminProbe(policies));
     });
 
     it('FR-PLAY-03: the public list holds published playbooks only; the admin list holds drafts too', async () => {

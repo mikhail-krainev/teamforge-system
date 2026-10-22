@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, or, sql } from 'drizzle-orm';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type { TeamAccess } from '../authz/team-actor-policies.js';
 import { membership, seatOffer, team } from '../schema/teams.js';
 import { leaderVote, voteCandidate, voteEligible, voteOffer } from '../schema/votes.js';
@@ -8,11 +9,19 @@ import { leaderVote, voteCandidate, voteEligible, voteOffer } from '../schema/vo
 /**
  * Reads behind the authorization policies. Every query takes the whole chain of identifiers
  * (team + nested id), so a nested id of another team is simply not found (architecture 13.14).
- * Runs outside a business transaction on the plain pool.
+ * Runs before the business transaction (on the pool) and joins the active one when called inside it.
  */
 @Injectable()
 export class TeamAccessRepository implements TeamAccess {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(@Inject(TxRunner) private readonly tx: TxRunner) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   async getTeamLead(teamId: string): Promise<{ leadUserId: string | null } | undefined> {
     const rows = await this.db

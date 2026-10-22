@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
-import { DB, type Database } from '../../../../platform/db/db.module.js';
+import type { Database } from '../../../../platform/db/db.module.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
@@ -22,12 +22,19 @@ export class ConsentService {
   private readonly current: ConsentText = loadCurrentConsentText();
 
   constructor(
-    @Inject(DB) private readonly db: Database,
     @Inject(TxRunner) private readonly tx: TxRunner,
     @Inject(LockService) private readonly locks: LockService,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /**
+   * The client of the active transaction, else the pool. A read made inside a transaction must use
+   * the transaction's connection: taking a second one from the pool starves it (architecture 12.1).
+   */
+  private get db(): Database {
+    return this.tx.tx;
+  }
 
   currentText(): ConsentText {
     return this.current;
