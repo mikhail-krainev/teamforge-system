@@ -104,6 +104,28 @@ describe('FR-REW-16, AF-25: the decision', () => {
     expect(bodies).toEqual([{ decision: 'violation', comment: COMMENT }]);
   });
 
+  it('lists a rule that fired in both phases twice without a duplicate key', async () => {
+    serveMe(true);
+    const twice = {
+      ...openCase,
+      signals: [
+        { ruleCode: 'AF-05', score: 3, action: 'flag' },
+        { ruleCode: 'AF-05', score: 3, action: 'flag' },
+      ],
+    };
+    server.use(http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(twice)));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      renderWithClient(<FraudCasePage caseId={CASE_ID} />);
+      const rules = await screen.findByRole('list', { name: 'Сработавшие правила' });
+      expect(within(rules).getAllByRole('listitem')).toHaveLength(2);
+      const keyWarnings = errors.mock.calls.filter((call) => String(call[0]).includes('same key'));
+      expect(keyWarnings).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it('closes the confirmation with Escape without deciding', async () => {
     serveMe(true);
     server.use(http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(openCase)));

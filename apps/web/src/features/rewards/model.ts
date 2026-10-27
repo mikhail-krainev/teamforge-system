@@ -36,6 +36,17 @@ export function stepLabel(item: Pick<Award | Badge, 'step'>): string | null {
   return item.step == null ? null : t('rewards.awards.step', { step: item.step });
 }
 
+/** One badge per series at its current (highest) step; badges outside a series stay as they are. */
+export function currentSeriesSteps(awards: readonly Award[]): Award[] {
+  const top = new Map<string, Award>();
+  for (const award of awards) {
+    if (!award.series || award.step == null) continue;
+    const best = top.get(award.series);
+    if (!best || (best.step ?? 0) < award.step) top.set(award.series, award);
+  }
+  return awards.filter((award) => !award.series || award.step == null || top.get(award.series) === award);
+}
+
 export function validateDispute(text: string): string | null {
   const length = text.trim().length;
   if (length < MIN_DISPUTE_LENGTH) return t('rewards.dispute.errors.short');

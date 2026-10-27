@@ -8,7 +8,7 @@ import { API, renderWithClient } from '@/test/support';
 import { TEAM_ID } from '@/features/teams/fixtures';
 import { AwardsBlock } from './AwardsBlock';
 import { CreditPage } from './CreditPage';
-import { formatCountdown } from './model';
+import { currentSeriesSteps, formatCountdown } from './model';
 
 vi.mock('@/lib/api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api/client')>();
@@ -62,6 +62,16 @@ function serveAwards() {
   );
 }
 
+function award(
+  badgeCode: string,
+  name: string,
+  series: string | null,
+  step: number | null,
+  awardedAt: string,
+) {
+  return { badgeCode, name, series, step, teamId: null, teamName: null, awardedAt };
+}
+
 describe('FR-REW-05, FR-PROF-06: the awards block', () => {
   it('shows the earned badge with its step, the counters and the catalogue states', async () => {
     serveAwards();
@@ -80,6 +90,30 @@ describe('FR-REW-05, FR-PROF-06: the awards block', () => {
     expect(closed?.textContent).toMatch(/Недоступен/);
   });
 
+  it('shows a series as one badge at its current step with the award date', async () => {
+    serveAwards();
+    server.use(
+      http.get(`${API}/v1/users/${USER_ID}/awards`, () =>
+        HttpResponse.json({
+          items: [
+            award('projects_1', 'Первый релиз', 'projects', 1, '2026-01-01T10:00:00.000Z'),
+            award('projects_2', 'Трое в строю', 'projects', 2, '2026-03-05T10:00:00.000Z'),
+            award('on_time', 'В срок', null, null, '2026-01-01T10:00:00.000Z'),
+          ],
+        }),
+      ),
+    );
+    renderWithClient(<AwardsBlock userId={USER_ID} />);
+    const badges = await screen.findByRole('list', { name: 'Полученные значки' });
+    const items = within(badges).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(within(badges).queryByText('Первый релиз')).toBeNull();
+    const series = items.find((item) => item.textContent?.includes('Трое в строю'));
+    expect(series?.textContent).toMatch(/Ступень 2/);
+    expect(series?.textContent).toMatch(/Получен 05\.03\.2026/);
+    expect(within(badges).getByText('В срок')).toBeTruthy();
+  });
+
   it('says so and offers a retry when the awards cannot be loaded', async () => {
     serveAwards();
     server.use(http.get(`${API}/v1/users/${USER_ID}/awards`, () => problem(403, 'FORBIDDEN')));
@@ -90,6 +124,22 @@ describe('FR-REW-05, FR-PROF-06: the awards block', () => {
 });
 
 describe('model', () => {
+  it('keeps the highest step of each series and every badge outside a series', () => {
+    const day = '2026-01-01T10:00:00.000Z';
+    const list = [
+      award('projects_2', 'Трое в строю', 'projects', 2, day),
+      award('roles_1', 'Многоликий', 'roles', 1, day),
+      award('projects_3', 'Пятёрка проектов', 'projects', 3, day),
+      award('projects_1', 'Первый релиз', 'projects', 1, day),
+      award('on_time', 'В срок', null, null, day),
+    ];
+    expect(currentSeriesSteps(list).map((item) => item.badgeCode)).toEqual([
+      'roles_1',
+      'projects_3',
+      'on_time',
+    ]);
+  });
+
   it('counts the cooling down to the minute and stops at zero', () => {
     const now = new Date('2026-01-01T00:00:00Z');
     const until = new Date(now.getTime() + 6 * DAY_MS + 23 * 3_600_000 + 59 * 60_000).toISOString();

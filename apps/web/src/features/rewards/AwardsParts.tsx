@@ -1,17 +1,22 @@
+import { formatDateTimeDay } from '@/features/reviews/model';
 import { t } from '@/i18n';
 import type { Award, Badge, Counters } from './api';
-import { stepLabel } from './model';
+import { currentSeriesSteps, stepLabel } from './model';
 
+/** Earned badges: a series is one badge at its current step, each with its date and project. */
 export function BadgeList({ awards }: { awards: readonly Award[] }) {
   return (
     <ul className="award-list" aria-label={t('rewards.awards.received.label')}>
-      {awards.map((award) => (
+      {currentSeriesSteps(awards).map((award) => (
         <li key={`${award.badgeCode}-${award.teamId ?? ''}`} className="award">
           <strong>{award.name}</strong>
           {award.step == null ? null : <span className="muted">{stepLabel(award)}</span>}
           {award.teamName ? (
             <span className="muted">{t('rewards.awards.team', { team: award.teamName })}</span>
           ) : null}
+          <span className="muted">
+            {t('rewards.awards.awardedAt', { date: formatDateTimeDay(award.awardedAt) })}
+          </span>
         </li>
       ))}
     </ul>
