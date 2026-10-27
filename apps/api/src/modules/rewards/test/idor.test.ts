@@ -138,6 +138,14 @@ describeInfra(
         },
       );
 
+      it('S7SEC-07: a member who left before the completion is a participant of B but may not dispute it: 404, nothing frozen', async () => {
+        const response = await dispute(rw.world, ghost, b.fx.team.id, DISPUTE_TEXT);
+        expectProblem('createDispute', response, 404, 'NOT_FOUND');
+        expect(await disputeCount(rw.world, b.fx.team.id)).toBe(0);
+        expect((await creditRunRow(rw.world, b.fx.team.id))?.status).toBe('cooling');
+        expect(await fraudCaseRows(rw.world, b.fx.team.id)).toEqual([]);
+      });
+
       it('SEC-03: a dispute by an outsider does not join the open case and leaves no text behind', async () => {
         const response = await dispute(rw.world, stranger, a.fx.team.id, DISPUTE_TEXT);
         expectProblem('createDispute', response, 404, 'NOT_FOUND');
@@ -192,6 +200,21 @@ describeInfra(
       it('FR-AUTH-08, AF-25: refused decisions change nothing: the case is open, the project frozen, no audit row', async () => {
         await call(a.backend, 'decideFraudCase');
         await call(stranger, 'decideFraudCase');
+        expect(await fraudCaseRows(rw.world, a.fx.team.id)).toEqual([
+          expect.objectContaining({ status: 'open', decided_by: null }),
+        ]);
+        expect((await creditRunRow(rw.world, a.fx.team.id))?.status).toBe('frozen');
+        expect(await auditRows(rw.world, caseId)).toEqual([]);
+      });
+
+      it('S7SEC-03: an administrator who took part in the project may not decide its case: 403 FORBIDDEN, nothing written', async () => {
+        await rw.world.sql`UPDATE auth."user" SET is_admin = true WHERE id = ${a.lead.id}`;
+        try {
+          const response = await call(a.lead, 'decideFraudCase');
+          expectProblem('decideFraudCase', response, 403, 'FORBIDDEN');
+        } finally {
+          await rw.world.sql`UPDATE auth."user" SET is_admin = false WHERE id = ${a.lead.id}`;
+        }
         expect(await fraudCaseRows(rw.world, a.fx.team.id)).toEqual([
           expect.objectContaining({ status: 'open', decided_by: null }),
         ]);

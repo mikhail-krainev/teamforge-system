@@ -203,7 +203,7 @@ describeInfra('S7 profiles: peer reviews, SEC-04 (FR-PROF-08)', ['db', 'redis', 
       expectReplayed(loserReplay);
     });
 
-    it('FR-PROF-08: about yourself -> 422; empty text, text above 2000 characters or an unknown field -> 400 VALIDATION_FAILED', async () => {
+    it('FR-PROF-08: about yourself -> 422; empty text, text above 2000 characters or an unknown field -> 400; spaces only or control characters -> 422 VALIDATION_FAILED', async () => {
       const self = await createReview(
         rw.world,
         lead(),
@@ -225,6 +225,14 @@ describeInfra('S7 profiles: peer reviews, SEC-04 (FR-PROF-08)', ['db', 'redis', 
         400,
         'VALIDATION_FAILED',
       );
+      for (const text of ['   \n\t  ', 'Хороший\u0000отзыв', 'Хороший\u001bотзыв']) {
+        expectProblem(
+          'createPeerReview',
+          await createReview(rw.world, frontend(), teamId, lead().id, text),
+          422,
+          'VALIDATION_FAILED',
+        );
+      }
       const extra = await rw.world.as(frontend()).post(`/v1/teams/${teamId}/reviews`, {
         subjectUserId: lead().id,
         text: 'Хороший отзыв',
@@ -428,11 +436,11 @@ describeInfra('S7 profiles: peer reviews, SEC-04 (FR-PROF-08)', ['db', 'redis', 
       );
     });
 
-    it('SEC-04: the text is shown escaped: a review with markup does not come back as markup', async () => {
+    it('M-1, S7SEC-08: the text comes back as written (JSON), not HTML-escaped; the place of output escapes it', async () => {
       const items = await receivedOk(rw.world, backend());
       const text = items.map((i) => i.text).join('\n');
-      expect(text).toContain(`${MARKER}-fb`);
-      expect(text).not.toMatch(/<script|<img/i);
+      expect(text).toContain(`${markedText(`${MARKER}-fb`)} ${MARKUP}`);
+      expect(text).not.toMatch(/&(amp|lt|gt);/);
     });
   });
 

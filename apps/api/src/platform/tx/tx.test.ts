@@ -106,6 +106,62 @@ describe('TxRunner', () => {
     expect(after).toHaveBeenCalledTimes(1);
   });
 
+  it('M-6: afterCommit work runs once after the commit; a failed attempt drops what it queued; a rollback runs none', async () => {
+    const runner = runnerWith(fakeHost());
+    const done: string[] = [];
+    let calls = 0;
+    await runner.run(
+      async () => {
+        calls += 1;
+        await runner.afterCommit(async () => void done.push(`attempt-${calls}`));
+        expect(done).toEqual([]);
+        if (calls === 1) throw pgError('40P01');
+      },
+      { jitterMaxMs: 1 },
+    );
+    expect(done).toEqual(['attempt-2']);
+    await runner
+      .run(async () => {
+        await runner.afterCommit(async () => void done.push('rolled-back'));
+        throw new Error('boom');
+      })
+      .catch(() => undefined);
+    expect(done).toEqual(['attempt-2']);
+    await runner.afterCommit(async () => void done.push('outside'));
+    expect(done).toEqual(['attempt-2', 'outside']);
+  });
+
+  it('M-6: afterCommit work queued inside the transaction runs after the commit when the transaction has its own (inherited) CLS store', async () => {
+    // `@nestjs-cls/transactional` runs the transaction in `cls.run({ ifNested: 'inherit' })`: a shallow copy of
+    // the store, so a `set` inside it is not seen outside.
+    let store = new Map<string, unknown>();
+    const cls = {
+      isActive: () => true,
+      run: async <T>(fn: () => Promise<T>) => {
+        const outer = store;
+        store = new Map(outer);
+        try {
+          return await fn();
+        } finally {
+          store = outer;
+        }
+      },
+      set: (key: string, value: unknown) => void store.set(key, value),
+      get: (key: string) => store.get(key),
+    };
+    const host = fakeHost();
+    const inherited = {
+      ...host,
+      withTransaction: (fn: () => Promise<unknown>) => cls.run(() => host.withTransaction(fn)),
+    };
+    const runner = new TxRunner(inherited as unknown as TxHost, cls as never, new TxHooks());
+    const done: string[] = [];
+    await runner.run(async () => {
+      await runner.afterCommit(async () => void done.push('timer'));
+    });
+    expect(done).toEqual(['timer']);
+  });
+
   it('turns 55P03 into 503 LOCK_TIMEOUT without retrying and passes other errors through', async () => {
     const runner = runnerWith(fakeHost());
     let calls = 0;

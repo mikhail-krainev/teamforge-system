@@ -1,8 +1,16 @@
 import { Queue, type JobSchedulerJson } from 'bullmq';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { completedProject, COOLING_MS, type Project } from '../../../../test/fixtures/rewards.js';
-import { creditRunCount } from '../../../../test/fixtures/rewards-db.js';
+import { clockOf } from '../../../../test/fixtures/workspace.js';
+import {
+  completedProject,
+  COOLING_MS,
+  membersOf,
+  plantAccounts,
+  runJobs,
+  type Project,
+} from '../../../../test/fixtures/rewards.js';
+import { creditRunCount, creditRunRow } from '../../../../test/fixtures/rewards-db.js';
 import { describeInfra } from '../../../../test/helpers/infra.js';
 import { startRewardsWorld, type RewardsWorld } from './support.js';
 
@@ -17,6 +25,7 @@ import { startRewardsWorld, type RewardsWorld } from './support.js';
  */
 
 const TEN_MINUTES = 600_000;
+const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
 describeInfra('S7 rewards: timers and schedulers (FR-REW-11, CC-6)', ['db', 'redis', 's3'], () => {
@@ -84,6 +93,25 @@ describeInfra('S7 rewards: timers and schedulers (FR-REW-11, CC-6)', ['db', 'red
       true,
     );
   });
+
+  it('M-6: credit-due-sweep is registered every hour in `maintenance`', async () => {
+    const schedulers = await maintenance.getJobSchedulers();
+    const sweep = schedulers.find((s) => s.key === 'credit-due-sweep');
+    expect(sweep, `schedulers: ${schedulers.map((s) => s.key).join(', ')}`).toBeDefined();
+    expect(everyOf(sweep)).toBe(HOUR);
+  });
+
+  it('M-6: a lost cooling timer is repaired: credit-due-sweep credits the run whose cooling is over', async () => {
+    const lost = await completedProject(rw.world);
+    const id = `credit_${lost.fx.team.id}`;
+    await timers.remove(id);
+    expect(await timers.getJob(id)).toBeUndefined();
+    await plantAccounts(rw.world, membersOf(lost));
+    clockOf(rw.world).advance(COOLING_MS + HOUR);
+    const [outcome] = await runJobs(rw.world, 'maintenance', 'credit-due-sweep', {});
+    expect(outcome?.state, outcome?.reason).toBe('completed');
+    expect((await creditRunRow(rw.world, lost.fx.team.id))?.status).toBe('credited');
+  }, 240_000);
 
   it('FR-PROF-08: the schedulers of the reviews are registered: review-eligibility-scan and review-purge', async () => {
     const keys = (await maintenance.getJobSchedulers()).map((s) => s.key);

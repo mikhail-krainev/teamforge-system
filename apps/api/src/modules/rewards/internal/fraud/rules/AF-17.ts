@@ -4,7 +4,11 @@ import { SCORE, SHARED_GROUP, SHARED_PAIR } from './thresholds.js';
 
 export const RULE_CODE = 'AF-17';
 
-const KINDS: readonly IdentitySignalFacts['kind'][] = ['ip24', 'ua', 'device'];
+/**
+ * The kinds that count on their own. A user agent is shared by every colleague with the same browser and system
+ * (M-3), so alone it is no link: it counts only together with another feature, in AF-21.
+ */
+const KINDS: readonly IdentitySignalFacts['kind'][] = ['ip24', 'device'];
 
 interface Group {
   kind: IdentitySignalFacts['kind'];
@@ -30,7 +34,7 @@ const scoreOfSize = (size: number): number => {
 };
 
 /**
- * AF-17: a shared subnet, user agent or device between members: two members +1, three or more +2; the highest
+ * AF-17: a shared subnet or device between members: two members +1, three or more +2; the highest
  * over the kinds. The data hold the kind and the user ids, never the HMAC.
  */
 export function evaluate(facts: FraudFacts): Signal[] {

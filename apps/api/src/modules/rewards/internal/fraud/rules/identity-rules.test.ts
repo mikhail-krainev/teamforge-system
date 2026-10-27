@@ -83,7 +83,7 @@ describe('AF-17: a shared network or device fingerprint: two members +1, three o
     expect(await run('AF-17', cleanFacts())).toEqual([]);
   });
 
-  it.each(['ip24', 'ua', 'device'] as const)(
+  it.each(['ip24', 'device'] as const)(
     'AF-17: two members with the same %s -> +1',
     async (kind) => {
       const signals = await run(
@@ -94,6 +94,14 @@ describe('AF-17: a shared network or device fingerprint: two members +1, three o
       expect(scoreOf(signals)).toBe(1);
     },
   );
+
+  it('M-3: AF-17: a shared user agent alone is no signal, even for three members', async () => {
+    const signals = await run(
+      'AF-17',
+      cleanFacts({ identitySignals: shared('ua', [LEAD, BACKEND, FRONTEND]) }),
+    );
+    expect(signals).toEqual([]);
+  });
 
   it('AF-17: three members with the same subnet -> +2', async () => {
     const signals = await run(

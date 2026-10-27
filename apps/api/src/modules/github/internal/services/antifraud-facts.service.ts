@@ -30,12 +30,19 @@ export class AntifraudFactsService {
     @Inject(RepoLinkRepository) private readonly links: RepoLinkRepository,
   ) {}
 
-  /** The account check of each user: two statements however many users (accounts without a check are `unknown`). */
-  async accountChecks(userIds: string[]): Promise<Map<string, AccountCheckView>> {
-    const facts = await this.auth.getAccountFacts(userIds);
-    const githubIds = [...facts.values()].flatMap((f) =>
-      f.githubUserId === null ? [] : [f.githubUserId],
-    );
+  /**
+   * The account check of each user: two statements however many users (accounts without a check are `unknown`);
+   * one when the caller passes the GitHub ids it has read from auth already.
+   */
+  async accountChecks(
+    userIds: string[],
+    known?: ReadonlyMap<string, number | null>,
+  ): Promise<Map<string, AccountCheckView>> {
+    const idOf = known ?? (await this.githubIdsOf(userIds));
+    const githubIds = userIds.flatMap((userId) => {
+      const id = idOf.get(userId) ?? null;
+      return id === null ? [] : [id];
+    });
     const rows =
       githubIds.length === 0
         ? []
@@ -47,7 +54,7 @@ export class AntifraudFactsService {
     const now = this.clock.now();
     return new Map(
       userIds.map((userId) => {
-        const githubId = facts.get(userId)?.githubUserId ?? null;
+        const githubId = idOf.get(userId) ?? null;
         const row = githubId === null ? undefined : byGithub.get(githubId);
         if (row === undefined) return [userId, UNKNOWN_ACCOUNT];
         const verdict = evaluateAccount(row, now);
@@ -62,6 +69,11 @@ export class AntifraudFactsService {
         return [userId, view];
       }),
     );
+  }
+
+  private async githubIdsOf(userIds: string[]): Promise<Map<string, number | null>> {
+    const facts = await this.auth.getAccountFacts(userIds);
+    return new Map([...facts].map(([userId, f]) => [userId, f.githubUserId]));
   }
 
   /** AF-05: changed lines of the merged pull requests of the team's repository and the share of the biggest one. */

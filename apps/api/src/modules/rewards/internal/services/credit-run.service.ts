@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import { jobId } from '../../../../platform/queues/job-id.js';
 import { QueuesService } from '../../../../platform/queues/queues.service.js';
+import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import {
   type CompletionSnapshot,
   WORKSPACE_API,
@@ -39,6 +41,8 @@ export function signalRows(signals: Signal[], phase: Phase): NewSignal[] {
 export class CreditRunService {
   constructor(
     @Inject(Clock) private readonly clock: Clock,
+    @Inject(TxRunner) private readonly tx: TxRunner,
+    @Inject(PinoLogger) private readonly logger: PinoLogger,
     @Inject(OutboxService) private readonly outbox: OutboxService,
     @Inject(QueuesService) private readonly queues: QueuesService,
     @Inject(WORKSPACE_API) private readonly workspace: WorkspaceApi,
@@ -100,13 +104,24 @@ export class CreditRunService {
     await this.addCoolingEnd(teamId, coolingUntil.getTime(), jobId('credit', teamId, caseId));
   }
 
+  /**
+   * M-6: the timer is added after the commit. Added inside, a timer with `delay = 0` (a scan after a long outage)
+   * could run before the run is committed, find nothing and complete, and its deterministic id would keep a second
+   * add a no-op. A failed add is logged; the hourly `credit-due-sweep` credits a run whose timer is lost.
+   */
   private async addCoolingEnd(teamId: string, dueAt: number, id: string): Promise<void> {
-    await this.queues.add(
-      'timers',
-      COOLING_END_JOB,
-      { teamId },
-      { jobId: id, delayMs: Math.max(0, dueAt - this.clock.now().getTime()) },
-    );
+    await this.tx.afterCommit(async () => {
+      try {
+        await this.queues.add(
+          'timers',
+          COOLING_END_JOB,
+          { teamId },
+          { jobId: id, delayMs: Math.max(0, dueAt - this.clock.now().getTime()) },
+        );
+      } catch (error) {
+        this.logger.error({ err: error, teamId }, 'rewards-cooling-end was not scheduled');
+      }
+    });
   }
 
   /** The state of a run as the callers read it. */

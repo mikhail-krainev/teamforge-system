@@ -1,0 +1,1 @@
+CREATE INDEX "peer_review_pending_team_idx" ON "profiles"."peer_review" USING btree ("team_id") WHERE "profiles"."peer_review"."status" = 'pending';

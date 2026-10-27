@@ -14,9 +14,9 @@ function Signals({ signals }: { signals: FraudCase['signals'] }) {
   if (signals.length === 0) return <p className="muted">{t('fraud.card.noSignals')}</p>;
   return (
     <ul className="stack plain-list" aria-label={t('fraud.card.signals')}>
-      {signals.map((signal, index) => (
-        // One rule can fire in both phases and the DTO carries no phase, so the code alone is not unique.
-        <li key={`${signal.ruleCode}-${index}`}>
+      {signals.map((signal) => (
+        // One rule can fire in both phases; a rule fires once per phase (`fraud_signal_uq`).
+        <li key={`${signal.phase}-${signal.ruleCode}`}>
           <strong>{signal.ruleCode}</strong>{' '}
           <span className="muted">
             {t('fraud.card.signalLine', {

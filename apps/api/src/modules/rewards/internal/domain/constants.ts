@@ -1,4 +1,5 @@
-export const DAY_MS = 24 * 60 * 60 * 1000;
+export const HOUR_MS = 60 * 60 * 1000;
+export const DAY_MS = 24 * HOUR_MS;
 /** C-17b: the credit is applied this long after the completion. */
 export const COOLING_MS = 7 * DAY_MS;
 /** C-60: the share of the stages a person must take part in (percent, rounded up). */

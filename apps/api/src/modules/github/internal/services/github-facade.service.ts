@@ -70,8 +70,11 @@ export class GithubFacade implements GithubApi {
     return this.checks.accountEligibility(userId);
   }
 
-  getAccountChecks(userIds: string[]): Promise<Map<string, AccountCheckView>> {
-    return this.antifraud.accountChecks(userIds);
+  getAccountChecks(
+    userIds: string[],
+    githubIds?: ReadonlyMap<string, number | null>,
+  ): Promise<Map<string, AccountCheckView>> {
+    return this.antifraud.accountChecks(userIds, githubIds);
   }
 
   getPullRequestStats(teamId: string): Promise<PullRequestStats> {

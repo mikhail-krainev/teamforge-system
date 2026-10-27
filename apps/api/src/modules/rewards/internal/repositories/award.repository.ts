@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { uuidv7 } from 'uuidv7';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { award, badgeDef } from '../schema/rewards.js';
@@ -56,6 +56,33 @@ export class AwardRepository {
       .update(award)
       .set({ revokedAt: at, revokeReason: reason })
       .where(and(eq(award.teamId, teamId), isNull(award.revokedAt)))
+      .returning({ userId: award.userId, badgeCode: award.badgeCode, teamId: award.teamId });
+  }
+
+  /**
+   * M-4: the given badges of each person are revoked wherever they were granted (the steps of a series that a
+   * revocation took below the threshold). Once, by `revoked_at IS NULL`.
+   */
+  async revokeCodesOf(
+    lost: { userId: string; codes: string[] }[],
+    reason: string,
+    at: Date,
+  ): Promise<AwardedBadge[]> {
+    const wanted = lost.filter((l) => l.codes.length > 0);
+    if (wanted.length === 0) return [];
+    return this.tx.tx
+      .update(award)
+      .set({ revokedAt: at, revokeReason: reason })
+      .where(
+        and(
+          isNull(award.revokedAt),
+          or(
+            ...wanted.map((l) =>
+              and(eq(award.userId, l.userId), inArray(award.badgeCode, l.codes)),
+            ),
+          ),
+        ),
+      )
       .returning({ userId: award.userId, badgeCode: award.badgeCode, teamId: award.teamId });
   }
 

@@ -24,6 +24,22 @@ function reached(series: keyof typeof SERIES_STEPS, count: number): string[] {
   return SERIES_STEPS[series].filter((step) => count >= step.at).map((step) => step.code);
 }
 
+/**
+ * FR-REW-12 (M-4): the steps of the series that the person no longer reaches after a revocation. A step is given
+ * by the project where the threshold was crossed, which need not be the revoked one, so the steps are checked
+ * against the counts again; the badges of one project (on time, deficit, the team badge) go with their project.
+ */
+export function seriesStepsLost(stats: UserStats): string[] {
+  const counts: Record<keyof typeof SERIES_STEPS, number> = {
+    projects: stats.distinctRosters,
+    roles: stats.roles,
+    product_types: stats.productTypes,
+  };
+  return (Object.keys(SERIES_STEPS) as (keyof typeof SERIES_STEPS)[]).flatMap((series) =>
+    SERIES_STEPS[series].filter((step) => counts[series] < step.at).map((step) => step.code),
+  );
+}
+
 /** All the badges the person has earned by now; the ones he holds already are filtered out by the insert. */
 export function individualBadges(stats: UserStats, project: ProjectFacts): string[] {
   const codes: string[] = [

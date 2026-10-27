@@ -10,9 +10,11 @@ import {
 import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { peerReview, reviewEligibility } from '../schema/profiles.js';
-import { escapeReviewText } from './review-rules.js';
 
-/** `ReceivedReview` of the contract: no author, no time of writing (SEC-04). */
+/**
+ * `ReceivedReview` of the contract: no author, no time of writing (SEC-04). The text is returned as written (JSON);
+ * the place of output escapes it (M-1, S7SEC-08).
+ */
 export interface ReceivedReviewDto {
   id: string;
   teamId: string;
@@ -83,7 +85,7 @@ export class ReceivedReviewsQuery {
         id: row.id,
         teamId: row.teamId,
         teamName: row.teamName,
-        text: escapeReviewText(row.text),
+        text: row.text,
         publishedOn: row.publishedOn,
       })),
       nextCursor: page.nextCursor,

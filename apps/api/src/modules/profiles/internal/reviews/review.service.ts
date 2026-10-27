@@ -2,10 +2,12 @@ import { randomInt, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { Clock } from '../../../../platform/clock/clock.js';
 import { DomainError } from '../../../../platform/errors/domain-error.js';
+import { assertPlainText } from '../../../../platform/errors/plain-text.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { ReviewAuthorshipRepository } from './review-authorship.repository.js';
 import { ReviewEligibilityRepository } from './review-eligibility.repository.js';
 import { ReviewRepository } from './review.repository.js';
+import { REVIEW_TEXT_LIMITS } from './review-rules.js';
 
 /** Body of `createPeerReview` after schema validation. */
 export interface ReviewCreateInput {
@@ -44,6 +46,7 @@ export class ReviewService {
    * finds the pair taken (`peer_review_pair_uq` decides a race), and the whole attempt rolls back.
    */
   create(authorUserId: string, teamId: string, input: ReviewCreateInput): Promise<ReviewSentDto> {
+    assertPlainText(input.text, REVIEW_TEXT_LIMITS, '/text');
     return this.tx.run(async () => {
       const rows = await this.eligibility.forShare(teamId, [authorUserId, input.subjectUserId]);
       const mine = rows.find((row) => row.userId === authorUserId);

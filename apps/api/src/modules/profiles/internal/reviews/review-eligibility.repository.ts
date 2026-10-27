@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { peerReview, reviewEligibility } from '../schema/profiles.js';
 
@@ -62,18 +62,22 @@ export class ReviewEligibilityRepository {
     return new Set(rows.map((r) => r.teamId));
   }
 
-  /** Teams whose window is over and that still hold `pending` reviews (the sweep of the publication). */
+  /**
+   * Teams whose window is over and that still hold `pending` reviews (the sweep of the publication). M-5: it starts
+   * from the pending reviews (`peer_review_pending_team_idx`, a set that empties as batches are published) and
+   * looks up the window of each such team, so the growing history of `review_eligibility` is never read.
+   */
   async dueTeams(now: Date): Promise<string[]> {
     const rows = await this.tx.tx
-      .selectDistinct({ teamId: reviewEligibility.teamId })
-      .from(reviewEligibility)
+      .selectDistinct({ teamId: peerReview.teamId })
+      .from(peerReview)
       .where(
         and(
-          lte(reviewEligibility.windowUntil, now),
-          sql`EXISTS (SELECT 1 FROM ${peerReview} WHERE ${peerReview.teamId} = ${reviewEligibility.teamId} AND ${peerReview.status} = 'pending')`,
+          eq(peerReview.status, 'pending'),
+          sql`EXISTS (SELECT 1 FROM ${reviewEligibility} WHERE ${reviewEligibility.teamId} = ${peerReview.teamId} AND ${reviewEligibility.windowUntil} <= ${now})`,
         ),
       )
-      .orderBy(asc(reviewEligibility.teamId));
+      .orderBy(asc(peerReview.teamId));
     return rows.map((r) => r.teamId);
   }
 

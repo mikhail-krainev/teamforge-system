@@ -39,7 +39,7 @@ const openCase = {
   teamName: 'Команда Бета',
   status: 'open',
   openedAt: '2026-11-01T10:00:00.000Z',
-  signals: [{ ruleCode: 'AF-05', score: 3, action: 'flag' }],
+  signals: [{ ruleCode: 'AF-05', phase: 'completion', score: 3, action: 'flag' }],
   disputes: [{ text: 'Проект заморожен по ошибке.', createdAt: '2026-11-02T10:00:00.000Z' }],
   decidedAt: null,
   comment: null,
@@ -76,16 +76,21 @@ describe('FR-REW-16, AF-25: the decision', () => {
   it('shows the rules and the complaints, and decides only after a confirmation', async () => {
     serveMe(true);
     const bodies: unknown[] = [];
+    // The panel reads the card again after the decision, so the server keeps the decided case.
+    let current: Record<string, unknown> = openCase;
     server.use(
-      http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(openCase)),
+      http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(current)),
       http.post(`${API}/v1/admin/fraud-cases/${CASE_ID}/decision`, async ({ request }) => {
         bodies.push(await request.json());
-        return HttpResponse.json({ ...openCase, status: 'violation', comment: COMMENT });
+        current = { ...openCase, status: 'violation', comment: COMMENT };
+        return HttpResponse.json(current);
       }),
     );
     renderWithClient(<FraudCasePage caseId={CASE_ID} />);
     const card = await screen.findByRole('region', { name: 'Карточка дела' });
-    expect(within(card).getByRole('list', { name: 'Сработавшие правила' }).textContent).toMatch(/AF-05/);
+    expect(within(card).getByRole('list', { name: 'Сработавшие правила' }).textContent).toMatch(
+      /AF-05/,
+    );
     expect(within(card).getByRole('list', { name: 'Жалобы участников' }).textContent).toMatch(
       /заморожен по ошибке/,
     );
@@ -109,8 +114,8 @@ describe('FR-REW-16, AF-25: the decision', () => {
     const twice = {
       ...openCase,
       signals: [
-        { ruleCode: 'AF-05', score: 3, action: 'flag' },
-        { ruleCode: 'AF-05', score: 3, action: 'flag' },
+        { ruleCode: 'AF-05', phase: 'completion', score: 3, action: 'flag' },
+        { ruleCode: 'AF-05', phase: 'cooling_end', score: 3, action: 'flag' },
       ],
     };
     server.use(http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(twice)));
@@ -128,7 +133,9 @@ describe('FR-REW-16, AF-25: the decision', () => {
 
   it('closes the confirmation with Escape without deciding', async () => {
     serveMe(true);
-    server.use(http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(openCase)));
+    server.use(
+      http.get(`${API}/v1/admin/fraud-cases/${CASE_ID}`, () => HttpResponse.json(openCase)),
+    );
     renderWithClient(<FraudCasePage caseId={CASE_ID} />);
     const card = await screen.findByRole('region', { name: 'Карточка дела' });
     fireEvent.change(within(card).getByLabelText('Комментарий'), { target: { value: COMMENT } });

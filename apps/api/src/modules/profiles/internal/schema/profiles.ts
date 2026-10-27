@@ -183,6 +183,10 @@ export const peerReview = profilesSchema.table(
       .on(t.subjectUserId, t.publishedOn.desc(), t.teamId, t.sortKey, t.id)
       .where(sql`${t.status} = 'published'`),
     index('peer_review_team_subject_idx').on(t.teamId, t.subjectUserId),
+    /** M-5: the sweep of the publication starts from the pending reviews, never from the whole history. */
+    index('peer_review_pending_team_idx')
+      .on(t.teamId)
+      .where(sql`${t.status} = 'pending'`),
     index('peer_review_purge_idx')
       .on(t.purgeAfter)
       .where(sql`${t.status} = 'withheld'`),

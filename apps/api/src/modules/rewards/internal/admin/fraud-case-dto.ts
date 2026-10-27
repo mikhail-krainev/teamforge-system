@@ -37,6 +37,7 @@ export function toFraudCaseDto(row: FraudCaseRow, parts: CaseParts): FraudCaseDt
     openedAt: row.openedAt.toISOString(),
     signals: parts.signals.map((s) => ({
       ruleCode: s.ruleCode,
+      phase: s.phase as FraudCaseDto['signals'][number]['phase'],
       score: s.score,
       action: s.action as FraudCaseDto['signals'][number]['action'],
       data: visibleData(s.data) as Record<string, never>,

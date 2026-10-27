@@ -114,18 +114,19 @@ export class FraudFactsService {
   ): Promise<Sources> {
     const userIds = snapshot.roster.members.map((m) => m.userId);
     const since = new Date(now.getTime() - IDENTITY_WINDOW_MS);
-    const [brief, work, repo, pulls, accounts, checks, signals, lastCredit, sameRoster] =
-      await Promise.all([
-        this.teams.getTeamBriefs([teamId]),
-        this.workspace.getAntifraudFacts(teamId),
-        this.github.getRepositoryFacts(teamId),
-        this.github.getPullRequestStats(teamId),
-        this.auth.getAccountFacts(userIds),
-        this.github.getAccountChecks(userIds),
-        this.auth.getIdentitySignals(userIds, since),
-        this.credits.lastOtherCreditAt(userIds, teamId),
-        this.runs.sameRosterTeamIds(rosterHash, teamId),
-      ]);
+    // The GitHub ids come from the facts of auth: the checks of github get them instead of asking auth again.
+    const accounts = await this.auth.getAccountFacts(userIds);
+    const githubIds = new Map([...accounts].map(([userId, f]) => [userId, f.githubUserId]));
+    const [brief, work, repo, pulls, checks, signals, lastCredit, sameRoster] = await Promise.all([
+      this.teams.getTeamBriefs([teamId]),
+      this.workspace.getAntifraudFacts(teamId),
+      this.github.getRepositoryFacts(teamId),
+      this.github.getPullRequestStats(teamId),
+      this.github.getAccountChecks(userIds, githubIds),
+      this.auth.getIdentitySignals(userIds, since),
+      this.credits.lastOtherCreditAt(userIds, teamId),
+      this.runs.sameRosterTeamIds(rosterHash, teamId),
+    ]);
     return {
       brief: brief.get(teamId),
       work,

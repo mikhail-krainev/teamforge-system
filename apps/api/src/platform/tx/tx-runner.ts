@@ -98,14 +98,37 @@ export class TxRunner {
     return this.runAttempts(fn, options);
   }
 
+  /**
+   * Queues work for after the commit of the active transaction (at once outside one): a job that must not be seen
+   * before the rows it reads are committed. A retried attempt drops what the failed attempt queued, a rollback
+   * runs nothing. The work handles its own failures (the transaction is committed by then; a sweep repairs).
+   */
+  async afterCommit(work: () => Promise<void>): Promise<void> {
+    const queue = this.host.isTransactionActive() ? this.cls.get('afterCommit') : undefined;
+    if (queue === undefined) {
+      await work();
+      return;
+    }
+    // The array is the one of the attempt, made outside the transaction's own (inherited) CLS store: a `set`
+    // inside that store would not be seen after the commit.
+    queue.push(work);
+  }
+
+  private async runQueuedAfterCommit(queued: (() => Promise<void>)[]): Promise<void> {
+    for (const work of queued.splice(0)) await work();
+  }
+
   private async runAttempts<T>(fn: () => Promise<T>, options: TxOptions): Promise<T> {
     const maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     const deadline = options.deadlineAt ?? Date.now() + DEFAULTS.hardDeadlineMs;
     for (let attempt = 0; ; attempt += 1) {
+      const queued: (() => Promise<void>)[] = [];
+      this.cls.set('afterCommit', queued);
       try {
         const result = await this.attempt(fn, options);
         this.markCommitted();
         await this.hooks.afterCommit();
+        await this.runQueuedAfterCommit(queued);
         return result;
       } catch (error) {
         if (!isRetryableTxError(error)) throw this.translate(error);

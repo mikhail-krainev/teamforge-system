@@ -11,6 +11,7 @@ import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
+import { WORKSPACE_API, type WorkspaceApi } from '../../../workspace/public.js';
 import {
   type CaseKey,
   FraudRepository,
@@ -46,6 +47,7 @@ export class FraudCaseService {
     @Inject(LockService) private readonly locks: LockService,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
+    @Inject(WORKSPACE_API) private readonly workspace: WorkspaceApi,
     @Inject(FraudRepository) private readonly fraud: FraudRepository,
     @Inject(CreditRunRepository) private readonly runs: CreditRunRepository,
     @Inject(CreditApplier) private readonly applier: CreditApplier,
@@ -82,6 +84,7 @@ export class FraudCaseService {
     return this.tx.run(async () => {
       const found = await this.fraud.findCase(caseId);
       if (found === undefined) throw notFound();
+      await this.assertNotOwnTeam(adminId, found.teamId);
       await this.locks.lockCreditRun(found.teamId);
       const locked = await this.fraud.lockCase(caseId);
       if (locked === undefined || locked.status !== 'open') {
@@ -103,6 +106,26 @@ export class FraudCaseService {
       const decided = await this.fraud.findCase(caseId);
       return (await this.toDtos([decided as FraudCaseRow]))[0] as FraudCaseDto;
     });
+  }
+
+  /**
+   * S7SEC-03: the administrator is a user too; a case of a project he took part in (the roster of the completion,
+   * the people who left before it, the live roster) is not his to decide: 403 `FORBIDDEN`. Reads through the
+   * facades in the transaction of the decision.
+   */
+  private async assertNotOwnTeam(adminId: string, teamId: string): Promise<void> {
+    const roster = await this.teams.getRoster(teamId);
+    let involved = roster.some((m) => m.userId === adminId);
+    if (!involved && (await this.workspace.getCompletion(teamId)) !== null) {
+      const { members, departedUserIds } = (await this.workspace.getCompletionSnapshot(teamId))
+        .roster;
+      involved = members.some((m) => m.userId === adminId) || departedUserIds.includes(adminId);
+    }
+    if (involved) {
+      throw new DomainError('FORBIDDEN', 403, {
+        detail: 'A case of a project the administrator took part in is decided by another one',
+      });
+    }
   }
 
   /**

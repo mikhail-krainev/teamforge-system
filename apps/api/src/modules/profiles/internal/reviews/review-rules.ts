@@ -24,14 +24,8 @@ export const windowUntilOf = (completedAt: Date): Date =>
 /** The UTC calendar day of a moment, `YYYY-MM-DD` (the date of a batch does not depend on the server zone). */
 export const utcDay = (at: Date): string => at.toISOString().slice(0, 10);
 
-const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
-
-/**
- * SEC-04: the text of a review is shown escaped, so that markup written by a colleague never comes
- * back as markup. The stored text stays as it was written.
- */
-export const escapeReviewText = (text: string): string =>
-  text.replaceAll(/[&<>]/g, (char) => ESCAPES[char] ?? char);
+/** Length of a review text (contract `ReviewCreate.text`, CHECK `char_length`). */
+export const REVIEW_TEXT_LIMITS = { min: 1, max: 2000 } as const;
 
 /** Reads `{ teamId }` of a `review-publish` job. */
 export function parseReviewPublish(data: unknown): string {

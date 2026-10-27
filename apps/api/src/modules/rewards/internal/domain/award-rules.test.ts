@@ -4,6 +4,7 @@ import {
   type CreditedRole,
   individualBadges,
   type ProjectFacts,
+  seriesStepsLost,
   teamBonusRecipients,
   type UserStats,
 } from './award-rules.js';
@@ -209,5 +210,24 @@ describe('teamBonusRecipients: "Закрытая вакансия" (FR-REW-10)',
       'u2',
       'u3',
     ]);
+  });
+});
+
+describe('seriesStepsLost: the steps a revocation took below the threshold (FR-REW-12, M-4)', () => {
+  it('three projects, three roles, two types: nothing reached is lost; the steps above are listed', () => {
+    const lost = seriesStepsLost(stats({ distinctRosters: 3, roles: 3, productTypes: 2 }));
+    expect(lost).toEqual(['projects_3', 'projects_4', 'roles_2', 'product_types_2']);
+  });
+
+  it('a revocation from three projects to two loses "Трое в строю" but keeps "Первый релиз"', () => {
+    const lost = seriesStepsLost(stats({ distinctRosters: 2, roles: 1, productTypes: 1 }));
+    expect(lost).toContain('projects_2');
+    expect(lost).not.toContain('projects_1');
+    expect(lost).toContain('roles_1');
+    expect(lost).toContain('product_types_1');
+  });
+
+  it('no credited project left: every step of every series is lost', () => {
+    expect(seriesStepsLost(stats())).toHaveLength(8);
   });
 });

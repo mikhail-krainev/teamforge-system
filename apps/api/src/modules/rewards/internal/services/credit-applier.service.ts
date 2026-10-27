@@ -4,10 +4,14 @@ import { OutboxService } from '../../../../platform/outbox/outbox.service.js';
 import type { NewOutboxEvent } from '../../../../platform/outbox/outbox.types.js';
 import { AUTH_API, type AuthApi } from '../../../auth/public.js';
 import type { CompletionSnapshot } from '../../../workspace/public.js';
-import { individualBadges, teamBonusRecipients } from '../domain/award-rules.js';
+import { individualBadges, seriesStepsLost, teamBonusRecipients } from '../domain/award-rules.js';
 import { BADGE } from '../domain/constants.js';
 import { type AccountVerdict, decideMembers } from '../domain/credit-rules.js';
-import { AwardRepository, type NewAward } from '../repositories/award.repository.js';
+import {
+  type AwardedBadge,
+  AwardRepository,
+  type NewAward,
+} from '../repositories/award.repository.js';
 import {
   type CounterDelta,
   CounterRepository,
@@ -133,7 +137,10 @@ export class CreditApplier {
       ...roles.map((r) => ({ userId: r.userId, roleCode: r.roleCode, delta: 1 })),
     ];
     const values = await this.counters.decrease(deltas);
-    const revoked = await this.awards.revokeOfTeam(run.teamId, REVOKE_REASON, now);
+    const revoked = [
+      ...(await this.awards.revokeOfTeam(run.teamId, REVOKE_REASON, now)),
+      ...(await this.revokeLostSteps([...users, ...roles.map((r) => r.userId)], now)),
+    ];
     await this.runs.setState(run.teamId, { status: 'revoked' });
     await this.publishChanged(users.map((userId) => creditsChanged(userId, values)));
     await this.outbox.publishMany(
@@ -141,10 +148,21 @@ export class CreditApplier {
         module: REWARDS_MODULE,
         type: 'award_revoked',
         aggregateId: run.teamId,
-        payload: { userId: a.userId, badgeCode: a.badgeCode, teamId: run.teamId },
+        payload: { userId: a.userId, badgeCode: a.badgeCode, teamId: a.teamId ?? run.teamId },
       })),
     );
     return users.length;
+  }
+
+  /**
+   * M-4: the steps of a series granted by another project of the person fall with the counts: after the rows of the
+   * project are revoked, the stats are read again and a step no longer reached is revoked, so the badges agree with
+   * the counters.
+   */
+  private async revokeLostSteps(userIds: string[], now: Date): Promise<AwardedBadge[]> {
+    const stats = await this.credits.stats([...new Set(userIds)]);
+    const lost = [...stats].map(([userId, s]) => ({ userId, codes: seriesStepsLost(s) }));
+    return this.awards.revokeCodesOf(lost, REVOKE_REASON, now);
   }
 
   /** Counters up, then the awards computed from the rows that exist now, then the events. */

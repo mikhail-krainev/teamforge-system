@@ -106,7 +106,9 @@ describeInfra('S7 rewards: anti-fraud, manual review, disputes (FR-REW-11, FR-RE
     it('FR-REW-16: the administrator sees the project, the rules that fired and the disputes; no personal data beyond what is needed', async () => {
       const item = flaggedCase;
       expect(item).toMatchObject({ teamId: flagged.fx.team.id, teamName: flagged.fx.team.dto.name, status: 'open' });
-      expect(item.signals).toEqual(expect.arrayContaining([expect.objectContaining({ ruleCode: 'AF-05', action: 'flag' })]));
+      expect(item.signals).toEqual(
+        expect.arrayContaining([expect.objectContaining({ ruleCode: 'AF-05', phase: 'completion', action: 'flag' })]),
+      );
       const text = JSON.stringify(item);
       for (const user of [flagged.lead, flagged.backend, flagged.frontend]) {
         expect(text).not.toContain(user.email);

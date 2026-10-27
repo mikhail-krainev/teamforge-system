@@ -36,7 +36,7 @@ interface CaseBody {
   teamId: string;
   teamName: string;
   status: 'open' | 'ok' | 'violation';
-  signals: { ruleCode: string; score: number; action: string }[];
+  signals: { ruleCode: string; phase: string; score: number; action: string }[];
   disputes?: { text: string; createdAt: string }[];
   comment?: string | null;
 }

@@ -85,8 +85,15 @@ export interface GithubApi {
   getCiState(teamId: TeamId): Promise<'success' | 'none' | null>;
   /** FR-GH-09 for the credit (FR-REW-01 item 5), from the daily account check. */
   getAccountEligibility(userId: string): Promise<AccountEligibility>;
-  /** FR-GH-09 for several accounts at once (rewards reads it before its transaction): stored checks only. */
-  getAccountChecks(userIds: string[]): Promise<Map<string, AccountCheckView>>;
+  /**
+   * FR-GH-09 for several accounts at once (rewards reads it before its transaction): stored checks only. A caller
+   * that has read the GitHub ids of the users from auth already passes them (`userId -> githubUserId`), so auth is
+   * not asked twice.
+   */
+  getAccountChecks(
+    userIds: string[],
+    githubIds?: ReadonlyMap<string, number | null>,
+  ): Promise<Map<string, AccountCheckView>>;
   /** AF-05 from the stored pull requests of the team's repository. */
   getPullRequestStats(teamId: TeamId): Promise<PullRequestStats>;
   /** AF-01, AF-03: `null` when the team has no repository. */

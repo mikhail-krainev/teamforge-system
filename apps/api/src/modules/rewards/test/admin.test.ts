@@ -56,11 +56,12 @@ describeInfra(
       if (rw) await rw.close();
     });
 
-    async function plantOpenCase(project: Project): Promise<string> {
+    async function plantOpenCase(project: Project | string): Promise<string> {
       const caseId = randomUUID();
+      const teamId = typeof project === 'string' ? project : project.fx.team.id;
       await rw.world.sql`
       INSERT INTO rewards.fraud_case (id, team_id, status, opened_at)
-      VALUES (${caseId}, ${project.fx.team.id}, 'open', ${clockOf(rw.world).now()})`;
+      VALUES (${caseId}, ${teamId}, 'open', ${clockOf(rw.world).now()})`;
       return caseId;
     }
 
@@ -99,6 +100,19 @@ describeInfra(
           200,
         );
         expect(item.disputes).toHaveLength(1);
+      });
+
+      it('M-1, S7SEC-08: a dispute of spaces only or with control characters -> 422 VALIDATION_FAILED, nothing stored', async () => {
+        const before = await disputeCount(rw.world, flagged.fx.team.id);
+        for (const text of [' '.repeat(40), `${DISPUTE_TEXT}\u0000`, `${DISPUTE_TEXT}\u0007`]) {
+          expectProblem(
+            'createDispute',
+            await dispute(rw.world, flagged.backend, flagged.fx.team.id, text),
+            422,
+            'VALIDATION_FAILED',
+          );
+        }
+        expect(await disputeCount(rw.world, flagged.fx.team.id)).toBe(before);
       });
 
       it('FR-REW-12, AF-25: "violation" is in the journal once: the administrator, the comment, the time; the case keeps who decided', async () => {
@@ -189,6 +203,36 @@ describeInfra(
         const shown = await awardsOk(rw.world, credited.lead, credited.backend.id);
         expect(shown.length).toBe(others.filter((a) => a.revoked_at === null).length);
       });
+    });
+
+    describe('a violation on an earlier project takes down the step of the series another project gave (FR-REW-12, M-4)', () => {
+      it('M-4: three projects, "Трое в строю" given by the third; a violation on the first: counter 2 and the step revoked, "Первый релиз" stays', async () => {
+        const project = await completedProject(rw.world);
+        const [earlier] = await plantHistory(rw.world, project.backend, [
+          { roles: ['backend'], completedDaysAgo: 200 },
+          { roles: ['backend'], completedDaysAgo: 230 },
+        ]);
+        await endCooling(project);
+        await waitCreditRun(rw.world, project.fx.team.id, 'credited');
+        const step = (await awardRows(rw.world, project.backend.id)).find(
+          (a) => a.badge_code === 'projects_2',
+        );
+        expect(step).toMatchObject({ team_id: project.fx.team.id, revoked_at: null });
+        const caseId = await plantOpenCase(earlier ?? '');
+        expectOk(
+          'decideFraudCase',
+          await decide(rw.world, rw.admin, caseId, 'violation', undefined, COMMENT('m4-series')),
+          200,
+        );
+        expect(await counterValue(rw.world, project.backend.id)).toBe(2);
+        const active = (await awardRows(rw.world, project.backend.id)).filter(
+          (a) => a.revoked_at === null,
+        );
+        expect(active.map((a) => a.badge_code)).not.toContain('projects_2');
+        expect(active.map((a) => a.badge_code)).toContain('projects_1');
+        const shown = await awardsOk(rw.world, project.lead, project.backend.id);
+        expect(shown.map((a) => a.badgeCode)).not.toContain('projects_2');
+      }, 420_000);
     });
 
     describe('a decision "ok" on a project that is already credited (FR-REW-06, FR-REW-16)', () => {
