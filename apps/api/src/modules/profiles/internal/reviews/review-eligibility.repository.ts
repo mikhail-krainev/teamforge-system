@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, lte, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { peerReview, reviewEligibility } from '../schema/profiles.js';
 
@@ -74,7 +74,18 @@ export class ReviewEligibilityRepository {
       .where(
         and(
           eq(peerReview.status, 'pending'),
-          sql`EXISTS (SELECT 1 FROM ${reviewEligibility} WHERE ${reviewEligibility.teamId} = ${peerReview.teamId} AND ${reviewEligibility.windowUntil} <= ${now})`,
+          // `lte` on the column encodes the date; a raw `${now}` in `sql` reaches postgres-js as a Date and fails.
+          exists(
+            this.tx.tx
+              .select({ one: sql`1` })
+              .from(reviewEligibility)
+              .where(
+                and(
+                  eq(reviewEligibility.teamId, peerReview.teamId),
+                  lte(reviewEligibility.windowUntil, now),
+                ),
+              ),
+          ),
         ),
       )
       .orderBy(asc(peerReview.teamId));
