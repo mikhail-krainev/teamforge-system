@@ -7,7 +7,11 @@ import type { CompletionSnapshot } from '../../../workspace/public.js';
 import type { AccountVerdict } from '../domain/credit-rules.js';
 import { evaluateAll, summarizeAfterReview } from '../fraud/rules/index.js';
 import type { Signal } from '../fraud/rules/facts.js';
-import { CreditRunRepository, type CreditRunRow } from '../repositories/credit-run.repository.js';
+import {
+  CreditRunRepository,
+  type CreditRunRow,
+  type DueCursor,
+} from '../repositories/credit-run.repository.js';
 import { FraudRepository } from '../repositories/fraud.repository.js';
 import { AccountVerdicts } from './account-verdicts.service.js';
 import { CreditApplier } from './credit-applier.service.js';
@@ -89,17 +93,14 @@ export class CreditService {
    */
   async creditDue(): Promise<{ credited: number; frozen: number; failed: number }> {
     const report = { credited: 0, frozen: 0, failed: 0 };
-    const seen = new Set<string>();
+    // Keyset paging: runs that keep failing stay `cooling` at the head and must not hide the ones behind them.
+    let after: DueCursor | undefined;
     for (;;) {
       const now = this.clock.now();
-      const due = (await this.tx.run(() => this.runs.dueTeamIds(now, DUE_BATCH))).filter(
-        (id) => !seen.has(id),
-      );
+      const due = await this.tx.run(() => this.runs.dueTeamIds(now, DUE_BATCH, after));
       if (due.length === 0) return report;
-      for (const teamId of due) {
-        seen.add(teamId);
-        await this.creditOne(teamId, report);
-      }
+      for (const run of due) await this.creditOne(run.teamId, report);
+      after = due[due.length - 1];
     }
   }
 

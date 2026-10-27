@@ -4,6 +4,12 @@ import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type { RunStatus } from '../domain/constants.js';
 import { creditRun } from '../schema/rewards.js';
 
+/** The position of a due run in the order of `dueTeamIds` (keyset paging). */
+export interface DueCursor {
+  teamId: string;
+  coolingUntil: Date;
+}
+
 export type CreditRunRow = typeof creditRun.$inferSelect;
 
 export interface NewCreditRun {
@@ -46,14 +52,22 @@ export class CreditRunRepository {
   }
 
   /** Runs in the cooling whose time is over, oldest first (`credit_run_cooling_idx`). */
-  async dueTeamIds(now: Date, limit: number): Promise<string[]> {
+  async dueTeamIds(now: Date, limit: number, after?: DueCursor): Promise<DueCursor[]> {
     const rows = await this.tx.tx
-      .select({ teamId: creditRun.teamId })
+      .select({ teamId: creditRun.teamId, coolingUntil: creditRun.coolingUntil })
       .from(creditRun)
-      .where(and(eq(creditRun.status, 'cooling'), lte(creditRun.coolingUntil, now)))
+      .where(
+        and(
+          eq(creditRun.status, 'cooling'),
+          lte(creditRun.coolingUntil, now),
+          after === undefined
+            ? undefined
+            : sql`(${creditRun.coolingUntil}, ${creditRun.teamId}) > (${after.coolingUntil.toISOString()}::timestamptz, ${after.teamId}::uuid)`,
+        ),
+      )
       .orderBy(asc(creditRun.coolingUntil), asc(creditRun.teamId))
       .limit(limit);
-    return rows.map((r) => r.teamId);
+    return rows;
   }
 
   /** Of these teams, the ones that have a run. */

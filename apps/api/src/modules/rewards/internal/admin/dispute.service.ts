@@ -49,8 +49,10 @@ export class DisputeService {
       await this.locks.lockCreditRun(teamId);
       const run = await this.runs.find(teamId);
       const now = this.clock.now();
-      if (run === undefined || !disputable(run, now)) throw invalidState();
+      if (run === undefined) throw invalidState();
+      // Membership first: a departed member gets 404 whatever the state, so the code tells nothing of the project.
       await this.assertMemberAtCompletion(teamId, userId);
+      if (!disputable(run, now)) throw invalidState();
       const created = await this.fraud.insertDispute(teamId, userId, text, now);
       if (created === undefined) throw invalidState();
       if (run.status === 'cooling') await this.runs.setState(teamId, { status: 'frozen' });

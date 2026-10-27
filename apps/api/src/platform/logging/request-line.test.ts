@@ -10,7 +10,10 @@ describe('loggedUserId (FR-PROF-08, SEC-04)', () => {
     for (const operationId of ANONYMOUS_CALLER_OPERATIONS) {
       expect(loggedUserId({ operationId, userId: 'u-1' }), operationId).toBeUndefined();
     }
-    expect([...ANONYMOUS_CALLER_OPERATIONS].sort()).toEqual(['createPeerReview', 'listSentReviews']);
+    expect([...ANONYMOUS_CALLER_OPERATIONS].sort()).toEqual([
+      'createPeerReview',
+      'listSentReviews',
+    ]);
   });
 
   it('returns nothing when the request has no context or no user yet', () => {

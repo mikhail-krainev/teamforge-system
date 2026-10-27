@@ -12,12 +12,25 @@ const LINE_FEED = 10;
 const CARRIAGE_RETURN = 13;
 const FIRST_PRINTABLE = 32;
 const DELETE = 127;
+/** C1 controls U+0080..U+009F. */
+const C1_FIRST = 0x80;
+const C1_LAST = 0x9f;
+/** Bidi embeddings and overrides U+202A..U+202E and isolates U+2066..U+2069: they reorder what others read. */
+const BIDI_EMBEDDING_FIRST = 0x202a;
+const BIDI_EMBEDDING_LAST = 0x202e;
+const BIDI_ISOLATE_FIRST = 0x2066;
+const BIDI_ISOLATE_LAST = 0x2069;
 
-/** NUL and control characters other than tab, line feed and carriage return. */
+const within = (code: number, first: number, last: number): boolean =>
+  code >= first && code <= last;
+
+/** NUL, C0 and C1 controls other than tab, line feed and carriage return, and bidi controls. */
 function hasForbiddenControl(text: string): boolean {
   for (let i = 0; i < text.length; i += 1) {
     const code = text.charCodeAt(i);
-    if (code === DELETE) return true;
+    if (code === DELETE || within(code, C1_FIRST, C1_LAST)) return true;
+    if (within(code, BIDI_EMBEDDING_FIRST, BIDI_EMBEDDING_LAST)) return true;
+    if (within(code, BIDI_ISOLATE_FIRST, BIDI_ISOLATE_LAST)) return true;
     if (code < FIRST_PRINTABLE && code !== TAB && code !== LINE_FEED && code !== CARRIAGE_RETURN) {
       return true;
     }

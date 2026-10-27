@@ -24,8 +24,11 @@ declare module 'nestjs-cls' {
     idempotency?: IdempotencyContext;
     /** Highest lock level taken in the active transaction attempt (architecture 12.1). */
     lockLevel?: number;
-    /** Set when an outbox event was written in the active transaction (kick the relay after commit). */
-    outboxDirty?: boolean;
+    /**
+     * `dirty` is set when an outbox event was written in the active transaction attempt (kick the relay after
+     * commit). An object made per attempt outside the transaction's own CLS store, like `afterCommit`.
+     */
+    outboxKick?: { dirty: boolean };
     /**
      * Users whose lock #1 the active transaction attempt holds, with what `lockUserForJoin` read
      * under it (architecture 3.4, `TeamsApi.joinSeat` with `userLocked: true`).

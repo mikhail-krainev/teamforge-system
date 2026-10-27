@@ -9,10 +9,14 @@ export const ANONYMOUS_CALLER_OPERATIONS: ReadonlySet<string> = new Set([
 ]);
 
 /** The `user_id` of the access log line: the caller, except for the operations that keep the caller anonymous. */
-export function loggedUserId(context: {
-  operationId?: string | undefined;
-  userId?: string | undefined;
-} | undefined): string | undefined {
+export function loggedUserId(
+  context:
+    | {
+        operationId?: string | undefined;
+        userId?: string | undefined;
+      }
+    | undefined,
+): string | undefined {
   if (context === undefined) return undefined;
   if (context.operationId !== undefined && ANONYMOUS_CALLER_OPERATIONS.has(context.operationId)) {
     return undefined;

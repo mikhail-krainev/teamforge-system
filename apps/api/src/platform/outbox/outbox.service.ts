@@ -51,14 +51,16 @@ export class OutboxService implements OnModuleInit {
       createdAt,
     }));
     await this.txHost.tx.insert(outboxEvent).values(rows);
-    this.cls.set('outboxDirty', true);
+    const kick = this.cls.isActive() ? this.cls.get('outboxKick') : undefined;
+    if (kick) kick.dirty = true;
     return rows.map((row) => row.id);
   }
 
   /** Wakes the relay right after commit; polling every 250 ms is the fallback if this fails. */
   private async kickIfDirty(): Promise<void> {
-    if (!this.cls.isActive() || this.cls.get('outboxDirty') !== true) return;
-    this.cls.set('outboxDirty', false);
+    const kick = this.cls.isActive() ? this.cls.get('outboxKick') : undefined;
+    if (kick?.dirty !== true) return;
+    kick.dirty = false;
     try {
       await this.redis.publish(OUTBOX_KICK_CHANNEL, '1');
     } catch {
