@@ -87,15 +87,25 @@ export class CreditRunService {
 
   /** The timer of the end of the cooling; the id is deterministic, so a second add is a no-op (CC-6). */
   private async scheduleCooling(teamId: string, completedAt: Date): Promise<void> {
-    const dueAt = completedAt.getTime() + COOLING_MS;
+    await this.addCoolingEnd(teamId, completedAt.getTime() + COOLING_MS, jobId('credit', teamId));
+  }
+
+  /**
+   * S7SEC-01: the decision `ok` of a case returns the project to the cooling, and its end credits it. The timer of
+   * the completion may have run already (it left the frozen project alone) and BullMQ keeps a completed job for a
+   * day, so an add under its id could be a no-op: the timer of a decision has an id of its own. Should both run,
+   * the second finds the project credited (CC-6).
+   */
+  async scheduleAfterReview(teamId: string, coolingUntil: Date, caseId: string): Promise<void> {
+    await this.addCoolingEnd(teamId, coolingUntil.getTime(), jobId('credit', teamId, caseId));
+  }
+
+  private async addCoolingEnd(teamId: string, dueAt: number, id: string): Promise<void> {
     await this.queues.add(
       'timers',
       COOLING_END_JOB,
       { teamId },
-      {
-        jobId: jobId('credit', teamId),
-        delayMs: Math.max(0, dueAt - this.clock.now().getTime()),
-      },
+      { jobId: id, delayMs: Math.max(0, dueAt - this.clock.now().getTime()) },
     );
   }
 

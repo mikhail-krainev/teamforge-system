@@ -11,17 +11,15 @@ import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { TEAMS_API, type TeamsApi } from '../../../teams/public.js';
-import type { CompletionSnapshot } from '../../../workspace/public.js';
-import type { AccountVerdict } from '../domain/credit-rules.js';
 import {
   type CaseKey,
   FraudRepository,
   type FraudCaseRow,
 } from '../repositories/fraud.repository.js';
 import { CreditRunRepository, type CreditRunRow } from '../repositories/credit-run.repository.js';
-import { AccountVerdicts } from '../services/account-verdicts.service.js';
 import { CreditApplier } from '../services/credit-applier.service.js';
-import { SnapshotReader } from '../services/snapshot-reader.service.js';
+import { CreditRunService } from '../services/credit-run.service.js';
+import { CreditService } from '../services/credit.service.js';
 import { toFraudCaseDto } from './fraud-case-dto.js';
 
 type FraudCaseDto = Ok<'getFraudCase'>;
@@ -32,19 +30,14 @@ export interface CaseQuery {
   limit?: number;
 }
 
-/** What a decision `ok` needs to credit the project, read inside the transaction before lock #11 is taken. */
-interface CreditInputs {
-  snapshot: CompletionSnapshot;
-  accounts: Map<string, AccountVerdict>;
-}
-
 const notFound = (): DomainError => new DomainError('NOT_FOUND', 404);
 
 /**
  * The queue of manual review and the decisions (S7-05, FR-REW-12, FR-REW-16, AF-25; architecture 10.4). A decision
  * takes lock #11 (`credit_run FOR UPDATE`) and then the row of the case, and looks at its status under them: of
- * ten decisions one wins and nine are 409 `INVALID_STATE`. `violation` revokes by `RETURNING`; `ok` credits as
- * the cooling timer does (or does nothing when the project is credited already).
+ * ten decisions one wins and nine are 409 `INVALID_STATE`. `violation` revokes by `RETURNING`; `ok` returns the
+ * project to the cooling (S7SEC-01, FR-REW-06, AF-22): its end credits it with the checks of the phase
+ * `cooling_end`, at once when the cooling is over already. On a credited project `ok` does nothing.
  */
 @Injectable()
 export class FraudCaseService {
@@ -53,11 +46,11 @@ export class FraudCaseService {
     @Inject(LockService) private readonly locks: LockService,
     @Inject(Clock) private readonly clock: Clock,
     @Inject(TEAMS_API) private readonly teams: TeamsApi,
-    @Inject(SnapshotReader) private readonly snapshots: SnapshotReader,
     @Inject(FraudRepository) private readonly fraud: FraudRepository,
     @Inject(CreditRunRepository) private readonly runs: CreditRunRepository,
     @Inject(CreditApplier) private readonly applier: CreditApplier,
-    @Inject(AccountVerdicts) private readonly verdicts: AccountVerdicts,
+    @Inject(CreditRunService) private readonly runService: CreditRunService,
+    @Inject(CreditService) private readonly credit: CreditService,
   ) {}
 
   async list(query: CaseQuery): Promise<Page<FraudCaseDto>> {
@@ -89,7 +82,6 @@ export class FraudCaseService {
     return this.tx.run(async () => {
       const found = await this.fraud.findCase(caseId);
       if (found === undefined) throw notFound();
-      const inputs = decision === 'ok' ? await this.creditInputs(found.teamId) : undefined;
       await this.locks.lockCreditRun(found.teamId);
       const locked = await this.fraud.lockCase(caseId);
       if (locked === undefined || locked.status !== 'open') {
@@ -107,35 +99,35 @@ export class FraudCaseService {
         data: { teamId: found.teamId, runStatusBefore: run?.status ?? null },
         at: now,
       });
-      if (run !== undefined) await this.settle(run, decision, inputs, now);
+      if (run !== undefined) await this.settle(run, caseId, decision, now);
       const decided = await this.fraud.findCase(caseId);
       return (await this.toDtos([decided as FraudCaseRow]))[0] as FraudCaseDto;
     });
   }
 
-  /** `ok` credits a project that has not been credited yet; `violation` takes back what the project gave. */
+  /**
+   * `violation` takes back what the project gave. `ok` never credits by itself (S7SEC-01): the project goes back to
+   * `cooling`; before `cooling_until` a timer of its own credits it at the end, after it the credit of the phase
+   * `cooling_end` runs now, in this transaction (AF-22 and the checks of fresh data; what the decision reviewed does
+   * not freeze it again).
+   */
   private async settle(
     run: CreditRunRow,
+    caseId: string,
     decision: 'ok' | 'violation',
-    inputs: CreditInputs | undefined,
     now: Date,
   ): Promise<void> {
     if (decision === 'violation') {
       if (run.status !== 'revoked') await this.applier.revoke(run, now);
       return;
     }
-    if ((run.status === 'cooling' || run.status === 'frozen') && inputs !== undefined) {
-      await this.applier.apply(run, inputs.snapshot, inputs.accounts, now);
+    if (run.status !== 'cooling' && run.status !== 'frozen') return;
+    await this.runs.setState(run.teamId, { status: 'cooling' });
+    if (now.getTime() < run.coolingUntil.getTime()) {
+      await this.runService.scheduleAfterReview(run.teamId, run.coolingUntil, caseId);
+    } else {
+      await this.credit.creditProject(run.teamId);
     }
-  }
-
-  /** Snapshot and account checks, only for a project that is not credited yet (nothing is locked here). */
-  private async creditInputs(teamId: string): Promise<CreditInputs | undefined> {
-    const run = await this.runs.find(teamId);
-    if (run?.status !== 'cooling' && run?.status !== 'frozen') return undefined;
-    const snapshot = await this.snapshots.read(teamId);
-    const accounts = await this.verdicts.load(snapshot.roster.members.map((m) => m.userId));
-    return { snapshot, accounts };
   }
 
   /** The cases of a page with their signals, disputes and team names: four statements for any page size. */

@@ -51,8 +51,9 @@ import { expectNoFraudDetails, startRewardsWorld, type RewardsWorld } from './su
  * ASSUMPTIONS (the contract leaves them open):
  *   - one open fraud_case per team (unique partial index): a dispute of a second member joins the open case; the same
  *     member disputes a project once (409 INVALID_STATE for the repeat);
- *   - a decision `ok` on a project that is still cooling credits at once ("ok запускает выдачу"); on a frozen project
- *     whose cooling is over too;
+ *   - a decision `ok` never credits by itself (S7SEC-01, FR-REW-06): the project goes back to `cooling` and the end of
+ *     the cooling credits it with the checks of the phase `cooling_end`; when the cooling is over already, at once;
+ *     a rule the decision reviewed does not freeze it again;
  *   - a decision `violation` on a project that was never credited revokes nothing but marks credit_run `revoked`;
  *   - the audit row (`admin_audit`) of a decision has the administrator as actor and the comment as the reason; the
  *     action and target names are the implementation's, so rows are found by actor and reason.
@@ -142,13 +143,23 @@ describeInfra('S7 rewards: anti-fraud, manual review, disputes (FR-REW-11, FR-RE
       caseId = (await openCaseOf(rw.world, rw.admin, flagged.fx.team.id)).id;
     }, 300_000);
 
-    it('FR-REW-16: "ok" -> 200, the case is decided with the time and the comment; the project is credited at once', async () => {
+    it('FR-REW-16, S7SEC-01: "ok" -> 200, the case is decided with the time and the comment; the project goes back to the cooling, nothing is credited yet', async () => {
       await plantAccounts(rw.world, membersOf(flagged));
       const response = await decide(rw.world, rw.admin, caseId, 'ok', undefined, comment);
       const body = expectOk<FraudCaseDto>('decideFraudCase', response, 200);
       expect(body).toMatchObject({ id: caseId, status: 'ok', comment });
       expect(Number.isNaN(Date.parse(body.decidedAt ?? ''))).toBe(false);
+      expect((await creditRunRow(rw.world, flagged.fx.team.id))?.status).toBe('cooling');
+      expect(await projectCreditRows(rw.world, flagged.fx.team.id)).toEqual([]);
+      expect((await countersOk(rw.world, flagged.lead, flagged.backend.id)).total).toBe(0);
+    });
+
+    it('FR-REW-06, S7SEC-01: the end of the cooling credits the project; the reviewed flag AF-05 does not freeze it again', async () => {
+      await endCooling(flagged);
       await waitCreditRun(rw.world, flagged.fx.team.id, 'credited');
+      expect(await fraudCaseRows(rw.world, flagged.fx.team.id)).toEqual([
+        expect.objectContaining({ status: 'ok' }),
+      ]);
       expect((await countersOk(rw.world, flagged.lead, flagged.backend.id)).total).toBe(1);
       expect((await creditOk(rw.world, flagged.backend, flagged.fx.team.id)).status).toBe('credited');
       expect((await awardsOk(rw.world, flagged.lead, flagged.backend.id)).length).toBeGreaterThan(0);
@@ -319,10 +330,12 @@ describeInfra('S7 rewards: anti-fraud, manual review, disputes (FR-REW-11, FR-RE
       expect(await disputeCount(rw.world, teamId())).toBe(2);
     });
 
-    it('FR-REW-11: the case of a dispute can be closed with "ok": the project is credited', async () => {
+    it('FR-REW-11: the case of a dispute can be closed with "ok": the project is credited at the end of the cooling', async () => {
       const item = await openCaseOf(rw.world, rw.admin, teamId());
       await plantAccounts(rw.world, membersOf(project));
       expectOk('decideFraudCase', await decide(rw.world, rw.admin, item.id, 'ok', undefined, COMMENT('dispute-ok')), 200);
+      expect((await creditRunRow(rw.world, teamId()))?.status).toBe('cooling');
+      await endCooling(project);
       await waitCreditRun(rw.world, teamId(), 'credited');
       expect((await countersOk(rw.world, project.lead, project.backend.id)).total).toBe(1);
     });

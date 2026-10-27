@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { uuidv7 } from 'uuidv7';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { adminAudit, dispute, fraudCase, fraudSignal } from '../schema/rewards.js';
@@ -48,6 +48,30 @@ export class FraudRepository {
   async findCase(caseId: string): Promise<FraudCaseRow | undefined> {
     const [row] = await this.tx.tx.select().from(fraudCase).where(eq(fraudCase.id, caseId));
     return row;
+  }
+
+  /**
+   * S7SEC-01: the rule codes the last decision `ok` of the team saw (its signals were stored before the decision), or
+   * `undefined` when no case of the team was closed with `ok`.
+   */
+  async reviewedRuleCodes(teamId: string): Promise<Set<string> | undefined> {
+    const [decided] = await this.tx.tx
+      .select({ at: fraudCase.decidedAt })
+      .from(fraudCase)
+      .where(and(eq(fraudCase.teamId, teamId), eq(fraudCase.status, 'ok')))
+      .orderBy(desc(fraudCase.decidedAt))
+      .limit(1);
+    if (decided?.at == null) return undefined;
+    const rows = await this.tx.tx
+      .selectDistinct({ ruleCode: fraudSignal.ruleCode })
+      .from(fraudSignal)
+      .where(
+        and(
+          eq(fraudSignal.teamId, teamId),
+          sql`${fraudSignal.createdAt} <= ${decided.at.toISOString()}::timestamptz`,
+        ),
+      );
+    return new Set(rows.map((r) => r.ruleCode));
   }
 
   async openCaseOfTeam(teamId: string): Promise<FraudCaseRow | undefined> {

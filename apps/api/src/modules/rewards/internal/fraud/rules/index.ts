@@ -86,3 +86,24 @@ export function summarize(signals: readonly Signal[]): { score: number; frozen: 
   const stopped = signals.some((s) => s.action === 'block' || s.action === 'flag');
   return { score, frozen: stopped || score >= SCORE_THRESHOLD };
 }
+
+/**
+ * S7SEC-01: the summary at the end of the cooling of a project whose case the administrator closed with `ok`.
+ * `reviewed` holds the rules the decision saw (their rows existed when it was taken); `undefined` = no such decision.
+ * The decision does not freeze the project again for what it reviewed: only a block or a flag of a rule it has not
+ * seen (AF-22 above all) or a sum >= C-61 that a new scored rule takes part in freezes the project again.
+ */
+export function summarizeAfterReview(
+  signals: readonly Signal[],
+  reviewed: ReadonlySet<string> | undefined,
+): { score: number; frozen: boolean } {
+  const summary = summarize(signals);
+  if (reviewed === undefined) return summary;
+  const fresh = signals.filter((s) => !reviewed.has(s.ruleCode));
+  const stopped = fresh.some((s) => s.action === 'block' || s.action === 'flag');
+  const scoredAgain = fresh.some((s) => s.action === 'signal' && s.score > 0);
+  return {
+    score: summary.score,
+    frozen: stopped || (scoredAgain && summary.score >= SCORE_THRESHOLD),
+  };
+}

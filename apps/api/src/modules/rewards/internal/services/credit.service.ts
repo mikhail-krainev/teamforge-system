@@ -5,7 +5,7 @@ import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type { CompletionSnapshot } from '../../../workspace/public.js';
 import type { AccountVerdict } from '../domain/credit-rules.js';
-import { evaluateAll, summarize } from '../fraud/rules/index.js';
+import { evaluateAll, summarizeAfterReview } from '../fraud/rules/index.js';
 import type { Signal } from '../fraud/rules/facts.js';
 import { CreditRunRepository, type CreditRunRow } from '../repositories/credit-run.repository.js';
 import { FraudRepository } from '../repositories/fraud.repository.js';
@@ -69,7 +69,9 @@ export class CreditService {
     const run = await this.runs.find(teamId);
     if (run?.status !== 'cooling') return 'skipped';
     const now = this.clock.now();
-    const summary = summarize(inputs.signals);
+    // S7SEC-01: a project the administrator found "ok" is frozen again only by what that decision has not seen.
+    const reviewed = await this.fraud.reviewedRuleCodes(teamId);
+    const summary = summarizeAfterReview(inputs.signals, reviewed);
     await this.fraud.insertSignals(teamId, signalRows(inputs.signals, 'cooling_end'), now);
     await this.runs.setState(teamId, { fraudScore: summary.score });
     if (summary.frozen) {

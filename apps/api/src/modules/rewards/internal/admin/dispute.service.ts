@@ -12,7 +12,10 @@ type DisputeDto = Ok<'createDispute'>;
 
 const invalidState = (): DomainError => new DomainError('INVALID_STATE', 409);
 
-/** FR-REW-11: a project can be disputed in the cooling, and while its case is open; never after the decision. */
+/**
+ * FR-REW-11: a project can be disputed in the cooling and while its case is open. A decision `ok` returns the project
+ * to the cooling (S7SEC-01), so the window of the others stays open until `cooling_until`; each person disputes once.
+ */
 function disputable(run: CreditRunRow, now: Date): boolean {
   if (run.status === 'frozen') return true;
   return run.status === 'cooling' && now.getTime() < run.coolingUntil.getTime();

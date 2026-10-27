@@ -112,7 +112,11 @@ describeInfra(
       expect(await auditOf(caseId, project)).toBe(1);
       const run = (await creditRunRow(rw.world, project.fx.team.id))?.status;
       if (decision === 'ok') {
-        expect(run).toBe('credited');
+        // S7SEC-01: "ok" returns the project to the cooling; its end credits it once.
+        expect(run).toBe('cooling');
+        expect(await counterValue(rw.world, project.backend.id)).toBe(0);
+        await endCooling(project);
+        expect((await creditRunRow(rw.world, project.fx.team.id))?.status).toBe('credited');
         expect(await counterValue(rw.world, project.backend.id)).toBe(1);
       } else {
         expect(run).toBe('revoked');
@@ -266,11 +270,15 @@ describeInfra(
           decide(rw.world, rw.admin, caseId, 'ok', undefined, COMMENT('dispute-race')),
         ]);
         expect(decided.statusCode, decided.body).toBe(200);
-        expect([201, 409]).toContain(filed.statusCode);
-        expect(
-          (await fraudCaseRows(rw.world, p.fx.team.id)).filter((c) => c.status === 'open'),
-        ).toEqual([]);
-        expect(await disputeCount(rw.world, p.fx.team.id)).toBe(filed.statusCode === 201 ? 1 : 0);
+        // S7SEC-01: "ok" returns the project to the cooling, which can be disputed: the dispute either joined the
+        // case before the decision or comes after it and freezes the project again with a case of its own.
+        expect(filed.statusCode, filed.body).toBe(201);
+        expect(await disputeCount(rw.world, p.fx.team.id)).toBe(1);
+        const cases = await fraudCaseRows(rw.world, p.fx.team.id);
+        const open = cases.filter((c) => c.status === 'open');
+        const status = (await creditRunRow(rw.world, p.fx.team.id))?.status;
+        expect(open).toHaveLength(status === 'frozen' ? 1 : 0);
+        expect(status === 'frozen' ? cases.length === 2 : status === 'cooling').toBe(true);
       }, 300_000);
     });
   },

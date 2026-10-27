@@ -4,6 +4,9 @@ import {
   buildProject,
   completedProject,
   countersOk,
+  decide,
+  dispute,
+  DISPUTE_TEXT,
   endCooling,
   finishProject,
   fraudCases,
@@ -153,6 +156,43 @@ describeInfra(
       expect(await fraudCaseRows(rw.world, project.fx.team.id)).toEqual([
         expect.objectContaining({ status: 'open' }),
       ]);
+    }, 400_000);
+
+    it('S7SEC-01, AF-22: a dispute and the decision "ok" do not skip the end of the cooling: no credit at the decision, AF-22 freezes at the end; a second "ok" after the cooling credits', async () => {
+      const project = await sharedProject(['ip24'], (p) => [p.backend, p.frontend]);
+      const teamId = project.fx.team.id;
+      expect((await creditRunRow(rw.world, teamId))?.status).toBe('cooling');
+      await plantHistory(rw.world, project.backend, [{ roles: ['backend'], completedDaysAgo: 3 }]);
+      expect((await dispute(rw.world, project.frontend, teamId, DISPUTE_TEXT)).statusCode).toBe(
+        201,
+      );
+      const first = await openCaseOf(rw.world, rw.admin, teamId);
+      const comment = 'Жалоба проверена: участник работал, нарушения нет.';
+      expectOk(
+        'decideFraudCase',
+        await decide(rw.world, rw.admin, first.id, 'ok', undefined, comment),
+        200,
+      );
+      expect((await creditRunRow(rw.world, teamId))?.status).toBe('cooling');
+      expect(await projectCreditRows(rw.world, teamId)).toEqual([]);
+
+      await endCooling(project);
+      expect(await signalOf(project, 'AF-22')).toMatchObject({
+        phase: 'cooling_end',
+        action: 'flag',
+      });
+      expect((await creditRunRow(rw.world, teamId))?.status).toBe('frozen');
+      expect(await projectCreditRows(rw.world, teamId)).toEqual([]);
+      const second = await openCaseOf(rw.world, rw.admin, teamId);
+      expect(second.id).not.toBe(first.id);
+
+      expectOk(
+        'decideFraudCase',
+        await decide(rw.world, rw.admin, second.id, 'ok', undefined, comment),
+        200,
+      );
+      expect((await creditRunRow(rw.world, teamId))?.status).toBe('credited');
+      expect((await countersOk(rw.world, project.lead, project.backend.id)).total).toBe(2);
     }, 400_000);
 
     it('AF-22: a score of 2 and no other credited project of the people in 14 days -> the credit goes through', async () => {

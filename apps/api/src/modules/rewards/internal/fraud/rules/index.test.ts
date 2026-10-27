@@ -8,6 +8,7 @@ import {
   type FraudFacts,
   type Signal,
 } from '../../../test/fraud-facts.js';
+import { summarizeAfterReview } from './index.js';
 
 /*
  * S7-03 (written before the implementation): the registry `rules/index.ts` that runs the rules of a phase and
@@ -70,6 +71,42 @@ describe('summarize (FR-REW-15, C-61)', () => {
   it('FR-REW-15, AF-16: an info row (deferred credit) has no score and does not freeze', async () => {
     const { summarize } = await loadRegistry();
     expect(summarize([signal('info', 0, 'AF-16')])).toEqual({ score: 0, frozen: false });
+  });
+});
+
+describe('summarizeAfterReview (S7SEC-01, AF-22, FR-REW-16)', () => {
+  it('without a decision "ok" it is the plain summary', () => {
+    expect(summarizeAfterReview([signal('flag', 0, 'AF-05')], undefined)).toEqual({
+      score: 0,
+      frozen: true,
+    });
+  });
+
+  it('a flag the administrator already reviewed does not freeze the project a second time', () => {
+    expect(summarizeAfterReview([signal('flag', 0, 'AF-05')], new Set(['AF-05']))).toEqual({
+      score: 0,
+      frozen: false,
+    });
+  });
+
+  it('AF-22: a flag of a rule the review has not seen freezes again', () => {
+    const signals = [
+      signal('signal', 1, 'AF-17'),
+      signal('signal', 1, 'AF-19'),
+      signal('flag', 0, 'AF-22'),
+    ];
+    expect(summarizeAfterReview(signals, new Set(['AF-17', 'AF-19'])).frozen).toBe(true);
+  });
+
+  it('C-61: reviewed scores alone do not freeze again; a new scored rule reaching the threshold does', () => {
+    const reviewed = new Set(['AF-17', 'AF-20']);
+    const old = [signal('signal', 1, 'AF-17'), signal('signal', 2, 'AF-20')];
+    expect(summarizeAfterReview(old, reviewed)).toEqual({ score: 3, frozen: false });
+    expect(summarizeAfterReview([...old, signal('signal', 1, 'AF-12')], reviewed)).toEqual({
+      score: 4,
+      frozen: true,
+    });
+    expect(summarizeAfterReview([signal('signal', 1, 'AF-12')], reviewed).frozen).toBe(false);
   });
 });
 
