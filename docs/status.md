@@ -20,7 +20,8 @@
 Срез 7, ветка `feat/rewards` (main слита): S7-01..S7-10 сделаны, e2e slice1-7 61/61 дважды на полном стеке. По `docs/reviews/slice7-code-review.md` и `slice7-security-audit.md` исправлены C-1, H-1, H-2, M-1..M-6, M-8, S7SEC-01..03, 07, 08 (2026-10-28). `TxRunner.afterCommit` (M-6) хранит очередь в массиве попытки вне CLS-хранилища транзакции: `cls.set` внутри `withTransaction` (`ifNested: 'inherit'`) терялся, таймер охлаждения не ставился. Остаток записан в `docs/backlog.md` ("Срез 7, ревью и аудит").
 Проверено (2026-10-28): tsc, eslint, depcruise, db:check, contract:check; API integration 3692/3692; web vitest 477/477. concurrency x5 185/185 на чистом стеке (на стеке после многих прогонов массовые 503 LOCK_TIMEOUT: пересоздавать `test:env:down`/`up`). e2e: slice1-6 зелёные, slice7 16/16 после исправления `dueTeams` (M-5: сырой `${now}` в `sql` уходил в postgres-js как Date и падал только на полном стеке; integration это не ловит).
 S7-11: добавлен `rewards/test/cooling-changes.test.ts` (смена тимлида в охлаждении запрещена, зачёт по снимку); остальные граничные случаи уже покрыты (`deleted-user`, `reviews-deleted-user`, `awards` FR-REW-10, `cooling` и CC-6 потерянное событие).
-Дальше: повторное ревью исправлений (независимый агент); PR `feat/rewards` -> main; слияние. Перед e2e нужен `playwright install chromium`, если кэш браузера очищен.
+Повторное ревью: `docs/reviews/slice7-second-review.md`, MEDIUM и LOW исправлены (380c85c). После него: API 3696/3696, concurrency x2 185/185, e2e slice1-7 61/61. Текст PR: `docs/reviews/pr-slice7.md`.
+Дальше: открыть PR `feat/rewards` -> main (нет `gh`: через GitHub), CI, слияние; затем фаза 7. Перед e2e нужен `playwright install chromium`, если кэш браузера очищен.
 Фаза 7: ветка `docs/release` (`docs/release.md`, `scripts/load/` k6); после среза 7 повторить нагрузку, PR.
 Тесты: каждому worktree свой тестовый стек и шаблон БД (общий `tf_template` ломает параллельные прогоны).
 
