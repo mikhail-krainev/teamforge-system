@@ -34,6 +34,7 @@ S7-11: добавлен `rewards/test/cooling-changes.test.ts` (смена ти�
 
 ## Локальная среда
 
+- Локальный запуск полного стека без домена: `docs/local-run.md` (порты в `docker/local.env`, проверено 2026-10-28: вход по ссылке через Mailpit, согласие, админ).
 - pnpm-обёртка не запускается: использовать `node_modules/.bin`. SeaweedFS в тестах с `SEAWEEDFS_VOLUME_SIZE_MB=32`.
 - Порты 5432, 4000, 9000, 1025, 8025 заняты чужими контейнерами: переопределять порты хоста.
 - e2e slice6 требует чистый стек на каждый прогон и доступ в интернет (https://www.wikipedia.org/, https://example.org/) либо `E2E_RELEASE_URL`. Ключ App для e2e в `apps/web/.e2e/`.
