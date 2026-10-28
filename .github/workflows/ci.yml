@@ -84,7 +84,8 @@ jobs:
   # DATABASE_DIRECT_URL as the owner role tf_migrator (roles: docker/postgres/10-roles.sh, see .env.test).
   unit-integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 30 minutes after slice 7 (coverage run, five concurrency repetitions, web tests).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
