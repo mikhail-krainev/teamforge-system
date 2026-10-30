@@ -66,11 +66,19 @@ const hidden = { required: false, input: false } as const;
  */
 const fromProvider = { required: false, input: true } as const;
 
+/**
+ * `Secure` cookies (with the `__Secure-` prefix) follow the scheme of the auth origin, not NODE_ENV:
+ * Safari drops them on `http://localhost`, which broke the local production-like run
+ * (docs/local-run.md). Config refuses a plain-http BETTER_AUTH_URL in production off loopback.
+ */
+export function usesSecureCookies(config: Pick<AppConfig, 'BETTER_AUTH_URL'>): boolean {
+  return config.BETTER_AUTH_URL.startsWith('https:');
+}
+
 function advancedOptions(config: AppConfig): NonNullable<BetterAuthOptions['advanced']> {
   return {
     database: { generateId: () => uuidv7() },
-    useSecureCookies:
-      config.NODE_ENV === 'production' || config.BETTER_AUTH_URL.startsWith('https:'),
+    useSecureCookies: usesSecureCookies(config),
     // Better Auth skips the Origin/CSRF check when NODE_ENV=test unless it is switched on explicitly.
     disableOriginCheck: false,
     disableCSRFCheck: false,
