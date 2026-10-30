@@ -148,6 +148,10 @@ function environmentIssues(parsed: z.infer<typeof envSchema>): ConfigIssue[] {
   }
   // A production instance must talk to the real GitHub: client secrets are sent to these hosts.
   if (parsed.NODE_ENV === 'production') {
+    // Session cookies are Secure only on an https auth origin; plain http is allowed on loopback only.
+    if (!parsed.BETTER_AUTH_URL.startsWith('https:') && !isLoopbackOrigin(parsed.BETTER_AUTH_URL)) {
+      issues.push({ name: 'BETTER_AUTH_URL', reason: 'invalid' });
+    }
     if (parsed.RATE_LIMIT_EXEMPT_LOOPBACK) {
       issues.push({ name: 'RATE_LIMIT_EXEMPT_LOOPBACK', reason: 'invalid' });
     }

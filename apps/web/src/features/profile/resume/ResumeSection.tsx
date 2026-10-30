@@ -7,6 +7,7 @@ import { t } from '@/i18n';
 import type { Profile } from '../model';
 import { fetchMyResume, isInProgress, POLL_MS, RESUME_KEY, type ResumeUpload } from './api';
 import { DeleteResume } from './DeleteResume';
+import { ResumeAssessment } from './ResumeAssessment';
 import { SuggestionsForm } from './SuggestionsForm';
 import { UploadForm } from './UploadForm';
 
@@ -38,7 +39,7 @@ export function ResumeSection({ profileVersion, onProfileChanged }: Props) {
   const reset = () => queryClient.setQueryData(RESUME_KEY, null);
 
   return (
-    <section className="card stack" aria-labelledby="resume-heading">
+    <section className="card nested stack resume-card" aria-labelledby="resume-heading">
       <h2 id="resume-heading">{t('profile.resume.title')}</h2>
       <p className="muted">{t('profile.resume.lead')}</p>
       {resume.isError && !upload ? <Alert tone="error">{describeError(resume.error)}</Alert> : null}
@@ -47,6 +48,9 @@ export function ResumeSection({ profileVersion, onProfileChanged }: Props) {
       <p role="status" aria-live="polite" aria-label={t('profile.resume.statusLabel')}>
         {statusText(upload)}
       </p>
+      {upload?.status === 'done' && upload.assessment ? (
+        <ResumeAssessment assessment={upload.assessment} />
+      ) : null}
       {upload && upload.status === 'done' ? (
         <SuggestionsForm
           upload={upload}

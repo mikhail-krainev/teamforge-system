@@ -1,0 +1,314 @@
+/* Shell: brand + actions row, pill nav row, then the sheet; footer closes the sheet. */
+.shell-header {
+  background: var(--bg);
+}
+
+.shell-header-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--s4);
+  min-height: 76px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  justify-self: start;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  text-decoration: none;
+}
+
+.shell-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.account-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s4) 0 var(--s1);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: var(--on-candy);
+  font-weight: 600;
+}
+
+.account-name {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-cta {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.account-cta .arrow-dot {
+  display: none;
+}
+
+/* Nav row: text pills above the sheet edge. */
+.shell-nav {
+  grid-column: 1 / -1;
+}
+
+.shell-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0 0 14px;
+  list-style: none;
+}
+
+.shell-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding-inline: var(--s4);
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+}
+
+.shell-nav a:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.shell-nav a[aria-current='page'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.menu-toggle,
+.nav-yeti {
+  display: none;
+}
+
+/* The sheet: main content area; footer sits inside it. */
+.shell-main {
+  overflow-x: clip;
+}
+
+.shell-main:focus {
+  outline: none;
+}
+
+.shell-content {
+  padding-bottom: var(--s7);
+}
+
+.footer {
+  border-top: var(--bw) solid var(--rule);
+  padding-block: 28px 40px;
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s5);
+}
+
+.footer-brand {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s4);
+}
+
+.footer-tagline {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--fs-small);
+}
+
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s5);
+  font-size: var(--fs-small);
+}
+
+.footer-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* Phone: one row (brand, bell, account, "Menu") and a full-width panel for the links. */
+@media (max-width: 767px) {
+  .shell-header-inner {
+    min-height: 64px;
+    /* leaves room for the absolutely placed "Menu" pill */
+    padding-right: 0;
+  }
+
+  .shell-actions {
+    margin-right: 104px;
+  }
+
+  .menu-toggle {
+    position: absolute;
+    top: 10px;
+    right: var(--gutter);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: 44px;
+    padding: 0 var(--s4);
+    border: var(--bw) solid var(--ink);
+    border-radius: var(--r-pill);
+    background: var(--ink);
+    color: var(--bg);
+    font: 500 var(--fs-small) / 1 var(--font-sans);
+    cursor: pointer;
+  }
+
+  .account-pill {
+    display: none;
+  }
+
+  .shell-nav ul {
+    display: none;
+    position: relative;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0;
+    margin-inline: calc(-1 * var(--gutter));
+    padding: 0;
+    border-bottom: var(--bw) solid var(--rule);
+    background: var(--surface);
+  }
+
+  .shell-nav[data-open='true'] ul {
+    display: flex;
+  }
+
+  .shell-nav li + li {
+    border-top: var(--bw-thin) solid var(--rule-soft);
+  }
+
+  .shell-nav a {
+    gap: var(--s3);
+    width: 100%;
+    min-height: 56px;
+    padding-inline: var(--gutter);
+    border-radius: 0;
+    font-size: 1.75rem;
+    letter-spacing: -0.03em;
+  }
+
+  .shell-nav a:hover {
+    background: var(--surface-2);
+  }
+
+  .shell-nav a[aria-current='page'] {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .shell-nav a[aria-current='page']::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    background: var(--yellow);
+    border: var(--bw) solid var(--ink);
+  }
+
+  .shell-nav .nav-yeti {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--s3) var(--gutter) 0;
+    border-top: 0;
+  }
+
+  .footer-inner,
+  .footer-brand {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 479px) {
+  .brand-text {
+    display: none;
+  }
+}
+
+/* Theme toggle: the icon shows the theme a click switches to (moon on light, sun on dark). */
+.theme-toggle .theme-icons {
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+
+.theme-toggle:hover .theme-icons {
+  transform: rotate(-20deg) scale(1.1);
+}
+
+.theme-icon-sun {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .theme-icon-sun {
+    display: inline;
+  }
+
+  :root:not([data-theme='light']) .theme-icon-moon {
+    display: none;
+  }
+}
+
+:root[data-theme='dark'] .theme-icon-sun {
+  display: inline;
+}
+
+:root[data-theme='dark'] .theme-icon-moon {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle .theme-icons {
+    transition: none;
+  }
+}

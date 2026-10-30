@@ -5,7 +5,7 @@ import { createTranslator, flatten } from './translator';
 const messages = {
   'members.count':
     '{count, plural, one {# участник} few {# участника} many {# участников} other {# участника}}',
-  'greeting': 'Привет, {name}!',
+  greeting: 'Привет, {name}!',
 } as const;
 const { t: tt, has } = createTranslator<keyof typeof messages>(messages);
 
@@ -43,7 +43,7 @@ describe('dictionaries', () => {
 
   it('loads real dictionaries with plurals', () => {
     expect(t('status.ok')).toBe('API работает');
-    expect(t('errors.retryIn', { seconds: 2 })).toBe('Повторите через 2 секунды.');
-    expect(t('errors.retryIn', { seconds: 5 })).toBe('Повторите через 5 секунд.');
+    expect(t('errors.retryIn', { seconds: 2 })).toBe('Повтори через 2 секунды.');
+    expect(t('errors.retryIn', { seconds: 5 })).toBe('Повтори через 5 секунд.');
   });
 });

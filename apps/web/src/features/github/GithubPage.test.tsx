@@ -66,8 +66,8 @@ describe('FR-GH-01, FR-GH-11: installing the App', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Подключение GitHub' }),
     ).toBeTruthy();
-    expect(screen.getByText('Ведите задачи как Issues', { exact: false })).toBeTruthy();
-    expect(await screen.findByRole('button', { name: 'Установить App' })).toBeTruthy();
+    expect(screen.getByText('Веди задачи как Issues', { exact: false })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Установить GitHub App' })).toBeTruthy();
   });
 
   it('sends the browser to the https address of the installation session', async () => {
@@ -84,7 +84,7 @@ describe('FR-GH-01, FR-GH-11: installing the App', () => {
       ),
     );
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Установить App' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Установить GitHub App' }));
     await waitFor(() =>
       expect(assign).toHaveBeenCalledWith(
         'https://github.com/apps/teamforge/installations/new?state=s1',
@@ -103,7 +103,7 @@ describe('FR-GH-01, FR-GH-11: installing the App', () => {
       ),
     );
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Установить App' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Установить GitHub App' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(assign).not.toHaveBeenCalled();
   });
@@ -114,7 +114,7 @@ describe('FR-GH-01, FR-GH-11: installing the App', () => {
     expect(
       await screen.findByText('Подключить репозиторий может только тимлид команды.'),
     ).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Установить App' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Установить GitHub App' })).toBeNull();
   });
 
   it('explains a failed return from GitHub in Russian', async () => {
@@ -141,7 +141,7 @@ describe('FR-GH-01, FR-GH-02: choosing and binding the repository', () => {
       }),
     );
     open({ installation: String(INSTALLATION_ID) });
-    const group = await screen.findByRole('radiogroup', { name: 'Выберите репозиторий' });
+    const group = await screen.findByRole('radiogroup', { name: 'Выбери репозиторий' });
     expect(group).toBeTruthy();
     const link = screen.getByRole('button', { name: 'Привязать репозиторий' }) as HTMLButtonElement;
     expect(link.disabled).toBe(true);
@@ -157,7 +157,7 @@ describe('FR-GH-01, FR-GH-02: choosing and binding the repository', () => {
     open({ installation: String(INSTALLATION_ID) });
     const radio = await screen.findByRole('radio', { name: /Не публичный/ });
     fireEvent.click(radio);
-    expect(screen.getByText('Публичность репозитория проверяется', { exact: false })).toBeTruthy();
+    expect(screen.getByText('Публичность проверяется', { exact: false })).toBeTruthy();
   });
 
   it('REPO_TAKEN: says the repository belongs to another team and keeps the choice', async () => {
@@ -183,7 +183,7 @@ describe('FR-GH-01, FR-GH-02: choosing and binding the repository', () => {
     open({ installation: String(INSTALLATION_ID) });
     fireEvent.click(await screen.findByRole('radio', { name: /notes/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Привязать репозиторий' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('архивирован');
+    expect((await screen.findByRole('alert')).textContent).toContain('в архиве');
   });
 
   it('INSTALLATION_NOT_GRANTED: tells to install the App again', async () => {
@@ -194,7 +194,7 @@ describe('FR-GH-01, FR-GH-02: choosing and binding the repository', () => {
       ),
     );
     open({ installation: String(INSTALLATION_ID) });
-    expect((await screen.findByRole('alert')).textContent).toContain('Установите App заново');
+    expect((await screen.findByRole('alert')).textContent).toContain('Установи App заново');
   });
 });
 
@@ -221,7 +221,7 @@ describe('FR-GH-07: the bound repository', () => {
     serve({ link: sampleLink({ status: 'unlinked' }) });
     open();
     expect(await screen.findByText('Репозиторий отвязан', { exact: false })).toBeTruthy();
-    expect(await screen.findByRole('button', { name: 'Установить App' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Установить GitHub App' })).toBeTruthy();
   });
 
   it('gives a member no unlink button', async () => {

@@ -1,11 +1,24 @@
+import { CtaPair, PageHead } from '@/components/ui/PageHead';
 import { TeamsListPage } from '@/features/teams/TeamsListPage';
 import { t } from '@/i18n';
 
 export default function Page() {
   return (
     <div className="page-wide">
-      <h1>{t('teams.list.title')}</h1>
-      <p className="lead">{t('teams.list.lead')}</p>
+      <PageHead
+        title={
+          <>
+            {t('teams.list.headBefore')}
+            <span className="serif">{t('teams.list.headSerif')}</span>
+            {t('teams.list.headAfter')}
+          </>
+        }
+        lead={t('teams.list.lead')}
+      >
+        <CtaPair href="/teams/new" icon="plus">
+          {t('teams.list.create')}
+        </CtaPair>
+      </PageHead>
       <TeamsListPage />
     </div>
   );

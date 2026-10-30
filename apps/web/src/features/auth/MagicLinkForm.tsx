@@ -59,12 +59,12 @@ export function MagicLinkForm({ callbackPath }: { callbackPath: string }) {
       ) : null}
       <button
         type="submit"
-        className="button button-block"
+        className="button button-secondary button-block"
         disabled={mutation.isPending || waitSeconds > 0}
       >
         {mutation.isPending ? t('auth.signIn.submitting') : t('auth.signIn.submit')}
       </button>
-      <p className="muted" role="status" aria-live="polite">
+      <p className="muted mono" role="status" aria-live="polite">
         {waitSeconds > 0 ? t('auth.signIn.wait', { seconds: waitSeconds }) : ''}
       </p>
     </form>

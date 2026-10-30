@@ -1,0 +1,282 @@
+/* Home motion: hero entrance, scroll reveals, hover springs. Loaded after home.css. */
+.hero-line,
+.hero-line-in {
+  display: inline-block;
+}
+
+.hero-accent {
+  position: relative;
+  display: inline-block;
+}
+
+.scribble {
+  position: absolute;
+  left: -2%;
+  bottom: -0.14em;
+  width: 104%;
+  height: 0.3em;
+  color: var(--ultramarine);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.marquee-live {
+  /* Torn tape ends; only visible when the strip is narrower than the window. */
+  clip-path: polygon(
+    1.2% 0,
+    98.6% 0,
+    100% 9%,
+    99.1% 22%,
+    99.8% 37%,
+    98.9% 51%,
+    99.7% 66%,
+    99% 81%,
+    99.9% 100%,
+    0.4% 100%,
+    1.1% 86%,
+    0 71%,
+    0.9% 57%,
+    0.2% 42%,
+    1% 27%,
+    0 12%
+  );
+  background: var(--pink);
+}
+
+.marquee-row {
+  position: relative;
+  background: var(--tex-grain), var(--tex-fiber), var(--yellow);
+}
+
+/* Both rows stay parallel: the seam is one straight line across the strip. */
+.marquee-row-back {
+  border-top: var(--bw) solid var(--black);
+  background: var(--tex-grain), var(--tex-fiber), var(--pink);
+}
+
+/* Stitch line just under the seam. */
+.marquee-row-back::before {
+  content: '';
+  position: absolute;
+  inset: 5px 0 auto;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--black) 55%, transparent) 0 9px,
+    transparent 9px 17px
+  );
+  pointer-events: none;
+}
+
+.marquee-row-back .marquee-track {
+  animation-direction: reverse;
+  animation-duration: calc(var(--marquee-dur) * 1.3);
+}
+
+.join-list {
+  counter-reset: join;
+}
+
+.join-item {
+  counter-increment: join;
+}
+
+.join-item::before {
+  content: counter(join, decimal-leading-zero);
+  justify-self: start;
+  padding: 4px 10px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  font: 500 0.8125rem / 1 var(--font-mono);
+}
+
+.peek-card {
+  transition: transform var(--dur) var(--ease-spring);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Hero: lines are unmasked in turn, then stickers, mascot, lead and CTA. */
+  .hero-line {
+    animation: line-mask 700ms var(--ease-out) both;
+  }
+
+  .hero-line-in {
+    animation: line-rise 700ms var(--ease-out) both;
+  }
+
+  .hero-line-2,
+  .hero-line-2 .hero-line-in {
+    animation-delay: 110ms;
+  }
+
+  .hero-line-3,
+  .hero-line-3 .hero-line-in {
+    animation-delay: 220ms;
+  }
+
+  .scribble path {
+    stroke-dasharray: 1;
+    animation: scribble-draw 800ms var(--ease-out) 800ms backwards;
+  }
+
+  .hero-stickers .sticker {
+    transition:
+      rotate var(--dur) var(--ease-spring),
+      scale var(--dur) var(--ease-spring);
+    animation: sticker-stamp 520ms var(--ease-spring) backwards;
+  }
+
+  .hero-sticker-a {
+    animation-delay: 650ms;
+  }
+
+  .hero-sticker-b {
+    animation-delay: 800ms;
+  }
+
+  .hero-stickers .sticker:hover {
+    rotate: 7deg;
+    scale: 1.08;
+  }
+
+  .hero-mascot {
+    animation: fade-up 600ms var(--ease-out) 450ms backwards;
+  }
+
+  .hero-aside .lead {
+    animation: fade-up 600ms var(--ease-out) 900ms backwards;
+  }
+
+  .hero-aside .row {
+    animation: fade-up 600ms var(--ease-out) 1050ms backwards;
+  }
+
+  /* Hover springs. */
+  .cta-final .cta-pair .arrow {
+    transition-duration: var(--dur-slow);
+  }
+
+  .cta-final .cta-pair:hover .arrow {
+    transform: translateX(6px) rotate(-45deg);
+  }
+
+  .drift g {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: drift-float 9s ease-in-out infinite alternate;
+  }
+
+  .drift-b {
+    animation-duration: 11s;
+    animation-delay: -3s;
+  }
+
+  .drift-c {
+    animation-duration: 13s;
+    animation-delay: -6s;
+  }
+
+  .drift-d {
+    animation-duration: 10s;
+    animation-delay: -2s;
+  }
+
+  .drift-e {
+    animation-duration: 8s;
+    animation-delay: -5s;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .join-item::before {
+      animation: stamp-in linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 55%;
+    }
+
+    .honest-note {
+      animation: note-place linear both;
+      animation-timeline: view();
+      animation-range: entry 20% entry 90%;
+    }
+  }
+}
+
+@keyframes line-mask {
+  from {
+    clip-path: inset(0 -2% 100% -2%);
+  }
+
+  to {
+    clip-path: inset(-12% -2% -25% -2%);
+  }
+}
+
+@keyframes line-rise {
+  from {
+    transform: translateY(55%);
+  }
+}
+
+@keyframes scribble-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes sticker-stamp {
+  from {
+    opacity: 0;
+    transform: translateY(-28px) scale(1.6) rotate(calc(var(--tilt, -4deg) - 14deg));
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+@keyframes tick-in {
+  from {
+    opacity: 0;
+    transform: scale(0.3) rotate(-30deg);
+  }
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.8) rotate(-10deg);
+  }
+}
+
+@keyframes note-place {
+  from {
+    opacity: 0;
+    transform: rotate(-16deg) scale(1.25);
+  }
+}
+
+@keyframes drift-float {
+  from {
+    transform: translate(-6px, 4px) rotate(-6deg);
+  }
+
+  to {
+    transform: translate(8px, -10px) rotate(8deg);
+  }
+}

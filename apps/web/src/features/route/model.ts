@@ -47,3 +47,10 @@ export function stepsByKey(
 export function parseOrdinal(raw: string): number | null {
   return /^[1-9]\d{0,2}$/.test(raw) ? Number(raw) : null;
 }
+
+const STAGE_TONES = ['yellow', 'blue', 'green'] as const;
+
+/** Candy colour of a stage block: idea yellow, development blue, release green; then repeat. */
+export function stageTone(ordinal: number): (typeof STAGE_TONES)[number] {
+  return STAGE_TONES[(Math.max(ordinal, 1) - 1) % STAGE_TONES.length] ?? 'yellow';
+}

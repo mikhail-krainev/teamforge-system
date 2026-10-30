@@ -1,0 +1,41 @@
+/* Completion results: the one loud screen. */
+.completion-hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--s6);
+  min-height: 320px;
+}
+
+.completion-hero h1 {
+  max-width: 14ch;
+}
+
+.completion-sticker {
+  justify-self: start;
+  --tilt: -6deg;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .completion-sticker {
+    animation: sticker-drop var(--dur-slow) var(--ease-spring) 1 both;
+  }
+}
+
+@keyframes sticker-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px) rotate(var(--tilt));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--tilt));
+  }
+}
+
+@media (max-width: 767px) {
+  .completion-hero {
+    grid-template-columns: 1fr;
+  }
+}

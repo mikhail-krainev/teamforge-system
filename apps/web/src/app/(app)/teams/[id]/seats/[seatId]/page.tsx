@@ -3,7 +3,11 @@ import { SeatCandidatesPage } from '@/features/recommendations/SeatCandidatesPag
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function Page({ params }: { params: Promise<{ id: string; seatId: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string; seatId: string }>;
+}) {
   const { id, seatId } = await params;
   if (!UUID.test(id) || !UUID.test(seatId)) notFound();
   return (

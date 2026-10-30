@@ -1,0 +1,423 @@
+/* Home only: hero, join list, honest block, final CTA. Shared pieces live in globals.css. */
+.hero-wrap {
+  position: relative;
+  color: var(--ink);
+}
+
+.hero-wrap > .hero {
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  padding-block: clamp(40px, 6vw, 96px) clamp(56px, 7vw, 112px);
+}
+
+.hero-title {
+  grid-column: 1 / span 10;
+  font-size: var(--fs-hero);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.055em;
+}
+
+.hero-title .serif {
+  letter-spacing: -0.03em;
+}
+
+.hero-stickers {
+  position: absolute;
+  z-index: 1;
+  top: 22px;
+  right: 0;
+  display: flex;
+  gap: var(--s2);
+}
+
+.hero-sticker-a {
+  --tilt: -6deg;
+}
+
+.hero-sticker-b {
+  --tilt: 4deg;
+}
+
+.hero-aside {
+  grid-column: 8 / span 5;
+  display: grid;
+  align-content: start;
+  gap: var(--s5);
+  margin-top: var(--s6);
+  padding: var(--s5) var(--s6);
+  /* Flat ink plate: the lead sits over a busy village, so it gets its own quiet ground. */
+  border: var(--bw) solid var(--rule);
+  border-radius: var(--r-card);
+  background: rgb(16 14 40 / 0.66);
+  backdrop-filter: blur(5px);
+}
+
+.hero-aside .lead {
+  max-width: 30ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-lead);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.hero-aside .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4) var(--s5);
+}
+
+.hero-mascot {
+  grid-column: 1 / span 6;
+  grid-row: 2;
+  align-self: end;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s5);
+  margin-top: var(--s6);
+}
+
+.bubble {
+  max-width: 26ch;
+  margin: 0 0 104px;
+  padding: 12px 16px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 22px 22px 22px 4px;
+  background: rgb(16 14 40 / 0.82);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+/* Section heads: title left, note right at the bottom. */
+.section-head {
+  align-items: end;
+  margin-bottom: clamp(40px, 6vw, 88px);
+}
+
+.section-head .section-mark {
+  grid-column: 1 / -1;
+  margin-bottom: var(--s2);
+}
+
+.section-head h2,
+.join-head h2,
+.cta-final h2 {
+  font-size: var(--fs-display);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.section-head h2 {
+  grid-column: 1 / span 7;
+}
+
+.section-head p {
+  grid-column: 9 / span 4;
+  max-width: 34ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+/* Route staircase: each stage steps right by three columns. */
+/* Join: sticky head on the left, ruled rows on the right. */
+.join-section {
+  padding-top: var(--section-y);
+}
+
+.join {
+  align-items: start;
+}
+
+.join-head {
+  grid-column: 1 / span 5;
+  position: sticky;
+  top: var(--s5);
+}
+
+.join-head h2 {
+  margin-top: var(--s3);
+}
+
+.join-list {
+  grid-column: 7 / span 6;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.join-list li {
+  display: grid;
+  gap: 10px;
+  padding: 28px 0 32px;
+  border-top: var(--bw) solid var(--rule);
+}
+
+.join-list li:last-child {
+  border-bottom: var(--bw) solid var(--rule);
+}
+
+.join-list h3 {
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.join-list p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Honest block: statement plus a tilted pink note. */
+.honest {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--gap);
+  align-items: center;
+}
+
+.honest .statement {
+  grid-column: 1 / span 8;
+  margin: 0;
+  font-size: clamp(1.75rem, 1.2rem + 2.2vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.honest-note {
+  grid-column: 9 / span 4;
+  background: var(--pink);
+  transform: rotate(3deg);
+}
+
+.honest-note p {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.honest-note .mono {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.cta-final {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--gap);
+  align-items: end;
+}
+
+.cta-final h2 {
+  grid-column: 1 / span 8;
+}
+
+.cta-final .row {
+  grid-column: 9 / span 4;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1023px) {
+  .hero-title {
+    grid-column: 1 / -1;
+  }
+
+  .hero-aside {
+    grid-column: 5 / -1;
+  }
+
+  .hero-mascot {
+    grid-column: 1 / span 4;
+    grid-row: auto;
+  }
+
+  .section-head h2,
+  .section-head p {
+    grid-column: 1 / -1;
+  }
+
+  .join-head,
+  .join-list {
+    grid-column: 1 / -1;
+    position: static;
+  }
+
+  .honest .statement,
+  .honest-note {
+    grid-column: 1 / -1;
+  }
+
+  .honest-note {
+    max-width: 420px;
+    justify-self: end;
+  }
+
+  .cta-final h2,
+  .cta-final .row {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero-stickers {
+    position: static;
+    margin-bottom: 20px;
+    padding-left: 4px;
+  }
+
+  .hero-aside,
+  .hero-mascot {
+    grid-column: 1 / -1;
+  }
+
+  .bubble {
+    margin-bottom: 72px;
+  }
+
+}
+
+/* Peek strip: three tilted mini cards; audience cards share it; the work board follows the roadmap, so it needs its own top gap. */
+.peek {
+  padding-top: var(--section-y);
+}
+
+.peek-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.peek-card {
+  display: grid;
+  align-content: start;
+  gap: var(--s3);
+  padding: clamp(20px, 2.4vw, 32px);
+  border: var(--bw) solid var(--black);
+}
+
+.peek-card h3 {
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.peek-card p {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.cta-final {
+  position: relative;
+  overflow: clip;
+}
+
+.cta-final > h2,
+.cta-final > .row {
+  position: relative;
+  z-index: 1;
+}
+
+.drift {
+  position: absolute;
+  top: 6%;
+  right: 4%;
+  width: clamp(140px, 20vw, 260px);
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+}
+
+@media (max-width: 1023px) {
+  .peek-strip {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+  }
+
+  .drift {
+    display: none;
+  }
+}
+
+.audience-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1023px) {
+  .audience-strip {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+}
+
+/* Marquee roles: one thematic face per direction. */
+
+/* Marquee roles: one thematic face per direction. */
+.marquee-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.role-frontend {
+  font-family: var(--font-role-frontend), var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.role-backend {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+}
+
+.role-design {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 300;
+}
+
+.role-qa {
+  font-family: var(--font-role-qa), var(--font-mono);
+  letter-spacing: 0;
+}
+
+.role-analytics {
+  font-family: var(--font-role-analytics), var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.role-mobile {
+  font-family: var(--font-role-mobile), var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.role-devops {
+  font-family: var(--font-role-devops), var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.role-product {
+  font-family: var(--font-role-product), var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}

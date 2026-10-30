@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Field } from '@/components/ui/Field';
 import { t } from '@/i18n';
 import type { CatalogEntry } from './api';
@@ -13,6 +14,18 @@ export interface SectionProps {
   draft: ProfileDraft;
   patch: (change: Partial<ProfileDraft>) => void;
   fieldError: (name: string) => string | undefined;
+}
+
+/** One form group: a sticky topic mark on the left, the fields in the centre column (spec §8). */
+function FormGroup({ mark, children }: { mark: string; children: ReactNode }) {
+  return (
+    <div className="form-group">
+      <p className="section-mark form-group-mark" aria-hidden="true">
+        {mark}
+      </p>
+      <div className="form-group-body stack-loose">{children}</div>
+    </div>
+  );
 }
 
 export function BasicsFieldset(props: SectionProps) {
@@ -143,25 +156,31 @@ interface FieldsProps extends SectionProps {
 export function ProfileFields({ draft, patch, errors, fieldError, roles, tags }: FieldsProps) {
   return (
     <>
-      <BasicsFieldset draft={draft} patch={patch} fieldError={fieldError} />
-      <RolePrefsEditor
-        value={draft.rolePrefs}
-        roles={roles}
-        error={fieldError('rolePrefs')}
-        onChange={(rolePrefs) => patch({ rolePrefs })}
-      />
-      <StackPicker
-        value={draft.stack}
-        tags={tags}
-        error={fieldError('stack')}
-        onChange={(stack) => patch({ stack })}
-      />
-      <ExperienceEditor
-        value={draft.experience}
-        errors={errors}
-        onChange={(experience) => patch({ experience })}
-      />
-      <LinesFieldset draft={draft} patch={patch} fieldError={fieldError} />
+      <FormGroup mark={t('profile.form.markAbout')}>
+        <BasicsFieldset draft={draft} patch={patch} fieldError={fieldError} />
+      </FormGroup>
+      <FormGroup mark={t('profile.form.markRoles')}>
+        <RolePrefsEditor
+          value={draft.rolePrefs}
+          roles={roles}
+          error={fieldError('rolePrefs')}
+          onChange={(rolePrefs) => patch({ rolePrefs })}
+        />
+        <StackPicker
+          value={draft.stack}
+          tags={tags}
+          error={fieldError('stack')}
+          onChange={(stack) => patch({ stack })}
+        />
+      </FormGroup>
+      <FormGroup mark={t('profile.form.markExperience')}>
+        <ExperienceEditor
+          value={draft.experience}
+          errors={errors}
+          onChange={(experience) => patch({ experience })}
+        />
+        <LinesFieldset draft={draft} patch={patch} fieldError={fieldError} />
+      </FormGroup>
     </>
   );
 }

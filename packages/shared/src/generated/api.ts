@@ -2136,11 +2136,41 @@ export interface components {
             extractedText?: string | null;
             /** @description Предложения по правилам; применяются только после подтверждения */
             suggestions?: components["schemas"]["ProfileFields"] | null;
+            /** @description Скоринг и скрининг текста резюме; есть только у разобранного резюме с текстом */
+            assessment?: components["schemas"]["ResumeAssessment"] | null;
             keepFile: boolean;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             processedAt?: string | null;
+        };
+        /** @description Оценка резюме по правилам (подсказка пользователю, ничего не решает): баллы по критериям, стоп-факторы скрининга, уровень резюме и оценка грейда */
+        ResumeAssessment: {
+            score: number;
+            /** @enum {string} */
+            level: "strong" | "good" | "fair" | "weak";
+            /** @enum {string} */
+            seniority: "intern" | "junior" | "middle" | "senior" | "lead";
+            experienceMonths: number;
+            criteria: {
+                /** @enum {string} */
+                code: "structure" | "achievements" | "experience" | "skills" | "readability";
+                points: number;
+                max: number;
+            }[];
+            redFlags: ("no_contacts" | "job_hopping" | "employment_gap" | "cliches" | "too_short" | "too_long" | "no_achievements")[];
+            tips: ("add_contacts" | "add_position" | "add_experience" | "add_education" | "add_skills" | "name_technologies" | "add_about" | "quantify_results" | "use_action_verbs" | "add_links" | "adjust_length" | "use_bullets" | "replace_cliches")[];
+            /** @description Роли каталога, на которые резюме подходит больше всего, лучшая первой; пусто, если роль не распознана */
+            roles: {
+                /** @description Код роли каталога */
+                code: string;
+                /** @description Доля признаков роли среди всех найденных, % */
+                match: number;
+            }[];
+            /** @description Существенные плюсы резюме */
+            strengths: ("measurable_results" | "result_oriented" | "solid_experience" | "leadership" | "broad_stack" | "portfolio_links" | "complete_structure" | "stable_career" | "easy_to_read")[];
+            /** @description Минусы и пробелы резюме: все стоп-факторы и недостающие части */
+            weaknesses: ("no_contacts" | "job_hopping" | "employment_gap" | "cliches" | "too_short" | "too_long" | "no_achievements" | "no_position" | "no_experience" | "no_education" | "no_skills" | "no_about" | "few_results" | "weak_wording" | "narrow_stack" | "no_links" | "hard_to_read")[];
         };
         /** @description Подтверждённые пользователем поля (FR-PROF-04). Неуказанные поля профиля не меняются. */
         ResumeConfirmation: {

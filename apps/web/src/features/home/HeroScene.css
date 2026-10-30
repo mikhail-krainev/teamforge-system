@@ -1,0 +1,39 @@
+/* Hero backdrop: full-bleed dusk scene (scripts/hero-scene) that always stays dark, in both themes. */
+.hero-scene {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  margin-left: -50vw;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: var(--r-sheet);
+  background: #10123a;
+  pointer-events: none;
+}
+
+.hero-scene-img {
+  object-fit: cover;
+  object-position: 60% 100%;
+}
+
+/* Grain over the paint, the same print texture the candy blocks use. */
+.hero-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-grain);
+  opacity: 0.12;
+  mix-blend-mode: soft-light;
+}
+
+/* Tall narrow hero: keep the painting at its own proportions along the bottom, the sky colour fills above. */
+@media (max-width: 767px) {
+  /* next/image `fill` writes inline inset/height, so only !important can override them. */
+  .hero-scene-img {
+    top: 300px !important;
+    height: calc(100% - 300px) !important;
+    object-position: 78% 100%;
+  }
+}

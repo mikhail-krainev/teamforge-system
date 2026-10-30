@@ -18,13 +18,15 @@ interface Props {
 export function TokenActionView({ title, state, texts, errorText, retry, footer }: Props) {
   return (
     <div className="page-narrow">
-      <h1>{title}</h1>
+      <header className="page-head">
+        <h1>{title}</h1>
+      </header>
       <div className="card stack" aria-live="polite">
         {state === 'missing' ? <Alert tone="error">{texts.missing}</Alert> : null}
         {state === 'error' ? <Alert tone="error">{errorText}</Alert> : null}
         {state === 'success' ? <Alert tone="success">{texts.done}</Alert> : null}
         {state === 'pending' ? (
-          <p role="status">
+          <p role="status" className="mono">
             <span className="spinner" aria-hidden="true" /> {texts.working}
           </p>
         ) : null}

@@ -1,0 +1,22 @@
+.page-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--s4, 16px);
+  padding-block: var(--s6, 32px);
+}
+
+.page-loading p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.page-loading .mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+}
+
+.page-head-link {
+  margin: 0;
+}

@@ -108,10 +108,14 @@ function OpenDecision({ caseId }: { caseId: string }) {
         onChange={setComment}
       />
       <div className="row">
-        <button type="button" className="button" onClick={() => ask('ok')}>
+        <button type="button" className="button button-small" onClick={() => ask('ok')}>
           {t('fraud.decision.ok')}
         </button>
-        <button type="button" className="button button-danger" onClick={() => ask('violation')}>
+        <button
+          type="button"
+          className="button button-danger button-small"
+          onClick={() => ask('violation')}
+        >
           {t('fraud.decision.violation')}
         </button>
       </div>

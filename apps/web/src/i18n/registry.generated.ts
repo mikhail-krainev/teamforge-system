@@ -9,6 +9,7 @@ import fraud from './ru/fraud.json';
 import github from './ru/github.json';
 import home from './ru/home.json';
 import invitations from './ru/invitations.json';
+import mascot from './ru/mascot.json';
 import matching from './ru/matching.json';
 import notFound from './ru/notFound.json';
 import notifications from './ru/notifications.json';
@@ -35,6 +36,7 @@ export const ruDictionaries = {
   "github": github,
   "home": home,
   "invitations": invitations,
+  "mascot": mascot,
   "matching": matching,
   "notFound": notFound,
   "notifications": notifications,

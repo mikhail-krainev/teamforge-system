@@ -1,0 +1,26 @@
+.not-found-screen {
+  display: grid;
+  justify-items: center;
+  gap: var(--s4, 16px);
+  padding-block: clamp(32px, 6vw, 96px);
+  text-align: center;
+}
+
+.not-found-screen h1 {
+  margin: 0;
+}
+
+.not-found-screen p {
+  margin: 0;
+}
+
+.not-found-figure {
+  position: relative;
+}
+
+.not-found-sticker {
+  --tilt: -6deg;
+  position: absolute;
+  right: -24px;
+  top: 8px;
+}

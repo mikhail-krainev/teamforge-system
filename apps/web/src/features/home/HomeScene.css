@@ -1,0 +1,66 @@
+/* Whole-page backdrop for the landing (scripts/hero-scene): the dusk of the hero turns into night. */
+.home-scene {
+  position: relative;
+  /* Full-bleed: stretch to the window edges, keep the content where the container puts it. */
+  margin-inline: calc(50% - 50vw);
+  padding-inline: calc(50vw - 50%);
+  /* The shell pads the content below; let the valley reach the footer. */
+  margin-bottom: calc(var(--s7) * -1);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  background: #10123a;
+  color: var(--ink);
+}
+
+.home-scene-back {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--scene-forest-left), var(--scene-forest-right), var(--scene-stars);
+  background-repeat: repeat-y, repeat-y, repeat;
+  background-position: left top, right top, center top;
+  background-size: clamp(64px, 22vw, 400px) auto, clamp(64px, 22vw, 400px) auto, 900px 900px;
+  pointer-events: none;
+}
+
+/* Snow follows the reader but never leaves the page: sticky inside the scene, out of the flow. */
+.home-scene-snow {
+  position: sticky;
+  top: 0;
+  z-index: 0;
+  height: 100vh;
+  margin-bottom: -100vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.home-scene-snow img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-scene-body {
+  position: relative;
+  z-index: 1;
+}
+
+.scene-band {
+  position: relative;
+  z-index: 1;
+  margin-inline: calc(50% - 50vw);
+  pointer-events: none;
+}
+
+.scene-band img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.scene-band-lights {
+  margin-top: var(--s7);
+}
+
+.scene-band-ridge {
+  margin-top: var(--section-y);
+}

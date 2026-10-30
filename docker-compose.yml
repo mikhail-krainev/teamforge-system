@@ -31,7 +31,7 @@ x-app-env:
   DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?run "pnpm run env:init" first}
   IP_HASH_SALT: ${IP_HASH_SALT:?run "pnpm run env:init" first}
   SMTP_URL: smtp://mailpit:1025
-  MAIL_FROM: ${MAIL_FROM:-Teamforge <no-reply@localhost>}
+  MAIL_FROM: ${MAIL_FROM:-Корнер <no-reply@localhost>}
   # GitHub sign-in and linking. Empty means the feature is off; the *_BASE_URL pair is for the e2e double only.
   GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
   GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}

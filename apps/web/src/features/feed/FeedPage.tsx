@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { ContributionSummary } from '@/features/contribution/ContributionSummary';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
@@ -55,10 +56,11 @@ export function FeedPage({ teamId }: { teamId: string }) {
   };
   return (
     <div className="stack">
-      <h1>{t('feed.title')}</h1>
-      <p>
-        <Link href={`/teams/${teamId}`}>{t('feed.back')}</Link>
-      </p>
+      <PageHead title={t('feed.title')}>
+        <Link className="text-link" href={`/teams/${teamId}`}>
+          {t('feed.back')}
+        </Link>
+      </PageHead>
       <p className="muted">{t('feed.updated')}</p>
       <ContributionSummary teamId={teamId} members={members} roleName={roleName} />
       <FeedFilters filters={filters} members={members} onChange={setFilters} />

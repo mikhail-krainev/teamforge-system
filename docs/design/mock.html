@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teamforge mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Noto+Serif+Display:ital,wght@0,200;0,300;1,200;1,300&family=Martian+Mono:wdth,wght@87.5,400;87.5,500&display=swap" rel="stylesheet">
+<style>
+/* ===== tokens (mirror of spec.md §2) ===== */
+:root {
+  --white: #ffffff; --black: #000000;
+  --pink: #ffade4; --yellow: #fff570; --blue: #0088cc; --green: #25a750;
+  --brown: #ab6349; --orange: #ffa970; --red: #e95935; --grey: #f0f0f0;
+
+  --bg: var(--white); --surface: var(--white); --surface-2: var(--grey);
+  --ink: var(--black); --muted: #5c5c5c; --on-candy: var(--black);
+  --rule: var(--black); --rule-soft: #d6d6d6;
+  --danger-ink: #b8321a; --success-ink: #1c7a3a;
+  --invalid-bg: #fff1ee; --disabled-bg: var(--grey); --disabled-ink: #6b6b6b;
+  --focus: var(--black);
+  --btn-bg: var(--black); --btn-ink: var(--white); --btn-hover-bg: var(--yellow); --btn-hover-ink: var(--black);
+  --block-ink-bg: var(--black); --block-ink-fg: var(--white);
+
+  --font-sans: 'Onest', system-ui, sans-serif;
+  --font-serif: 'Noto Serif Display', Georgia, serif;
+  --font-mono: 'Martian Mono', ui-monospace, monospace;
+  --serif-weight: 200;
+
+  --fs-hero: clamp(3rem, 1.6rem + 6.2vw, 8.25rem);
+  --fs-display: clamp(2.5rem, 1.5rem + 4vw, 5.5rem);
+  --fs-h1: clamp(2.25rem, 1.65rem + 2.4vw, 4rem);
+  --fs-h2: clamp(1.75rem, 1.4rem + 1.4vw, 2.75rem);
+  --fs-h3: 1.375rem; --fs-lead: 1.25rem; --fs-body: 1.0625rem; --fs-small: .9375rem; --fs-caption: .8125rem; --fs-mono: .75rem;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 144px;
+  --section-y: clamp(64px, 9vw, 144px);
+  --gutter: clamp(16px, 4vw, 56px);
+  --gap: 24px;
+
+  --r-pill: 999px; --r-sheet: 40px; --r-card: 32px; --r-nested: 20px; --r-field: 14px; --r-check: 6px;
+  --bw: 2px; --bw-thin: 1px;
+
+  --dur-fast: 120ms; --dur: 220ms; --dur-slow: 420ms;
+  --ease-out: cubic-bezier(.22,1,.36,1); --ease-spring: cubic-bezier(.34,1.56,.64,1);
+}
+.theme-dark {
+  --bg: #000000; --surface: #111111; --surface-2: #1c1c1c;
+  --ink: #ffffff; --muted: #a6a6a6; --rule: #ffffff; --rule-soft: #333333;
+  --danger-ink: #ff8a6e; --success-ink: #4cd07a; --invalid-bg: #2a0f09;
+  --disabled-bg: #1c1c1c; --disabled-ink: #8a8a8a; --focus: #ffffff;
+  --btn-bg: #ffffff; --btn-ink: #000000;
+  --block-ink-bg: #ffffff; --block-ink-fg: #000000;
+  --serif-weight: 300;
+}
+
+/* ===== base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 var(--fs-body)/1.55 var(--font-sans); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; text-decoration-thickness: 1.5px; text-underline-offset: .2em; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.serif { font-family: var(--font-serif); font-weight: var(--serif-weight); letter-spacing: -.02em; font-size: 1.04em; }
+.serif-i { font-style: italic; }
+.muted { color: var(--muted); }
+.mono { font: 500 var(--fs-mono)/1.4 var(--font-mono); font-stretch: 87.5%; letter-spacing: .02em; }
+.container { max-width: 1440px; margin-inline: auto; padding-inline: var(--gutter); }
+.grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); }
+.stack { display: flex; flex-direction: column; gap: var(--s4); }
+.row { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ===== mock annotations (not part of the system) ===== */
+.anno { background: #e9e9e9; color: #3d3d3d; font: 500 12px/1.4 var(--font-mono); font-stretch: 87.5%; padding: 14px var(--gutter); display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid #cfcfcf; }
+.anno b { color: #000; font-weight: 500; }
+
+/* ===== yeti placeholder ===== */
+.yeti { display: grid; place-items: center; background: #cfcfcf; color: #3d3d3d; font: 500 11px/1.2 var(--font-mono); text-align: center; image-rendering: pixelated; flex: none; }
+.yeti small { display: block; font-size: 9px; opacity: .8; }
+
+/* ===== shell ===== */
+.shell-header { background: var(--bg); }
+.shell-top { display: flex; align-items: center; gap: var(--s4); height: 76px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 1.375rem; letter-spacing: -.045em; }
+.brand .yeti { width: 36px; height: 36px; font-size: 8px; }
+.shell-top .spacer { flex: 1; }
+.icon-button { position: relative; width: 44px; height: 44px; border-radius: 50%; border: var(--bw) solid var(--ink); background: var(--surface); color: var(--ink); display: inline-grid; place-items: center; cursor: pointer; transition: background var(--dur) var(--ease-out), transform var(--dur) var(--ease-spring); }
+.icon-button:hover { background: var(--yellow); color: var(--black); }
+.icon-button:active { transform: scale(.94); }
+.bell-badge { position: absolute; top: -6px; right: -8px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: var(--r-pill); background: var(--pink); color: var(--black); border: var(--bw) solid var(--ink); font: 500 11px/18px var(--font-mono); text-align: center; }
+.account-pill { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 4px; border-radius: var(--r-pill); border: var(--bw) solid var(--ink); background: var(--surface); font-weight: 500; font-size: var(--fs-small); color: var(--ink); cursor: pointer; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--orange); color: var(--black); display: grid; place-items: center; font-weight: 600; font-size: 14px; }
+.shell-nav ul { list-style: none; margin: 0; padding: 0 0 14px; display: flex; gap: 4px; flex-wrap: wrap; }
+.shell-nav a { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: var(--r-pill); text-decoration: none; font-weight: 500; font-size: var(--fs-small); letter-spacing: -.01em; transition: background var(--dur-fast); }
+.shell-nav a:hover { background: var(--grey); }
+.theme-dark .shell-nav a:hover { background: var(--surface-2); }
+.shell-nav a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.menu-toggle { display: none; }
+.sheet { border-top: var(--bw) solid var(--rule); border-radius: var(--r-sheet) var(--r-sheet) 0 0; position: relative; background: var(--bg); box-shadow: -2px 0 0 0 var(--rule), 2px 0 0 0 var(--rule); }
+.sheet-mask { position: relative; }
+/* side rules fade out after the corner arc */
+.sheet::after { content: ""; position: absolute; left: -2px; right: -2px; top: 60px; bottom: 0; background: var(--bg); z-index: 0; }
+.sheet > * { position: relative; z-index: 1; }
+
+/* ===== buttons ===== */
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: var(--r-pill); border: var(--bw) solid var(--btn-bg); background: var(--btn-bg); color: var(--btn-ink); font: 500 1rem/1 var(--font-sans); letter-spacing: -.01em; text-decoration: none; cursor: pointer; transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out), border-color var(--dur), transform var(--dur-fast); }
+.button:hover { background: var(--btn-hover-bg); color: var(--btn-hover-ink); border-color: var(--ink); }
+.button:active { transform: translateY(1px) scale(.985); }
+.button-secondary { background: transparent; color: var(--ink); border-color: var(--ink); }
+.button-secondary:hover { background: var(--grey); color: var(--black); }
+.button-danger { background: var(--red); border-color: var(--red); color: var(--black); }
+.button-danger:hover { background: var(--black); border-color: var(--black); color: var(--red); }
+.button-block { width: 100%; }
+.button[disabled], .button[aria-disabled="true"] { background: var(--disabled-bg); color: var(--disabled-ink); border: var(--bw) dashed var(--disabled-ink); cursor: not-allowed; transform: none; }
+.button[aria-busy="true"] { cursor: progress; }
+.button.is-hover { background: var(--btn-hover-bg); color: var(--btn-hover-ink); border-color: var(--ink); }
+.button.is-focus { outline: 3px solid var(--focus); outline-offset: 3px; }
+.cta-pair { display: inline-flex; align-items: center; gap: 6px; }
+.cta-pair .arrow { width: 52px; height: 52px; border-radius: 50%; background: var(--btn-bg); color: var(--btn-ink); display: grid; place-items: center; transition: transform var(--dur) var(--ease-spring), background var(--dur); }
+.cta-pair:hover .arrow { transform: rotate(-45deg); background: var(--yellow); color: var(--black); }
+.cta-pair:hover .button { background: var(--yellow); color: var(--black); border-color: var(--ink); }
+.text-link { font-weight: 500; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: .25em; min-height: 44px; display: inline-flex; align-items: center; }
+.text-link:hover { text-decoration-color: var(--pink); }
+
+/* ===== pixel spinner ===== */
+.spinner { display: inline-grid; grid-template-columns: repeat(3, 4px); gap: 2px; }
+.spinner i { width: 4px; height: 4px; background: currentColor; opacity: .25; animation: px 900ms steps(1) infinite; }
+.spinner i:nth-child(1){animation-delay:0ms}.spinner i:nth-child(2){animation-delay:100ms}.spinner i:nth-child(3){animation-delay:200ms}
+.spinner i:nth-child(6){animation-delay:300ms}.spinner i:nth-child(9){animation-delay:400ms}.spinner i:nth-child(8){animation-delay:500ms}
+.spinner i:nth-child(7){animation-delay:600ms}.spinner i:nth-child(4){animation-delay:700ms}.spinner i:nth-child(5){opacity:0;animation:none}
+@keyframes px { 0% { opacity: 1; } 34% { opacity: .25; } }
+
+/* ===== tags, stickers, marks ===== */
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.tag { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: var(--r-pill); border: 1.5px solid var(--ink); font-size: var(--fs-caption); font-weight: 500; white-space: nowrap; }
+.tag-fill { background: var(--ink); color: var(--bg); }
+.sticker { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: var(--r-pill); border: var(--bw) solid var(--black); color: var(--black); font: 600 .9375rem/1 var(--font-sans); letter-spacing: -.01em; transform: rotate(var(--tilt, -4deg)); white-space: nowrap; }
+.sticker-pink { background: var(--pink); } .sticker-yellow { background: var(--yellow); } .sticker-green { background: var(--green); } .sticker-orange { background: var(--orange); } .sticker-blue { background: var(--blue); }
+.section-mark { display: inline-flex; gap: 10px; align-items: baseline; font: 500 var(--fs-mono)/1 var(--font-mono); font-stretch: 87.5%; letter-spacing: .04em; text-transform: lowercase; }
+.section-mark::before { content: "///"; letter-spacing: -.08em; }
+.oval { position: relative; display: inline-block; padding: 0 .12em; }
+.oval::before { content: ""; position: absolute; inset: -.06em -.22em -.02em; border: var(--bw) solid currentColor; border-radius: 50%; transform: rotate(-4deg); pointer-events: none; }
+
+/* ===== cards ===== */
+.card { background: var(--surface); border: var(--bw) solid var(--rule); border-radius: var(--r-card); padding: clamp(20px, 3vw, 36px); }
+.card.nested { border-radius: var(--r-nested); border-width: var(--bw-thin); border-color: var(--rule-soft); padding: 20px; background: var(--surface-2); }
+.block { border-radius: var(--r-card); padding: clamp(24px, 4vw, 56px); color: var(--on-candy); }
+.block-yellow { background: var(--yellow); } .block-pink { background: var(--pink); } .block-blue { background: var(--blue); } .block-green { background: var(--green); } .block-orange { background: var(--orange); } .block-grey { background: var(--grey); color: var(--black); }
+.block-ink { background: var(--block-ink-bg); color: var(--block-ink-fg); }
+.scallop { --r: 13px; position: relative; padding: calc(var(--r) * 2.6); color: var(--black);
+  -webkit-mask: radial-gradient(circle var(--r) at var(--r) var(--r), #000 98%, #0000 101%) 0 0 / calc(2 * var(--r)) calc(2 * var(--r)) round, linear-gradient(#000 0 0) var(--r) var(--r) / calc(100% - 2 * var(--r)) calc(100% - 2 * var(--r)) no-repeat;
+          mask: radial-gradient(circle var(--r) at var(--r) var(--r), #000 98%, #0000 101%) 0 0 / calc(2 * var(--r)) calc(2 * var(--r)) round, linear-gradient(#000 0 0) var(--r) var(--r) / calc(100% - 2 * var(--r)) calc(100% - 2 * var(--r)) no-repeat; }
+
+/* ===== marquee ===== */
+.marquee { overflow: hidden; border-block: var(--bw) solid var(--black); background: var(--yellow); color: var(--black); transform: rotate(-1.6deg); margin: 0 -3vw; }
+.marquee-track { display: flex; width: max-content; animation: marquee 42s linear infinite; }
+.marquee-track > span { display: inline-flex; align-items: center; gap: 28px; padding: 18px 14px; font: 500 clamp(1.25rem, 1rem + 1.2vw, 2rem)/1 var(--font-sans); letter-spacing: -.035em; white-space: nowrap; }
+.marquee-track .serif { font: 300 1.12em/1 var(--font-serif); letter-spacing: -.02em; }
+.marquee svg { width: 18px; height: 18px; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ===== home ===== */
+.hero { padding-block: clamp(40px, 6vw, 96px) clamp(56px, 7vw, 112px); }
+.hero h1 { grid-column: 1 / span 10; font-size: var(--fs-hero); font-weight: 500; line-height: .9; letter-spacing: -.055em; }
+.hero h1 .serif { letter-spacing: -.03em; }
+.hero-aside { grid-column: 8 / span 5; display: grid; gap: var(--s5); align-content: start; margin-top: var(--s6); }
+.hero-aside p { color: var(--muted); font-size: var(--fs-lead); line-height: 1.45; letter-spacing: -.01em; max-width: 30ch; }
+.hero-mascot { grid-column: 1 / span 6; grid-row: 2; align-self: end; display: flex; align-items: flex-end; gap: var(--s5); margin-top: var(--s6); }
+.hero-mascot .yeti { width: 132px; height: 132px; }
+.hero-mascot .bubble { position: relative; border: var(--bw) solid var(--ink); border-radius: 22px 22px 22px 4px; padding: 12px 16px; font-size: var(--fs-small); font-weight: 500; max-width: 26ch; margin-bottom: 104px; }
+.hero-stickers { position: absolute; right: var(--gutter); top: 22px; display: flex; gap: 8px; }
+.hero-wrap { position: relative; }
+
+.section { padding-block: var(--section-y); }
+.section-head { align-items: end; margin-bottom: clamp(40px, 6vw, 88px); }
+.section-head h2 { grid-column: 1 / span 7; font-size: var(--fs-display); font-weight: 500; line-height: .95; letter-spacing: -.05em; }
+.section-head .section-mark { grid-column: 1 / -1; margin-bottom: var(--s2); }
+.section-head p { grid-column: 9 / span 4; color: var(--muted); font-size: var(--fs-small); max-width: 34ch; }
+
+.route { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); row-gap: 0; }
+.stage { position: relative; display: grid; gap: var(--s5); }
+.stage-1 { grid-column: 1 / span 6; }
+.stage-2 { grid-column: 4 / span 6; }
+.stage-3 { grid-column: 7 / span 6; }
+.stage-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.stage-num { font: 500 .875rem/1 var(--font-mono); font-stretch: 87.5%; }
+.stage h3 { font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3.75rem); font-weight: 500; letter-spacing: -.05em; line-height: .95; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.checks li { display: flex; gap: 12px; align-items: center; padding: 11px 0; border-top: 1.5px solid currentColor; font-weight: 500; font-size: var(--fs-small); }
+.checks li::before { content: ""; width: 18px; height: 18px; border: var(--bw) solid currentColor; border-radius: 5px; flex: none; }
+.checks li.done::before { background: currentColor; box-shadow: inset 0 0 0 3px var(--yellow); }
+.connector { height: 72px; border-left: 3px dashed var(--ink); border-bottom: 3px dashed var(--ink); border-bottom-left-radius: 36px; position: relative; }
+.connector::after { content: ""; position: absolute; right: -2px; bottom: -9px; border: 7.5px solid transparent; border-left: 11px solid var(--ink); border-right: 0; }
+.conn-1 { grid-column: 2 / span 2; margin-right: -6px; }
+.conn-2 { grid-column: 5 / span 2; margin-right: -6px; }
+.stage-3 .yeti { position: absolute; right: 28px; top: -104px; width: 104px; height: 104px; }
+
+.join { align-items: start; }
+.join-head { grid-column: 1 / span 5; position: sticky; top: 24px; }
+.join-head h2 { font-size: var(--fs-display); font-weight: 500; letter-spacing: -.05em; line-height: .95; margin-top: var(--s3); }
+.join-list { grid-column: 7 / span 6; list-style: none; margin: 0; padding: 0; }
+.join-list li { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 28px 0 32px; border-top: var(--bw) solid var(--rule); }
+.join-list li:last-child { border-bottom: var(--bw) solid var(--rule); }
+.join-list h3 { font-size: var(--fs-h2); font-weight: 500; letter-spacing: -.04em; line-height: 1; }
+.join-list p { color: var(--muted); max-width: 46ch; }
+
+.honest { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); align-items: center; }
+.honest p.statement { grid-column: 1 / span 8; font-size: clamp(1.75rem, 1.2rem + 2.2vw, 3.25rem); line-height: 1.05; letter-spacing: -.04em; font-weight: 500; }
+.honest .scallop { grid-column: 9 / span 4; background: var(--pink); transform: rotate(3deg); }
+.honest .scallop p { font-size: var(--fs-small); font-weight: 500; }
+.honest .scallop .mono { display: block; margin-bottom: 10px; }
+
+.cta-final { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); align-items: end; }
+.cta-final h2 { grid-column: 1 / span 8; font-size: var(--fs-display); font-weight: 500; letter-spacing: -.05em; line-height: .95; }
+.cta-final .row { grid-column: 9 / span 4; justify-content: flex-end; }
+
+.footer { border-top: var(--bw) solid var(--rule); padding-block: 28px 40px; }
+.footer-inner { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.footer .yeti { width: 72px; height: 72px; }
+.footer nav { display: flex; gap: 20px; flex-wrap: wrap; font-size: var(--fs-small); }
+
+/* ===== app pages ===== */
+.page-head { padding-block: clamp(32px, 5vw, 72px) clamp(28px, 4vw, 48px); align-items: end; }
+.page-head h1 { grid-column: 1 / span 8; font-size: var(--fs-h1); font-weight: 500; letter-spacing: -.045em; line-height: 1; }
+.page-head .aside { grid-column: 9 / span 4; display: grid; gap: 16px; justify-items: start; }
+.page-head .aside p { color: var(--muted); font-size: var(--fs-small); }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 16px 0; border-top: var(--bw) solid var(--rule); }
+.chip { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: var(--r-pill); border: var(--bw) solid var(--ink); background: var(--surface); color: var(--ink); font: 500 var(--fs-small)/1 var(--font-sans); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.chip:hover { background: var(--grey); color: var(--black); }
+.chip[aria-pressed="true"]:hover { background: var(--ink); color: var(--bg); }
+.filters .sep { width: 2px; height: 28px; background: var(--rule-soft); margin-inline: 8px; }
+.filters .count { margin-left: auto; }
+.team-list { list-style: none; margin: 0; padding: 0; }
+.team-list > li { border-top: var(--bw-thin) solid var(--rule-soft); padding-block: 4px; }
+.team-list > li:first-child { border-top: var(--bw) solid var(--rule); }
+.team-list > li:last-child { border-bottom: var(--bw-thin) solid var(--rule-soft); }
+.team-row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr) 44px; gap: var(--gap); align-items: center; padding: 20px; margin-inline: -20px; border-radius: 24px; transition: background var(--dur) var(--ease-out); }
+.team-row:hover, .team-row.is-hover { background: var(--pink); color: var(--black); }
+.team-row:hover .muted, .team-row.is-hover .muted { color: var(--black); }
+.team-row h3 { font-size: 1.75rem; font-weight: 500; letter-spacing: -.04em; line-height: 1.05; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.team-row h3 a { text-decoration: none; }
+.team-row h3 a::after { content: ""; position: absolute; inset: 0; }
+.team-row { position: relative; }
+.team-row p { font-size: var(--fs-small); margin-top: 6px; }
+.stage-pill { font: 500 11px/1 var(--font-mono); font-stretch: 87.5%; padding: 6px 10px; border-radius: var(--r-pill); color: var(--black); border: 1.5px solid var(--black); letter-spacing: .02em; }
+.seats { display: grid; gap: 8px; }
+.seat-grid { display: flex; gap: 4px; }
+.seat-grid i { width: 18px; height: 18px; border: var(--bw) solid currentColor; }
+.seat-grid i.taken { background: currentColor; }
+.seats .mono { color: inherit; }
+.empty { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; padding: 32px; border: var(--bw) dashed var(--ink); border-radius: var(--r-card); margin-top: 40px; }
+.empty .yeti { width: 96px; height: 96px; }
+.empty h3 { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.02em; margin-bottom: 6px; }
+
+/* sign-in */
+.signin { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); padding-block: 40px 80px; align-items: stretch; }
+.signin-art { grid-column: 1 / span 7; background: var(--blue); color: var(--black); border-radius: var(--r-card); padding: clamp(28px, 4vw, 56px); display: flex; flex-direction: column; justify-content: space-between; min-height: 560px; position: relative; overflow: hidden; }
+.signin-art h1 { font-size: var(--fs-display); font-weight: 500; letter-spacing: -.055em; line-height: .92; max-width: 9ch; }
+.signin-art .yeti { width: 152px; height: 152px; background: rgba(0,0,0,.18); color: #000; align-self: flex-end; }
+.signin-art p { font-weight: 500; max-width: 30ch; }
+.signin-form { grid-column: 8 / span 5; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: clamp(8px, 2vw, 24px) 0 clamp(8px, 2vw, 24px) clamp(0px, 2vw, 32px); }
+.signin-form h2 { font-size: var(--fs-h2); font-weight: 500; letter-spacing: -.04em; line-height: 1; }
+.divider { display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: var(--fs-caption); }
+.divider::before, .divider::after { content: ""; flex: 1; height: var(--bw); background: var(--rule); }
+.consent-text { font-size: var(--fs-caption); color: var(--muted); line-height: 1.5; }
+
+/* form */
+.field { display: grid; gap: 8px; }
+.field-label { font-weight: 500; font-size: var(--fs-small); letter-spacing: -.005em; }
+.field-label .opt { color: var(--muted); font-weight: 400; }
+.field-hint { color: var(--muted); font-size: var(--fs-caption); }
+.field-error { color: var(--danger-ink); font-size: var(--fs-caption); font-weight: 500; display: flex; gap: 8px; align-items: center; }
+.field-error::before { content: ""; width: 10px; height: 10px; background: currentColor; box-shadow: 0 0 0 0; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); flex: none; }
+.input { width: 100%; min-height: 52px; padding: 0 18px; border: var(--bw) solid var(--ink); border-radius: var(--r-field); background: var(--surface); color: var(--ink); font: 400 var(--fs-body)/1.4 var(--font-sans); transition: background var(--dur-fast); }
+.input::placeholder { color: var(--muted); }
+.input:hover { background: var(--grey); }
+.theme-dark .input:hover { background: var(--surface-2); }
+.input:focus-visible, .input.is-focus { outline: 3px solid var(--focus); outline-offset: 2px; background: var(--surface); }
+.input[aria-invalid="true"] { border-color: var(--danger-ink); background: var(--invalid-bg); }
+.input:disabled { background: var(--disabled-bg); color: var(--disabled-ink); border-style: dashed; border-color: var(--disabled-ink); cursor: not-allowed; }
+textarea.input { padding: 14px 18px; min-height: 120px; resize: vertical; }
+select.input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 24px) 23px, calc(100% - 18px) 23px; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 48px; }
+.checkbox { display: flex; gap: 12px; align-items: flex-start; min-height: 44px; padding-top: 10px; font-size: var(--fs-small); cursor: pointer; }
+.checkbox input { appearance: none; width: 22px; height: 22px; margin: 0; border: var(--bw) solid var(--ink); border-radius: var(--r-check); background: var(--surface); flex: none; display: grid; place-items: center; cursor: pointer; }
+.checkbox input:checked { background: var(--ink); }
+.checkbox input:checked::after { content: ""; width: 10px; height: 6px; border-left: 2.5px solid var(--bg); border-bottom: 2.5px solid var(--bg); transform: translateY(-1px) rotate(-45deg); }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 16px; }
+.pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick .chip { height: 40px; padding: 0 14px; }
+.pick .chip[aria-pressed="true"]::before { content: ""; width: 8px; height: 8px; background: var(--yellow); }
+.form-layout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); padding-bottom: 80px; }
+.form-legend { grid-column: 1 / span 3; }
+.form-legend h2 { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.02em; margin: 8px 0; }
+.form-body { grid-column: 4 / span 6; display: grid; gap: 28px; }
+.form-side { grid-column: 10 / span 3; display: grid; gap: 14px; align-content: start; }
+.button-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 12px; border-top: var(--bw) solid var(--rule); padding-top: 24px; }
+
+.alert { --mark: var(--ink); display: grid; grid-template-columns: 14px 1fr; gap: 12px; padding: 14px 18px; border-radius: 18px; border: var(--bw) solid var(--ink); background: var(--surface); color: var(--ink); font-size: var(--fs-small); }
+.alert::before { content: ""; width: 14px; height: 14px; margin-top: 4px; background: var(--mark); outline: var(--bw) solid var(--ink); outline-offset: -2px; }
+.alert-error { --mark: var(--red); border-color: var(--danger-ink); background: var(--invalid-bg); } .alert-warn { --mark: var(--orange); } .alert-success { --mark: var(--green); } .alert-info { --mark: var(--blue); }
+.alert b { font-weight: 600; }
+
+/* dark strip */
+.dark-strip { padding-block: 48px 64px; }
+.dark-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+.dark-grid > .d1 { grid-column: 1 / span 5; }
+.dark-grid > .d2 { grid-column: 6 / span 3; }
+.dark-grid > .d3 { grid-column: 9 / span 4; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .marquee-track { animation: none; }
+}
+
+/* ===== responsive ===== */
+@media (max-width: 1023px) {
+  .hero h1 { grid-column: 1 / -1; }
+  .hero-aside { grid-column: 5 / -1; }
+  .hero-mascot { grid-column: 1 / span 4; grid-row: auto; }
+  .section-head h2, .section-head p { grid-column: 1 / -1; }
+  .stage-1, .stage-2, .stage-3 { grid-column: 1 / -1; }
+  .stage-2 { margin-left: 8%; } .stage-3 { margin-left: 16%; }
+  .conn-1, .conn-2 { grid-column: 1 / span 2; margin-left: 32px; }
+  .conn-2 { margin-left: calc(8% + 32px); }
+  .join-head, .join-list { grid-column: 1 / -1; position: static; }
+  .honest p.statement, .honest .scallop { grid-column: 1 / -1; }
+  .honest .scallop { max-width: 420px; justify-self: end; }
+  .cta-final h2, .cta-final .row { grid-column: 1 / -1; justify-content: flex-start; }
+  .page-head h1, .page-head .aside { grid-column: 1 / -1; }
+  .team-row { grid-template-columns: 1fr 1fr 44px; }
+  .team-row > div:first-child { grid-column: 1 / -1; }
+  .signin-art, .signin-form { grid-column: 1 / -1; }
+  .signin-art { min-height: 380px; }
+  .form-legend, .form-body, .form-side { grid-column: 1 / -1; }
+  .dark-grid > .d1, .dark-grid > .d2, .dark-grid > .d3 { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+  :root { --gap: 16px; }
+  .shell-top { height: 64px; }
+  .shell-nav ul { display: none; }
+  .menu-toggle { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: var(--r-pill); border: var(--bw) solid var(--ink); background: var(--ink); color: var(--bg); font: 500 var(--fs-small)/1 var(--font-sans); }
+  .account-pill .name { display: none; }
+  .account-pill { padding: 0 4px; }
+  .hero-stickers { position: static; margin-bottom: 20px; padding-left: 4px; }
+  .hero-aside { grid-column: 1 / -1; }
+  .hero-mascot { grid-column: 1 / -1; }
+  .hero-mascot .yeti { width: 96px; height: 96px; }
+  .hero-mascot .bubble { margin-bottom: 72px; }
+  .stage-2, .stage-3 { margin-left: 0; }
+  .conn-1, .conn-2 { margin-left: 28px; height: 48px; border-bottom: 0; border-radius: 0; }
+  .conn-1::after, .conn-2::after { right: auto; left: -10px; bottom: -6px; border: 7.5px solid transparent; border-top: 11px solid var(--ink); border-bottom: 0; }
+  .stage-3 .yeti { width: 80px; height: 80px; top: -84px; }
+  .team-row { grid-template-columns: 1fr 44px; padding: 16px 12px; margin-inline: -12px; }
+  .team-row > div:first-child { grid-column: 1; }
+  .team-row > div:nth-child(2) { grid-column: 1; }
+  .signin-art { min-height: 0; gap: 24px; }
+  .signin-art .yeti { width: 88px; height: 88px; }
+  .team-row > div:nth-child(3) { grid-column: 1; }
+  .team-row > .icon-button { grid-column: 2; grid-row: 1; align-self: start; }
+  .empty { grid-template-columns: 1fr; }
+  .filters .sep { display: none; }
+  .filters { flex-wrap: nowrap; overflow-x: auto; margin-inline: calc(-1 * var(--gutter)); padding-inline: var(--gutter); }
+  .filters .count { display: none; }
+  .chip { flex: none; }
+}
+</style>
+</head>
+<body>
+
+<a class="sr-only" href="#main">Перейти к основному содержимому</a>
+
+<div class="anno"><span><b>Teamforge redesign</b> · mock v1 · light theme</span><span>Onest · Noto Serif Display · Martian Mono</span></div>
+
+<!-- ================= SHELL + HOME ================= -->
+<header class="shell-header">
+  <div class="container">
+    <div class="shell-top">
+      <a class="brand" href="#" aria-label="Teamforge, на главную"><span class="yeti">Yeti</span><span>Teamforge</span></a>
+      <span class="spacer"></span>
+      <button class="icon-button" type="button" aria-label="Уведомления, 2 новых">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5c-3 0-5 2.2-5 5.2v3.1L3.4 14h13.2L15 10.8V7.7c0-3-2-5.2-5-5.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 16.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span class="bell-badge">2</span>
+      </button>
+      <button class="account-pill" type="button" aria-haspopup="menu"><span class="avatar">М</span><span class="name">Маша К.</span></button>
+    </div>
+    <nav class="shell-nav" aria-label="Основная навигация">
+      <button type="button" class="menu-toggle" aria-expanded="false">Меню <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.5h12M2 10.5h12" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></button>
+      <ul>
+        <li><a href="#" aria-current="page">Главная</a></li>
+        <li><a href="#">Профиль</a></li>
+        <li><a href="#">Команды</a></li>
+        <li><a href="#">Мои предложения</a></li>
+        <li><a href="#">Поиск команды</a></li>
+        <li><a href="#">Спрос на роли</a></li>
+        <li><a href="#">Отзывы</a></li>
+        <li><a href="#">Аккаунт</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="sheet">
+  <div class="container hero-wrap">
+    <div class="hero-stickers" aria-hidden="true">
+      <span class="sticker sticker-pink" style="--tilt:-6deg">бесплатно</span>
+      <span class="sticker sticker-green" style="--tilt:4deg">без рейтингов</span>
+    </div>
+    <section class="hero grid-12" aria-labelledby="hero-title">
+      <h1 id="hero-title">Собери команду. Пройди маршрут. <span class="serif">Выпусти</span> продукт.</h1>
+      <div class="hero-mascot">
+        <span class="yeti" style="width:132px;height:132px">Yeti<small>wave</small></span>
+        <p class="bubble">Привет! Я&nbsp;Йети, буду рядом на&nbsp;каждом этапе.</p>
+      </div>
+      <div class="hero-aside">
+        <p>Бесплатная площадка для студентов и&nbsp;джунов. Заполняешь профиль, встаёшь в&nbsp;очередь в&nbsp;команду и&nbsp;доводишь проект от&nbsp;идеи до&nbsp;релиза по&nbsp;готовому маршруту.</p>
+        <div class="row">
+          <a class="cta-pair" href="#"><span class="button">Найти команду</span><span class="arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 9h11M9.5 4.5 14 9l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+          <a class="text-link" href="#">Сначала заполнить профиль</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <span>Фронтенд <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Бэкенд <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> <span class="serif">Дизайн</span> <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Тестирование <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Аналитика <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> <span class="serif">Мобильная</span> разработка <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> DevOps <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Продакт <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg></span>
+      <span>Фронтенд <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Бэкенд <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> <span class="serif">Дизайн</span> <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Тестирование <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Аналитика <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> <span class="serif">Мобильная</span> разработка <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> DevOps <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg> Продакт <svg viewBox="0 0 18 18"><path d="M7 0h4v7h7v4h-7v7H7v-7H0V7h7z"/></svg></span>
+    </div>
+  </div>
+
+  <section class="section container" aria-labelledby="route-title">
+    <div class="section-head grid-12">
+      <span class="section-mark">маршрут</span>
+      <h2 id="route-title">Три этапа, <span class="serif">один</span> релиз</h2>
+      <p>У&nbsp;каждого этапа свой чек-лист. Команда отмечает пункты, а&nbsp;коммиты из&nbsp;GitHub сами попадают в&nbsp;журнал вкладов, так что видно, кто что сделал.</p>
+    </div>
+    <div class="route">
+      <article class="stage stage-1 block block-yellow">
+        <div class="stage-top"><span class="stage-num">этап 1 из 3</span><span class="mono">~2 недели</span></div>
+        <h3>Идея</h3>
+        <ul class="checks"><li class="done">Проблема в&nbsp;одном предложении</li><li class="done">Три разговора с&nbsp;будущими пользователями</li><li>Список функций для первой версии</li></ul>
+      </article>
+      <div class="connector conn-1" aria-hidden="true"></div>
+      <article class="stage stage-2 block block-blue">
+        <div class="stage-top"><span class="stage-num">этап 2 из 3</span><span class="mono">~6 недель</span></div>
+        <h3>Разработка</h3>
+        <ul class="checks"><li>Репозиторий подключён к&nbsp;GitHub</li><li>Задачи разобраны по&nbsp;ролям</li><li>Демо команде раз в&nbsp;неделю</li></ul>
+      </article>
+      <div class="connector conn-2" aria-hidden="true"></div>
+      <article class="stage stage-3 block block-green">
+        <span class="yeti" style="background:#bdbdbd">Yeti<small>celebrate</small></span>
+        <div class="stage-top"><span class="stage-num">этап 3 из 3</span><span class="mono">~2 недели</span></div>
+        <h3>Релиз</h3>
+        <ul class="checks"><li>Продукт открывается по&nbsp;ссылке</li><li>README и&nbsp;скриншоты</li><li>Ретроспектива команды</li></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="section container" aria-labelledby="join-title" style="padding-top:0">
+    <div class="grid-12 join">
+      <div class="join-head">
+        <span class="section-mark">как попасть в команду</span>
+        <h2 id="join-title">Команду не&nbsp;нужно <span class="serif">искать</span> вслепую</h2>
+      </div>
+      <ul class="join-list">
+        <li><h3>Очередь по&nbsp;ролям</h3><p>Отмечаешь роли в&nbsp;порядке приоритета: например, сначала фронтенд, потом тестирование. Место в&nbsp;очереди видно в&nbsp;профиле.</p></li>
+        <li><h3>Автоподбор</h3><p>Когда в&nbsp;команде освобождается место под твою роль, приходит предложение. Принять или отказаться можно в&nbsp;«Моих предложениях».</p></li>
+        <li><h3>Пробный период</h3><p>Первые две недели — проба для обеих сторон. Не&nbsp;сработались: спокойно расходитесь, без штрафов и&nbsp;отметок в&nbsp;профиле.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="container" aria-label="Без рейтингов">
+    <div class="block block-ink honest">
+      <p class="statement">Здесь нет рейтингов, уровней и&nbsp;таблиц лидеров. Мы&nbsp;не&nbsp;сравниваем людей&nbsp;— только помогаем <span class="serif">дойти</span> до&nbsp;релиза.</p>
+      <div class="scallop">
+        <span class="mono">про награды</span>
+        <p>Награды здесь косметические: значок в&nbsp;профиле за&nbsp;пройденный маршрут. Они ничего не&nbsp;дают и&nbsp;ничего не&nbsp;отнимают.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section container" aria-labelledby="cta-title">
+    <div class="block block-yellow cta-final">
+      <h2 id="cta-title">Начни с&nbsp;профиля. Остальное&nbsp;— <span class="serif">по&nbsp;маршруту</span>.</h2>
+      <div class="row"><a class="cta-pair" href="#"><span class="button">Заполнить профиль</span><span class="arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 9h11M9.5 4.5 14 9l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a></div>
+    </div>
+  </section>
+
+  <footer class="footer container">
+    <div class="footer-inner">
+      <div class="row" style="align-items:flex-end;gap:18px"><span class="yeti">Yeti<small>sleep</small></span><p class="muted" style="font-size:var(--fs-small);max-width:34ch">Teamforge&nbsp;— бесплатно, для студентов и&nbsp;джунов из&nbsp;России и&nbsp;СНГ.</p></div>
+      <nav aria-label="Дополнительная навигация"><a href="#">Команды</a><a href="#">Спрос на роли</a><a href="#">Отзывы</a><a href="#">Условия</a></nav>
+    </div>
+  </footer>
+</main>
+
+<!-- ================= TEAMS LIST ================= -->
+<div class="anno"><span><b>Экран 2</b> · /teams · список команд + фильтры, строка 2 в состоянии hover</span><span>шапка та же</span></div>
+<div class="sheet" style="margin-top:24px">
+  <div class="container">
+    <div class="page-head grid-12">
+      <h1>Команды, которым <span class="serif">нужны</span> люди</h1>
+      <div class="aside"><p>Открытые места видно сразу. Вступить напрямую нельзя: место предлагает автоподбор, когда подходит твоя роль.</p>
+        <a class="cta-pair" href="#"><span class="button">Создать команду</span><span class="arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 3v12M3 9h12" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a></div>
+    </div>
+    <div class="filters" role="group" aria-label="Фильтры">
+      <button class="chip" aria-pressed="true" type="button">Все роли</button>
+      <button class="chip" aria-pressed="false" type="button">Фронтенд</button>
+      <button class="chip" aria-pressed="false" type="button">Бэкенд</button>
+      <button class="chip" aria-pressed="false" type="button">Дизайн</button>
+      <button class="chip" aria-pressed="false" type="button">Тестирование</button>
+      <span class="sep"></span>
+      <button class="chip" type="button">Этап: любой <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+      <span class="count mono muted">14 команд</span>
+    </div>
+    <ul class="team-list">
+      <li><div class="team-row">
+        <div><h3><a href="#">Столовка</a> <span class="stage-pill" style="background:var(--yellow)">идея</span></h3><p class="muted">Предзаказ обедов в&nbsp;университетской столовой, чтобы не&nbsp;стоять в&nbsp;очереди на&nbsp;большой перемене.</p></div>
+        <div class="seats"><span class="mono">2 из 5 мест заняты</span><span class="seat-grid" aria-hidden="true"><i class="taken"></i><i class="taken"></i><i></i><i></i><i></i></span></div>
+        <div><ul class="tag-list"><li class="tag">Бэкенд</li><li class="tag">Дизайн</li><li class="tag">Тестирование</li></ul></div>
+        <span class="icon-button" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 18 18"><path d="M3 9h11M9.5 4.5 14 9l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>
+      </div></li>
+      <li><div class="team-row is-hover">
+        <div><h3><a href="#">Конспект-бот</a> <span class="stage-pill" style="background:var(--blue)">разработка</span></h3><p class="muted">Телеграм-бот собирает конспекты группы в&nbsp;один документ по&nbsp;предметам.</p></div>
+        <div class="seats"><span class="mono">3 из 4 мест заняты</span><span class="seat-grid" aria-hidden="true"><i class="taken"></i><i class="taken"></i><i class="taken"></i><i></i></span></div>
+        <div><ul class="tag-list"><li class="tag">Фронтенд</li></ul></div>
+        <span class="icon-button" aria-hidden="true" style="background:var(--black);color:var(--pink);border-color:var(--black)"><svg width="16" height="16" viewBox="0 0 18 18"><path d="M3 9h11M9.5 4.5 14 9l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>
+      </div></li>
+      <li><div class="team-row">
+        <div><h3><a href="#">Тихий час</a> <span class="stage-pill" style="background:var(--green)">релиз</span></h3><p class="muted">Карта свободных аудиторий кампуса для самостоятельной работы.</p></div>
+        <div class="seats"><span class="mono">5 из 6 мест заняты</span><span class="seat-grid" aria-hidden="true"><i class="taken"></i><i class="taken"></i><i class="taken"></i><i class="taken"></i><i class="taken"></i><i></i></span></div>
+        <div><ul class="tag-list"><li class="tag">Аналитика</li></ul></div>
+        <span class="icon-button" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 18 18"><path d="M3 9h11M9.5 4.5 14 9l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>
+      </div></li>
+    </ul>
+    <div class="empty">
+      <span class="yeti">Yeti<small>sleep</small></span>
+      <div class="stack" style="gap:12px">
+        <div><span class="mono muted">пример пустого состояния · фильтр «Дизайн» + «Релиз»</span><h3 style="margin-top:8px">Под эти фильтры команд нет</h3><p class="muted" style="font-size:var(--fs-small)">Сбрось этап или роль. Или создай свою команду: дизайнеры в&nbsp;очереди есть.</p></div>
+        <div class="row"><button class="button button-secondary" type="button">Сбросить фильтры</button><button class="button" type="button">Создать команду</button></div>
+      </div>
+    </div>
+    <div style="height:64px"></div>
+  </div>
+</div>
+
+<!-- ================= SIGN-IN ================= -->
+<div class="anno"><span><b>Экран 3</b> · /sign-in · GitHub + ссылка на почту</span><span>шапка без навигации для гостя</span></div>
+<div class="sheet" style="margin-top:24px">
+  <div class="container signin">
+    <div class="signin-art">
+      <h1>Вход <span class="serif">без</span> пароля</h1>
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <p>Пароль придумывать не&nbsp;нужно: войди через GitHub или получи ссылку на&nbsp;почту.</p>
+        <span class="yeti">Yeti<small>wave</small></span>
+      </div>
+    </div>
+    <div class="signin-form">
+      <span class="section-mark">вход и регистрация</span>
+      <h2>Привет! Как войдёшь?</h2>
+      <button class="button button-block" type="button"><svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Войти через GitHub</button>
+      <div class="divider">или по почте</div>
+      <div class="field"><label class="field-label" for="e1">Электронная почта</label><input class="input" id="e1" type="email" placeholder="name@example.ru"><span class="field-hint">Пришлём ссылку для входа. Она действует 15 минут.</span></div>
+      <button class="button button-secondary button-block" type="button">Получить ссылку</button>
+      <p class="consent-text">Входя, ты соглашаешься с&nbsp;<a href="#">условиями</a> и&nbsp;<a href="#">политикой обработки данных</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FORM STATES ================= -->
+<div class="anno"><span><b>Экран 4</b> · /profile (фрагмент) · состояния полей и кнопок</span><span>default · focus · invalid · disabled · loading</span></div>
+<div class="sheet" style="margin-top:24px">
+  <div class="container">
+    <div class="page-head grid-12"><h1>Профиль</h1><div class="aside"><p>Профиль видят команды, куда тебя подбирают. Контакты появятся у&nbsp;них только после того, как ты примешь предложение.</p></div></div>
+    <div class="form-layout">
+      <div class="form-legend"><span class="section-mark">о себе</span><h2>Кто ты и&nbsp;что умеешь</h2><p class="muted" style="font-size:var(--fs-small)">По этим полям работает автоподбор.</p></div>
+      <div class="form-body">
+        <div class="alert alert-error" role="alert"><div><b>Профиль не&nbsp;сохранён.</b> Исправь два поля, отмеченных ниже.</div></div>
+        <div class="field"><label class="field-label" for="f1">Имя на платформе</label><input class="input is-focus" id="f1" value="Маша Ковалёва"><span class="field-hint">Так тебя увидят в&nbsp;команде. Состояние: focus</span></div>
+        <div class="field"><label class="field-label" for="f2">Ник на GitHub</label><input class="input" id="f2" value="masha kov" aria-invalid="true" aria-describedby="f2e"><span class="field-error" id="f2e">В нике не&nbsp;может быть пробелов. Пример: masha-kov</span></div>
+        <div class="field"><span class="field-label">Стек</span>
+          <div class="pick" role="group" aria-label="Стек"><button class="chip" aria-pressed="true" type="button">TypeScript</button><button class="chip" aria-pressed="true" type="button">React</button><button class="chip" aria-pressed="false" type="button">Python</button><button class="chip" aria-pressed="false" type="button">Figma</button><button class="chip" aria-pressed="false" type="button">PostgreSQL</button><button class="chip" aria-pressed="false" type="button">+ Добавить</button></div>
+          <span class="field-hint">Выбрано 2. Отметь то, с&nbsp;чем уже работала в&nbsp;проектах.</span></div>
+        <div class="field"><label class="field-label" for="f3">Опыт</label><select class="input" id="f3" aria-invalid="true"><option>Не выбрано</option></select><span class="field-error">Выбери вариант, даже если опыта пока нет.</span></div>
+        <div class="field"><label class="field-label" for="f4">О себе <span class="opt">· необязательно</span></label><textarea class="input" id="f4" placeholder="Пара предложений: что хочешь сделать и чему научиться"></textarea></div>
+        <div class="field"><label class="field-label" for="f5">Почта для уведомлений</label><input class="input" id="f5" value="masha@example.ru" disabled><span class="field-hint">Меняется в&nbsp;разделе «Аккаунт».</span></div>
+        <div class="field"><span class="field-label">Где удобно работать</span>
+          <div class="check-grid"><label class="checkbox"><input type="checkbox" checked> Вечером в будни</label><label class="checkbox"><input type="checkbox"> Днём в будни</label><label class="checkbox"><input type="checkbox" checked> В выходные</label></div></div>
+        <div class="button-row">
+          <button class="button" type="button">Сохранить профиль</button>
+          <button class="button is-hover" type="button">Hover</button>
+          <button class="button button-secondary" type="button">Отмена</button>
+          <button class="button" type="button" aria-busy="true"><span class="spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Сохраняем…</button>
+          <button class="button" type="button" disabled>Недоступно</button>
+          <button class="button button-danger" type="button">Удалить резюме</button>
+        </div>
+      </div>
+      <aside class="form-side">
+        <div class="alert alert-info"><div><b>Резюме</b> — PDF до&nbsp;5&nbsp;МБ. Его увидят только команды, которым ты&nbsp;ответишь.</div></div>
+        <div class="alert alert-success"><div><b>Профиль сохранён.</b> Ты&nbsp;в&nbsp;очереди на&nbsp;фронтенд.</div></div>
+        <div class="alert alert-warn"><div><b>Пробный период</b> заканчивается через 3&nbsp;дня.</div></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DARK STRIP ================= -->
+<div class="anno"><span><b>Тёмная тема</b> · не инверсия: чёрная страница, те же конфетные блоки с чёрным текстом</span><span>serif 300 вместо 200</span></div>
+<section class="theme-dark" style="background:var(--bg);color:var(--ink)">
+  <div class="container dark-strip">
+    <div class="shell-top" style="height:64px;margin-bottom:24px">
+      <a class="brand" href="#"><span class="yeti" style="background:#2b2b2b;color:#bbb">Yeti</span><span>Teamforge</span></a>
+      <nav class="shell-nav" style="margin-left:24px"><ul style="padding:0"><li><a href="#">Главная</a></li><li><a href="#" aria-current="page">Команды</a></li><li><a href="#">Отзывы</a></li></ul></nav>
+      <span class="spacer"></span>
+      <span class="icon-button"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5c-3 0-5 2.2-5 5.2v3.1L3.4 14h13.2L15 10.8V7.7c0-3-2-5.2-5-5.2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>
+    </div>
+    <div class="dark-grid">
+      <div class="d1 stack" style="gap:20px">
+        <h2 style="font-size:var(--fs-h1);font-weight:500;letter-spacing:-.045em;line-height:1">Команды, которым <span class="serif">нужны</span> люди</h2>
+        <p class="muted" style="font-size:var(--fs-small);max-width:40ch">Серый текст #A6A6A6 на чёрном: 8.6:1. Линии структуры белые, второстепенные #333.</p>
+        <div class="row"><button class="button" type="button">Создать команду</button><button class="button button-secondary" type="button">Отмена</button></div>
+      </div>
+      <div class="d2 block block-pink" style="padding:28px"><span class="mono">этап 2 из 3</span><h3 style="font-size:2rem;font-weight:500;letter-spacing:-.04em;margin-top:40px">Разработка</h3></div>
+      <div class="d3 card stack">
+        <div class="field"><label class="field-label" for="d1">Ник на GitHub</label><input class="input" id="d1" value="masha kov" aria-invalid="true"><span class="field-error">В нике не&nbsp;может быть пробелов.</span></div>
+        <div class="field"><label class="field-label" for="d2">Город</label><input class="input is-focus" id="d2" value="Казань"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

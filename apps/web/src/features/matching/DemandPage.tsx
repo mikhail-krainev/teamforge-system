@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
 import type { CatalogEntry } from '@/features/profile/api';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { t } from '@/i18n';
 import type { RoleDemand } from './api';
+import './matching.css';
 import { waitText } from './model';
 import { useDemand } from './queries';
 
@@ -35,7 +37,9 @@ function DemandTable({
         <tbody>
           {items.map((item) => (
             <tr key={item.roleCode}>
-              <th scope="row">{roles.find((r) => r.code === item.roleCode)?.name ?? item.roleCode}</th>
+              <th scope="row">
+                {roles.find((r) => r.code === item.roleCode)?.name ?? item.roleCode}
+              </th>
               <td>{item.openSeats}</td>
               <td>{item.teamsSeeking}</td>
               <td>{item.queuedCandidates}</td>
@@ -55,10 +59,59 @@ function DemandTable({
   );
 }
 
+function DemandBars({
+  items,
+  roles,
+}: {
+  items: readonly RoleDemand[];
+  roles: readonly CatalogEntry[];
+}) {
+  const most = Math.max(1, ...items.map((item) => item.openSeats));
+  return (
+    <ul className="demand-bars" aria-hidden="true">
+      {items.map((item) => (
+        <li key={item.roleCode}>
+          <span className="demand-role">
+            {roles.find((r) => r.code === item.roleCode)?.name ?? item.roleCode}
+          </span>
+          <progress className="demand-bar" max={most} value={item.openSeats} />
+          <span className="mono muted">
+            {t('matching.demand.barLine', {
+              seats: item.openSeats,
+              queued: item.queuedCandidates,
+            })}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DemandLoading() {
+  return (
+    <div className="row">
+      <Yeti pose="think" size={96} />
+      <p role="status">{t('matching.demand.loading')}</p>
+    </div>
+  );
+}
+
+function DemandEmpty() {
+  return (
+    <div className="empty">
+      <Yeti pose="sleep" size={96} />
+      <p className="muted">{t('matching.demand.empty')}</p>
+    </div>
+  );
+}
+
 /** `/demand`: open seats, queue size and average wait for every role. */
 export function DemandPage() {
   const roles = useRoles();
-  const codes = roles.data?.filter((r) => r.active).map((r) => r.code).slice(0, MAX_ROLES);
+  const codes = roles.data
+    ?.filter((r) => r.active)
+    .map((r) => r.code)
+    .slice(0, MAX_ROLES);
   const demand = useDemand(codes, Boolean(codes));
   if (roles.isError || demand.isError) {
     return (
@@ -78,14 +131,15 @@ export function DemandPage() {
     );
   }
   if (roles.isPending || demand.isPending || !roles.data) {
-    return <p role="status">{t('matching.demand.loading')}</p>;
+    return <DemandLoading />;
   }
   if (demand.data.length === 0) {
-    return <p className="muted">{t('matching.demand.empty')}</p>;
+    return <DemandEmpty />;
   }
   const computed = demand.data[0]?.computedAt;
   return (
-    <div className="stack">
+    <div className="stack-loose">
+      <DemandBars items={demand.data} roles={roles.data} />
       <DemandTable items={demand.data} roles={roles.data} />
       {computed ? (
         <p className="muted">

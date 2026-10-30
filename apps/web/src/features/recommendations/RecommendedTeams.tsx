@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
 import { ActionErrorAlert } from '@/features/offers/ActionErrorAlert';
 import { createJoinRequest, MY_OFFERS_KEY } from '@/features/offers/api';
@@ -9,6 +10,7 @@ import type { CatalogEntry } from '@/features/profile/api';
 import { t } from '@/i18n';
 import { useIdempotentMutation } from '@/lib/api/idempotency';
 import type { TeamRecommendation } from './api';
+import '@/features/matching/matching.css';
 import { MatchExplanation } from './MatchExplanation';
 import { useRecommendedTeams } from './queries';
 
@@ -19,7 +21,7 @@ function TeamItem({ item, roleName }: { item: TeamRecommendation; roleName: stri
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MY_OFFERS_KEY }),
   });
   return (
-    <li className="card stack">
+    <li className="rec-row">
       <h3>
         <Link href={`/teams/${item.teamId}`}>{item.teamName}</Link>
       </h3>
@@ -47,6 +49,15 @@ function TeamItem({ item, roleName }: { item: TeamRecommendation; roleName: stri
   );
 }
 
+function EmptyRecs() {
+  return (
+    <div className="empty">
+      <Yeti pose="sleep" size={96} />
+      <p className="muted">{t('matching.recs.empty')}</p>
+    </div>
+  );
+}
+
 /** "Рекомендованные команды": best open seats for the caller with the match explanation. */
 export function RecommendedTeams({ roles }: { roles: readonly CatalogEntry[] }) {
   const query = useRecommendedTeams();
@@ -68,11 +79,9 @@ export function RecommendedTeams({ roles }: { roles: readonly CatalogEntry[] }) 
           </button>
         </Alert>
       ) : null}
-      {query.isSuccess && items.length === 0 ? (
-        <p className="muted">{t('matching.recs.empty')}</p>
-      ) : null}
+      {query.isSuccess && items.length === 0 ? <EmptyRecs /> : null}
       {items.length > 0 ? (
-        <ul className="stack" aria-label={t('matching.recs.list')}>
+        <ul className="team-list" aria-label={t('matching.recs.list')}>
           {items.map((item) => (
             <TeamItem
               key={`${item.teamId}:${item.seatId}`}

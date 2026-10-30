@@ -65,7 +65,7 @@ describe('FR-MATCH-03: SearchPage, new application', () => {
     pickRole('qa');
     fireEvent.click(screen.getByRole('button', { name: 'Поднять роль Тестировщик выше' }));
     fireEvent.click(screen.getByRole('button', { name: 'Встать в очередь' }));
-    expect(await screen.findByText('Вы в очереди')).toBeTruthy();
+    expect(await screen.findByText('Ты в очереди')).toBeTruthy();
     expect(body).toEqual({
       roles: [
         { roleCode: 'qa', priority: 1 },
@@ -80,7 +80,7 @@ describe('FR-MATCH-03: SearchPage, new application', () => {
     renderWithClient(<SearchPage />);
     await screen.findByRole('heading', { name: 'Встать в очередь' });
     fireEvent.click(screen.getByRole('button', { name: 'Встать в очередь' }));
-    expect(await screen.findByText('Выберите хотя бы одну роль.')).toBeTruthy();
+    expect(await screen.findByText('Выбери хотя бы одну роль.')).toBeTruthy();
     await waitFor(() => expect(document.activeElement?.id).toBe('application-role-add'));
   });
 
@@ -100,7 +100,7 @@ describe('FR-MATCH-03: SearchPage, new application', () => {
     pickRole('backend');
     fireEvent.click(screen.getByRole('button', { name: 'Встать в очередь' }));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('привяжите GitHub');
+    expect(alert.textContent).toContain('привяжи GitHub');
     expect(within(alert).getByRole('link', { name: 'Привязать GitHub' })).toBeTruthy();
   });
 
@@ -129,7 +129,7 @@ describe('FR-MATCH-03: SearchPage, new application', () => {
       http.get(APP_URL, () => problem(403, 'FORBIDDEN')),
     );
     renderWithClient(<SearchPage />);
-    expect(await screen.findByText('Не удалось загрузить заявку в очередь.')).toBeTruthy();
+    expect(await screen.findByText('Не получилось загрузить заявку в очереди.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
   });
 
@@ -139,13 +139,13 @@ describe('FR-MATCH-04: SearchPage, active application', () => {
   it('shows the status and the roles by priority with the change warning', async () => {
     serve(sampleApplication());
     renderWithClient(<SearchPage />);
-    expect(await screen.findByText('Вы в очереди')).toBeTruthy();
+    expect(await screen.findByText('Ты в очереди')).toBeTruthy();
     const list = screen.getByRole('list', { name: 'Роли по приоритету' });
     expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '1. Backend-разработчик',
       '2. Тестировщик',
     ]);
-    expect(screen.getByText(/новая роль встаёт в очередь по этой роли/)).toBeTruthy();
+    expect(screen.getByText(/новая роль встанет в очередь/)).toBeTruthy();
   });
 
   it('saves changed roles with the stored version', async () => {
@@ -163,7 +163,7 @@ describe('FR-MATCH-04: SearchPage, active application', () => {
       }),
     );
     renderWithClient(<SearchPage />);
-    await screen.findByText('Вы в очереди');
+    await screen.findByText('Ты в очереди');
     fireEvent.click(screen.getByRole('button', { name: 'Убрать роль Тестировщик' }));
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
     expect(await screen.findByText('Заявка обновлена.')).toBeTruthy();
@@ -186,10 +186,10 @@ describe('FR-MATCH-04: SearchPage, active application', () => {
       }),
     );
     renderWithClient(<SearchPage />);
-    await screen.findByText('Вы в очереди');
+    await screen.findByText('Ты в очереди');
     fireEvent.click(screen.getByRole('button', { name: 'Убрать роль Тестировщик' }));
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
-    expect(await screen.findByText('Заявка изменена в другом месте')).toBeTruthy();
+    expect(await screen.findByText('Заявку изменили в другом месте')).toBeTruthy();
     expect(screen.getByText(/Актуальная версия заявки: 5\. Роли: Менеджер проекта/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить мои роли' }));
     await screen.findByText('Заявка обновлена.');
@@ -206,12 +206,12 @@ describe('FR-MATCH-04: SearchPage, active application', () => {
       http.put(APP_URL, () => problem(409, 'VERSION_CONFLICT', { current: stored })),
     );
     renderWithClient(<SearchPage />);
-    await screen.findByText('Вы в очереди');
+    await screen.findByText('Ты в очереди');
     fireEvent.click(screen.getByRole('button', { name: 'Убрать роль Тестировщик' }));
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить изменения' }));
-    await screen.findByText('Заявка изменена в другом месте');
+    await screen.findByText('Заявку изменили в другом месте');
     fireEvent.click(screen.getByRole('button', { name: 'Взять актуальную заявку' }));
-    await waitFor(() => expect(screen.queryByText('Заявка изменена в другом месте')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Заявку изменили в другом месте')).toBeNull());
     const list = screen.getByRole('list', { name: 'Роли по приоритету' });
     expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '1. Менеджер проекта',
@@ -228,7 +228,7 @@ describe('FR-MATCH-04: SearchPage, active application', () => {
       }),
     );
     renderWithClient(<SearchPage />);
-    await screen.findByText('Вы в очереди');
+    await screen.findByText('Ты в очереди');
     fireEvent.click(screen.getByRole('button', { name: 'Выйти из очереди' }));
     expect(deleted).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Да, выйти из очереди' }));

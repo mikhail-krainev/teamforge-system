@@ -38,7 +38,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Que
   const failureCode = error ?? (teamId ? 'unknown' : null);
   return (
     <div className="page-narrow stack">
-      <h1>{t('github.setup.title')}</h1>
+      <header className="page-head">
+        <h1>{t('github.setup.title')}</h1>
+      </header>
       <Alert tone="error">
         <p>
           <strong>{t('github.setup.failedTitle')}</strong>
@@ -47,9 +49,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Que
       </Alert>
       <p>
         {teamId ? (
-          <Link href={`/teams/${teamId}/github`}>{t('github.setup.toTeam')}</Link>
+          <Link href={`/teams/${teamId}/github`} className="text-link">
+            {t('github.setup.toTeam')}
+          </Link>
         ) : (
-          <Link href="/teams">{t('github.setup.toTeams')}</Link>
+          <Link href="/teams" className="text-link">
+            {t('github.setup.toTeams')}
+          </Link>
         )}
       </p>
     </div>

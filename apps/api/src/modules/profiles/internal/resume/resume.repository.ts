@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import { resumeUpload } from '../schema/profiles.js';
 import type { ContractFailure } from './parse-result.js';
+import { assessResume, type ResumeAssessment } from './resume-assessment.js';
 
 export type ResumeRow = typeof resumeUpload.$inferSelect;
 
@@ -13,13 +14,23 @@ export interface ResumeDto {
   failureReason: ContractFailure | null;
   extractedText: string | null;
   suggestions: Record<string, unknown> | null;
+  /** Scoring and screening of the text; computed on read, gone together with the text. */
+  assessment: ResumeAssessment | null;
   keepFile: boolean;
   createdAt: string;
   processedAt: string | null;
 }
 
+function assessmentOf(row: ResumeRow): ResumeAssessment | null {
+  if (row.status !== 'done' || row.extractedText === null) return null;
+  const stack = (row.suggestions as { stack?: unknown } | null)?.stack;
+  const stackTags = Array.isArray(stack) ? stack.length : 0;
+  return assessResume(row.extractedText, stackTags, row.processedAt ?? row.createdAt);
+}
+
 export function toResumeDto(row: ResumeRow): ResumeDto {
   return {
+    assessment: assessmentOf(row),
     id: row.id,
     status: row.status as ResumeDto['status'],
     failureReason: row.failureReason as ContractFailure | null,

@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import type { CatalogEntry } from '@/features/profile/api';
 import { useRoles } from '@/features/profile/useProfileQueries';
@@ -17,6 +19,7 @@ import { AddSeatsForm } from './AddSeatsForm';
 import { useProductTypes, useTeam } from './queries';
 import { SeatRow } from './SeatRow';
 import { StartProject } from './StartProject';
+import './teams.css';
 import { TeamEvents } from './TeamEvents';
 
 function MembersSection({
@@ -38,9 +41,9 @@ function MembersSection({
         <Alert tone="success">{t('matching.trial.confirmed')}</Alert>
       ) : null}
       {outcome === 'excluded' ? <Alert tone="success">{t('matching.trial.excluded')}</Alert> : null}
-      <ul className="stack">
+      <ul className="plain-list">
         {active.map((member) => (
-          <li key={member.userId} className="card nested">
+          <li key={member.userId} className="team-member-row">
             <p>
               <Link href={`/users/${member.userId}`}>{member.displayName}</Link>
               {member.isLead ? ` · ${t('teams.detail.lead')}` : ''}
@@ -85,7 +88,7 @@ function SeatsSection({ team, roles, canManage }: SeatsProps) {
     <section className="stack" aria-labelledby="team-seats-heading">
       <h2 id="team-seats-heading">{t('teams.detail.seats')}</h2>
       {seats.length === 0 ? <p className="muted">{t('teams.detail.noSeats')}</p> : null}
-      <ul className="stack">
+      <ul className="plain-list">
         {seats.map((seat) => (
           <SeatRow
             key={seat.id}
@@ -104,7 +107,7 @@ function SeatsSection({ team, roles, canManage }: SeatsProps) {
 
 function Summary({ team, typeName }: { team: Team; typeName: string }) {
   return (
-    <section className="card stack" aria-labelledby="team-summary-heading">
+    <section className="block block-yellow stack" aria-labelledby="team-summary-heading">
       <h2 id="team-summary-heading">{t('teams.detail.about')}</h2>
       <p role="status" aria-live="polite" aria-label={t('teams.detail.statusLabel')}>
         {t('teams.detail.statusLine', { status: t(`teams.status.${team.status}`) })}
@@ -125,6 +128,58 @@ function Summary({ team, typeName }: { team: Team; typeName: string }) {
   );
 }
 
+interface BodyProps {
+  data: Team;
+  canManage: boolean;
+  typeName: string;
+  roles: readonly CatalogEntry[];
+  meId: string | undefined;
+}
+
+function TeamDetailBody({ data, canManage, typeName, roles, meId }: BodyProps) {
+  const hasStages = data.status !== 'forming';
+  return (
+    <div className="stack-loose">
+      <PageHead
+        title={data.name}
+        lead={
+          <>
+            <span className={`stage-pill team-status-${data.status}`}>
+              {t(`teams.status.${data.status}`)}
+            </span>
+            {canManage ? (
+              <span className="team-lead-note">{t('teams.detail.youAreLead')}</span>
+            ) : null}
+          </>
+        }
+      />
+      <div className="grid-2">
+        <div className="stack-loose">
+          <SeatsSection team={data} roles={roles} canManage={canManage} />
+          <MembersSection teamId={data.id} members={data.members} canManage={canManage} />
+          {canManage && data.status === 'forming' ? <StartProject teamId={data.id} /> : null}
+          <TeamActions team={data} meId={meId} roles={roles} isLead={canManage} />
+          <TeamEvents teamId={data.id} members={data.members} />
+        </div>
+        <div className="stack">
+          <Summary team={data} typeName={typeName} />
+          {hasStages ? (
+            <nav className="card nested team-detail-links" aria-label={t('teams.detail.route')}>
+              <Link href={`/teams/${data.id}/route`}>{t('teams.detail.route')}</Link>
+              <Link href={`/teams/${data.id}/feed`}>{t('feed.links.feed')}</Link>
+              <Link href={`/teams/${data.id}/github`}>{t('github.links.github')}</Link>
+              <Link href={`/teams/${data.id}/complete`}>{t('completion.links.complete')}</Link>
+              {data.status === 'completed' || data.status === 'archived' ? (
+                <Link href={`/teams/${data.id}/credit`}>{t('rewards.credit.link')}</Link>
+              ) : null}
+            </nav>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TeamDetailPage({ teamId }: { teamId: string }) {
   const team = useTeam(teamId);
   const me = useMe();
@@ -135,43 +190,45 @@ export function TeamDetailPage({ teamId }: { teamId: string }) {
   if (team.isError) {
     const missing = team.error instanceof ApiError && team.error.status === 404;
     return (
-      <Alert tone="error">
-        <p>{missing ? t('teams.detail.notFound') : t('teams.detail.loadFailed')}</p>
-        {missing ? null : (
-          <button type="button" className="button button-secondary" onClick={() => team.refetch()}>
-            {t('teams.retry')}
-          </button>
-        )}
-      </Alert>
+      <div className="stack">
+        <Yeti pose="sad" size={96} />
+        <Alert tone="error">
+          <p>{missing ? t('teams.detail.notFound') : t('teams.detail.loadFailed')}</p>
+          {missing ? null : (
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => team.refetch()}
+            >
+              {t('teams.retry')}
+            </button>
+          )}
+        </Alert>
+      </div>
     );
   }
-  if (team.isPending) return <p role="status">{t('teams.detail.loading')}</p>;
+  if (team.isPending) {
+    return (
+      <div className="row">
+        <Yeti pose="think" size={96} />
+        <p role="status" className="mono muted">
+          {t('teams.detail.loading')}
+        </p>
+      </div>
+    );
+  }
 
   const data = team.data;
   const canManage = Boolean(me.data && data.leadUserId === me.data.id);
   const typeName =
     types.data?.find((p) => p.code === data.productTypeCode)?.name ?? data.productTypeCode;
   return (
-    <div className="stack">
-      <h1>{data.name}</h1>
-      {canManage ? <p className="muted">{t('teams.detail.youAreLead')}</p> : null}
-      {data.status !== 'forming' ? (
-        <p className="row">
-          <Link href={`/teams/${data.id}/route`}>{t('teams.detail.route')}</Link>
-          <Link href={`/teams/${data.id}/feed`}>{t('feed.links.feed')}</Link>
-          <Link href={`/teams/${data.id}/github`}>{t('github.links.github')}</Link>
-          <Link href={`/teams/${data.id}/complete`}>{t('completion.links.complete')}</Link>
-          {data.status === 'completed' || data.status === 'archived' ? (
-            <Link href={`/teams/${data.id}/credit`}>{t('rewards.credit.link')}</Link>
-          ) : null}
-        </p>
-      ) : null}
-      <Summary team={data} typeName={typeName} />
-      <MembersSection teamId={data.id} members={data.members} canManage={canManage} />
-      <SeatsSection team={data} roles={roles.data ?? []} canManage={canManage} />
-      {canManage && data.status === 'forming' ? <StartProject teamId={data.id} /> : null}
-      <TeamActions team={data} meId={me.data?.id} roles={roles.data ?? []} isLead={canManage} />
-      <TeamEvents teamId={data.id} members={data.members} />
-    </div>
+    <TeamDetailBody
+      data={data}
+      canManage={canManage}
+      typeName={typeName}
+      roles={roles.data ?? []}
+      meId={me.data?.id}
+    />
   );
 }

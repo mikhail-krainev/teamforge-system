@@ -1,0 +1,438 @@
+/* Hand-drawn roadmap: one paper map SVG, stage cards pinned over it.
+   Scroll drives everything through the --road timeline; the trail reaches the finish flag
+   when the section sits in the middle of the screen (cover 50%). */
+.roadmap {
+  position: relative;
+  aspect-ratio: 1000 / 680;
+  color: var(--ink);
+  view-timeline: --road block;
+}
+
+.road-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* map ink */
+.road-map path,
+.road-map circle {
+  stroke: currentcolor;
+  stroke-width: 2.5;
+}
+
+.road-doodles path,
+.road-doodles circle {
+  fill: none;
+}
+
+.road-contours path {
+  stroke-width: 1.5;
+  opacity: 0.22;
+}
+
+.road-line {
+  fill: none;
+}
+
+.road-doodles .road-fill-grey,
+.road-map .road-fill-grey {
+  fill: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.road-map .road-fill-paper {
+  fill: var(--white);
+}
+
+.road-map .road-fill-pink {
+  fill: var(--pink);
+}
+
+.road-map .road-fill-yellow {
+  fill: var(--yellow);
+}
+
+.road-map .road-fill-orange {
+  fill: var(--orange);
+}
+
+.road-map .road-fill-blue {
+  fill: var(--blue);
+}
+
+.road-map .road-fill-ink {
+  fill: var(--black);
+}
+
+.road-map .road-fill-skin {
+  fill: #f0c9a4;
+}
+
+.road-pine path:not(.road-line) {
+  fill: var(--green);
+}
+
+.road-compass circle {
+  fill: none;
+  stroke-dasharray: 3 5;
+}
+
+.road-river {
+  fill: none;
+  stroke: var(--blue) !important;
+  stroke-width: 9 !important;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+.road-doodles {
+  opacity: 0.8;
+}
+
+.road-label {
+  fill: currentcolor;
+  font: 500 15px / 1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The reveal mask must stay white, whatever the map ink is. */
+.road-map .road-reveal {
+  stroke: #fff;
+  stroke-width: 40;
+}
+
+/* trail: a highlighter stroke under dotted footsteps */
+.road-marker {
+  fill: none;
+  stroke: var(--yellow) !important;
+  stroke-width: 20 !important;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+
+.road-trail {
+  fill: none;
+  stroke-width: 5.5 !important;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 13;
+}
+
+.road-stop circle {
+  fill: var(--white);
+}
+
+.road-stop text {
+  fill: var(--black);
+  font: 700 13px / 1 var(--font-mono);
+  text-anchor: middle;
+}
+
+.road-walker {
+  offset-distance: 100%;
+  offset-rotate: 0deg;
+  offset-anchor: 50% 100%;
+  transform-box: fill-box;
+}
+
+.road-walker path,
+.road-walker circle {
+  stroke: var(--black);
+  stroke-width: 1.8;
+}
+
+.road-walker .road-walker-shadow {
+  fill: var(--black);
+  stroke: none;
+  opacity: 0.25;
+}
+
+.road-finish-cloth {
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+/* cards */
+.road-card {
+  position: absolute;
+  display: grid;
+  gap: var(--s3);
+  width: 35%;
+  padding: clamp(16px, 2.2vw, 30px);
+  border: var(--bw) solid var(--black);
+  border-radius: 28px 10px 24px 12px / 12px 26px 10px 24px;
+  background: var(--tex-grain), var(--tex-fiber), var(--card);
+  color: var(--on-candy);
+  box-shadow:
+    5px 6px 0 color-mix(in srgb, var(--black) 85%, transparent),
+    inset 0 -18px 30px -24px rgb(22 19 15 / 0.35);
+  transition: transform var(--dur) var(--ease-spring);
+}
+
+/* Halftone shading in the lower corner, like a cheap print. */
+.road-card::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 46%;
+  height: 50%;
+  border-radius: inherit;
+  background: var(--tex-halftone);
+  mask-image: radial-gradient(circle at 100% 100%, #000 10%, transparent 70%);
+  pointer-events: none;
+}
+
+.road-card-1 {
+  --card: var(--yellow);
+  top: 9%;
+  left: 15%;
+  transform: rotate(-2deg);
+}
+
+.road-card-2 {
+  --card: var(--blue);
+  top: 26%;
+  left: 62%;
+  transform: rotate(1.6deg);
+}
+
+.road-card-3 {
+  --card: var(--green);
+  top: 54%;
+  left: 8%;
+  transform: rotate(-1.2deg);
+}
+
+.road-card h3 {
+  font-size: clamp(1.75rem, 1.2rem + 1.8vw, 3rem);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.road-stage-num {
+  font: 500 0.8125rem / 1 var(--font-mono);
+  font-stretch: 87.5%;
+}
+
+/* Masking tape with torn ends. */
+.road-tape {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  width: 92px;
+  height: 24px;
+  background:
+    var(--tex-fiber),
+    repeating-linear-gradient(90deg, transparent 0 6px, rgb(22 19 15 / 0.05) 6px 7px),
+    color-mix(in srgb, #f3ead7 78%, transparent);
+  clip-path: polygon(
+    3% 8%,
+    0 30%,
+    4% 52%,
+    1% 76%,
+    4% 100%,
+    96% 94%,
+    100% 72%,
+    97% 48%,
+    100% 26%,
+    96% 0
+  );
+  transform: translateX(-50%) rotate(-3deg);
+}
+
+.road-card-2 .road-tape {
+  left: 30%;
+  transform: translateX(-50%) rotate(4deg);
+}
+
+.road-pin {
+  position: absolute;
+  top: -22px;
+  right: -18px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: var(--bw) solid var(--black);
+  border-radius: 50% 46% 52% 44%;
+  background: var(--tex-grain), var(--white);
+  color: var(--black);
+  font: 700 1.25rem / 1 var(--font-mono);
+  box-shadow: 2px 3px 0 var(--black);
+  transform: rotate(8deg);
+}
+
+/* Hand-drawn tick over each box; drawn in when the trail reaches the stage. */
+.road-checks > li {
+  position: relative;
+  padding-block: 9px;
+}
+
+.road-checks > li::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  width: 24px;
+  height: 20px;
+  margin-top: -13px;
+  background: currentcolor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 20'%3E%3Cpath d='M3 11c2 1 4 3 6 6 3-6 7-11 13-15' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  clip-path: inset(0 100% 0 0);
+}
+
+@media (hover: hover) {
+  .road-card:hover {
+    transform: rotate(0deg) translateY(-4px) scale(1.02);
+  }
+}
+
+@media (max-width: 899px) {
+  .roadmap {
+    display: grid;
+    gap: var(--s7);
+    aspect-ratio: auto;
+    padding-left: 28px;
+  }
+
+  .roadmap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 8px;
+    border-left: 4px dotted currentcolor;
+    opacity: 0.6;
+  }
+
+  .road-map {
+    display: none;
+  }
+
+  .road-card {
+    position: relative;
+    inset: auto;
+    width: auto;
+    max-width: 520px;
+  }
+
+  .road-card-2 {
+    justify-self: end;
+  }
+
+  .road-pin {
+    right: auto;
+    left: -46px;
+    top: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .road-reveal {
+      stroke-dasharray: 1;
+      animation: road-draw linear both;
+      animation-timeline: --road;
+      animation-range: cover 8% cover 50%;
+    }
+
+    .road-walker {
+      animation: road-walk linear both;
+      animation-timeline: --road;
+      animation-range: cover 8% cover 50%;
+    }
+
+    .road-walker-body {
+      animation: road-step 0.5s ease-in-out infinite alternate;
+    }
+
+    .road-stop {
+      animation: road-pop linear both;
+      animation-timeline: --road;
+      animation-range: cover calc(var(--at) - 1%) cover calc(var(--at) + 2%);
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .road-finish-cloth {
+      animation: road-raise linear both;
+      animation-timeline: --road;
+      animation-range: cover 44% cover 52%;
+    }
+
+    .road-card {
+      animation: road-drop linear both;
+      animation-timeline: --road;
+      animation-range: entry 0% entry 60%;
+    }
+
+    .road-checks > li::after {
+      animation: road-tick linear both;
+      animation-timeline: --road;
+      animation-range:
+        cover calc(var(--reached) + var(--i, 0) * 2.4%)
+        cover calc(var(--reached) + var(--i, 0) * 2.4% + 2.4%);
+    }
+  }
+}
+
+@keyframes road-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes road-walk {
+  from {
+    offset-distance: 0%;
+  }
+
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes road-step {
+  to {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes road-pop {
+  from {
+    opacity: 0;
+    scale: 0.2;
+  }
+}
+
+@keyframes road-raise {
+  from {
+    scale: 0 1;
+  }
+}
+
+@keyframes road-drop {
+  from {
+    opacity: 0;
+    translate: 0 36px;
+  }
+}
+
+@keyframes road-tick {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}

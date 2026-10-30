@@ -105,7 +105,7 @@ export function SeatRow({ teamId, seat, roleName, holderName, canManage }: Props
   const { update, close, refresh } = useSeatActions(teamId, seat, () => setEditing(false));
   const error = update.error ?? close.error;
   return (
-    <li className="card stack">
+    <li className={`team-seat-row${seat.status === 'open' && !holderName ? ' is-free' : ''}`}>
       <SeatInfo seat={seat} roleName={roleName} holderName={holderName} />
       {error ? <TeamErrorAlert error={error} onRefresh={() => void refresh()} /> : null}
       {canManage && seat.status === 'open' && !editing ? (

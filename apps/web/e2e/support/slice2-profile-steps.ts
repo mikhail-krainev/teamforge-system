@@ -137,10 +137,9 @@ export async function uploadPdfAndWaitForReady(): Promise<void> {
 
 export async function extractedTextIsPlainAndProfileUntouched(): Promise<void> {
   const { page, context } = sessions().ivan;
-  await expect(resumeUi.extractedHeading(page)).toBeVisible();
-  await expect(
-    page.getByText(/Ivan Petrov\.\s+Backend developer\.\s+TypeScript, PostgreSQL, Redis/),
-  ).toBeVisible();
+  // The extracted text is not shown; the assessment of it is.
+  await expect(resumeUi.assessmentHeading(page)).toBeVisible();
+  await expect(page.getByText(/Ivan Petrov\.\s+Backend developer/)).toHaveCount(0);
   const profile = await myProfile(context);
   expect(profile.version, 'nothing is applied before confirmation').toBe(world.versionBeforeResume);
 }

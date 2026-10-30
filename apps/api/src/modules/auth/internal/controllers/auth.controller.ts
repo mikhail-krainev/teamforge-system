@@ -13,6 +13,9 @@ import { SessionRevoker } from '../services/session-revoker.js';
 const OWNED_BY_ANOTHER =
   /error=(account_already_linked_to_different_user|account_ownership_conflict)/;
 
+/** The web sign-in page (`apps/web/src/app/(auth)/sign-in`): reads `next` and `error`. */
+const SIGN_IN_PAGE = '/sign-in';
+
 /**
  * Better Auth routes of the contract (`/auth/*`, tag auth-library). Each one is an explicit Nest
  * route with `@Authz(operationId)`, so the global AuthzGuard and ValidationGuard run before the
@@ -33,26 +36,39 @@ export class AuthController {
     return forwardToAuth(this.auth, this.config.BETTER_AUTH_URL, request, reply);
   }
 
-  /** A failed OAuth round trip returns to the page the user came from, with `?error=<code>`. */
-  private forwardWithErrorPage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  /** A failed OAuth round trip lands on `errorPage(callbackURL)` with `?error=<code>` added. */
+  private forwardWithErrorPage(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    errorPage: (callbackURL: string) => string,
+  ): Promise<void> {
     const body = (request.body ?? {}) as { callbackURL?: string };
-    request.body = { ...body, errorCallbackURL: body.callbackURL ?? '/' };
+    request.body = { ...body, errorCallbackURL: errorPage(body.callbackURL ?? '/') };
     return this.forward(request, reply);
   }
 
+  /**
+   * A failed sign-in returns to the sign-in page, which shows the error and keeps the target. The
+   * target page itself would send a visitor without a session back to /sign-in and drop the error.
+   */
   @Post('sign-in/social')
   @Authz('signInSocial')
   @NoIdempotency()
   @UseGuards(LoginRateLimitGuard)
   signInSocial(@Req() request: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
-    return this.forwardWithErrorPage(request, reply);
+    return this.forwardWithErrorPage(
+      request,
+      reply,
+      (callbackURL) => `${SIGN_IN_PAGE}?next=${encodeURIComponent(callbackURL)}`,
+    );
   }
 
+  /** Linking starts from a signed-in page, which shows the error itself. */
   @Post('link-social')
   @Authz('linkGithub')
   @NoIdempotency()
   linkGithub(@Req() request: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
-    return this.forwardWithErrorPage(request, reply);
+    return this.forwardWithErrorPage(request, reply, (callbackURL) => callbackURL);
   }
 
   @Post('sign-out')

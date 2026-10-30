@@ -46,7 +46,7 @@ describe('FR-TEAM-11: leaving the team', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Выйти из команды' }));
     expect(calls).toBe(0);
     fireEvent.click(screen.getByRole('button', { name: 'Да, выйти' }));
-    expect(await screen.findByText(/Вы вышли из команды/)).toBeTruthy();
+    expect(await screen.findByText(/Ты вышел из команды/)).toBeTruthy();
     expect(calls).toBe(1);
   });
 
@@ -58,7 +58,7 @@ describe('FR-TEAM-11: leaving the team', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Выйти из команды' }));
     fireEvent.click(screen.getByRole('button', { name: 'Да, выйти' }));
-    expect(await screen.findByText(/Вы вышли из команды/)).toBeTruthy();
+    expect(await screen.findByText(/Ты вышел из команды/)).toBeTruthy();
     // The realtime event refetches the team: the leaver is gone from the roster.
     const members = team.members.map((m) => (m.userId === LEAD_ID ? { ...m, status: 'left' } : m));
     view.rerender(
@@ -71,7 +71,7 @@ describe('FR-TEAM-11: leaving the team', () => {
         />
       </QueryClientProvider>,
     );
-    expect(screen.getByText(/Вы вышли из команды/)).toBeTruthy();
+    expect(screen.getByText(/Ты вышел из команды/)).toBeTruthy();
   });
 
   it('cancel keeps the member in the team', () => {
@@ -103,7 +103,7 @@ describe('FR-TEAM-11: leaving the team', () => {
   it('only the lead sees the offers and invitations links', () => {
     open(LEAD_ID);
     expect(screen.queryByRole('link', { name: 'Приглашения' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Выходы участников' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Уходы участников' })).toBeTruthy();
   });
 
   it('the lead links to the offers and invitations pages', () => {
@@ -140,7 +140,7 @@ describe('FR-TEAM-29: join request', () => {
     );
     open('0192f0a0-7c1e-7b3a-8d2f-0000000000cc');
     fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }));
-    expect(await screen.findByText('Выберите место.')).toBeTruthy();
+    expect(await screen.findByText('Выбери место.')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Место'), { target: { value: SEAT_ID } });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }));
     expect(await screen.findByRole('link', { name: 'Привязать GitHub' })).toBeTruthy();

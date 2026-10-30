@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { t } from '@/i18n';
 import type { SeatOffer } from './api';
@@ -70,6 +72,30 @@ function OfferCard({ offer, roleName }: { offer: SeatOffer; roleName: string }) 
   );
 }
 
+function EmptyOffers() {
+  return (
+    <div className="empty">
+      <Yeti pose="sleep" size={96} />
+      <div className="stack">
+        <p>{t('offers.mine.empty')}</p>
+        <p className="muted">{t('offers.mine.emptyHint')}</p>
+        <Link href="/profile" className="text-link">
+          {t('offers.mine.emptyLink')}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function LoadingOffers() {
+  return (
+    <div className="row">
+      <Yeti pose="think" size={96} />
+      <p role="status">{t('offers.mine.loading')}</p>
+    </div>
+  );
+}
+
 export function MyOffersPage() {
   const offers = useMyOffers();
   const roles = useRoles();
@@ -77,9 +103,8 @@ export function MyOffersPage() {
   const roleName = (code: string) => roles.data?.find((r) => r.code === code)?.name ?? code;
   return (
     <div className="stack">
-      <h1>{t('offers.mine.title')}</h1>
-      <p className="lead">{t('offers.mine.lead')}</p>
-      {offers.isPending ? <p role="status">{t('offers.mine.loading')}</p> : null}
+      <PageHead title={t('offers.mine.title')} lead={t('offers.mine.lead')} />
+      {offers.isPending ? <LoadingOffers /> : null}
       {offers.isError ? (
         <Alert tone="error">
           <p>{t('offers.mine.loadFailed')}</p>
@@ -92,9 +117,7 @@ export function MyOffersPage() {
           </button>
         </Alert>
       ) : null}
-      {offers.isSuccess && items.length === 0 ? (
-        <p className="muted">{t('offers.mine.empty')}</p>
-      ) : null}
+      {offers.isSuccess && items.length === 0 ? <EmptyOffers /> : null}
       {items.length > 0 ? (
         <ul className="stack" aria-label={t('offers.mine.title')}>
           {items.map((offer) => (

@@ -101,7 +101,7 @@ describe('FR-REW-16, AF-25: the decision', () => {
 
     fireEvent.change(within(card).getByLabelText('Комментарий'), { target: { value: COMMENT } });
     fireEvent.click(within(card).getByRole('button', { name: 'Решение: нарушение' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Подтвердите решение' });
+    const dialog = await screen.findByRole('dialog', { name: 'Подтверди решение' });
     expect(bodies).toHaveLength(0);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Подтвердить' }));
     const done = await within(card).findByRole('status');
@@ -140,7 +140,7 @@ describe('FR-REW-16, AF-25: the decision', () => {
     const card = await screen.findByRole('region', { name: 'Карточка дела' });
     fireEvent.change(within(card).getByLabelText('Комментарий'), { target: { value: COMMENT } });
     fireEvent.click(within(card).getByRole('button', { name: 'Решение: в порядке' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Подтвердите решение' });
+    const dialog = await screen.findByRole('dialog', { name: 'Подтверди решение' });
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
   });
@@ -157,7 +157,7 @@ describe('FR-REW-16, AF-25: the decision', () => {
     const card = await screen.findByRole('region', { name: 'Карточка дела' });
     fireEvent.change(within(card).getByLabelText('Комментарий'), { target: { value: COMMENT } });
     fireEvent.click(within(card).getByRole('button', { name: 'Решение: в порядке' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Подтвердите решение' });
+    const dialog = await screen.findByRole('dialog', { name: 'Подтверди решение' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Подтвердить' }));
     expect(await within(dialog).findByText('По этому делу решение уже принято.')).toBeTruthy();
   });

@@ -1,0 +1,74 @@
+/* Matching: queue strip on /search, role-demand bars on /demand. */
+.queue-strip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--s5);
+  font-weight: 500;
+}
+
+.queue-strip .muted,
+.queue-strip a {
+  color: var(--on-candy);
+}
+
+.demand-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.demand-bars > li {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 6fr) minmax(0, 3fr);
+  align-items: center;
+  gap: var(--gap);
+  padding-block: var(--s4);
+  border-top: var(--bw-thin) solid var(--rule-soft);
+}
+
+.demand-role {
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.demand-bar {
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.demand-bar::-webkit-progress-bar {
+  background: var(--surface-2);
+}
+
+.demand-bar::-webkit-progress-value {
+  background: var(--ink);
+}
+
+.demand-bar::-moz-progress-bar {
+  background: var(--ink);
+}
+
+@media (max-width: 767px) {
+  .demand-bars > li {
+    grid-template-columns: 1fr;
+    gap: var(--s2);
+  }
+
+  .queue-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Recommended teams reuse .team-list rows */
+.rec-row {
+  display: grid;
+  gap: var(--s3);
+  padding-block: var(--s5);
+}

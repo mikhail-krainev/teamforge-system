@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { apiClient } from '@/lib/api/client';
 import { describeError } from '@/lib/api/error-message';
 import { useIdempotentMutation } from '@/lib/api/idempotency';
@@ -35,8 +36,12 @@ export function ConsentScreen() {
   const { text, accept } = useConsent();
   return (
     <div className="page-narrow">
-      <h1>{t('auth.consent.title')}</h1>
-      <p className="lead">{t('auth.consent.lead')}</p>
+      <header className="page-head">
+        <h1>{t('auth.consent.title')}</h1>
+        <div className="page-aside">
+          <p className="lead">{t('auth.consent.lead')}</p>
+        </div>
+      </header>
       <section className="card stack" aria-labelledby="consent-text-heading">
         <ConsentBody
           data={text.data}
@@ -87,7 +92,7 @@ function ConsentBody({ data, failed, onRetry, headingId }: BodyProps) {
       </Alert>
     );
   }
-  if (!data) return <p role="status">{t('auth.consent.loading')}</p>;
+  if (!data) return <LoadingState text={t('auth.consent.loading')} />;
   return (
     <>
       <h2 id={headingId}>{t('auth.consent.textLabel')}</h2>

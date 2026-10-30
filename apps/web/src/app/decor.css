@@ -1,0 +1,145 @@
+/* Decorative pieces: stickers, oval, tags, marquee strip (docs/design/spec.md). Loaded after globals.css. */
+/* Print textures shared by the drawn pieces: riso grain, paper fibre, halftone shade. */
+:root {
+  --tex-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .09 0 0 0 0 .07 0 0 0 0 .06 0 0 0 1.7 -.78'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --tex-fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='120'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .55' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 .95 0 0 0 1.1 -.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --tex-halftone: radial-gradient(circle at 1.5px 1.5px, rgb(22 19 15 / 0.2) 1.1px, transparent 1.4px) 0 0 / 6px 6px;
+}
+
+/* Candy fills print with grain and paper fibre; the colour stays the background colour. */
+.block-yellow,
+.block-pink,
+.block-blue,
+.block-green,
+.block-orange,
+.sticker-pink,
+.sticker-yellow,
+.sticker-green,
+.sticker-orange,
+.sticker-blue,
+.scallop {
+  background-image: var(--tex-grain), var(--tex-fiber);
+}
+
+/* stickers, oval, tags */
+.sticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: var(--bw) solid var(--black);
+  border-radius: var(--r-pill);
+  color: var(--black);
+  font: 600 0.9375rem / 1 var(--font-sans);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transform: rotate(var(--tilt, -4deg));
+  transition: transform var(--dur) var(--ease-spring);
+}
+
+a.sticker:hover,
+button.sticker:hover {
+  transform: rotate(0deg);
+}
+
+.sticker-pink {
+  background: var(--pink);
+}
+
+.sticker-yellow {
+  background: var(--yellow);
+}
+
+.sticker-green {
+  background: var(--green);
+}
+
+.sticker-orange {
+  background: var(--orange);
+}
+
+.sticker-blue {
+  background: var(--blue);
+}
+
+.oval {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.12em;
+}
+
+.oval::before {
+  content: '';
+  position: absolute;
+  inset: -0.06em -0.22em -0.02em;
+  border: var(--bw) solid currentcolor;
+  border-radius: 50%;
+  transform: rotate(-4deg);
+  pointer-events: none;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tag-fill {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* marquee strip */
+.marquee {
+  overflow: hidden;
+  margin: clamp(32px, 4vw, 64px) -3vw;
+  border-block: var(--bw) solid var(--black);
+  background: var(--yellow);
+  color: var(--black);
+  transform: rotate(-1.6deg);
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-dur) linear infinite;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.marquee-track > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 28px;
+  padding: 18px 14px;
+  font: 500 clamp(1.25rem, 1rem + 1.2vw, 2rem) / 1 var(--font-sans);
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.marquee-track .serif {
+  font-weight: 300;
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}

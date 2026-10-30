@@ -164,7 +164,7 @@ describe('FR-WORK-16: the feed', () => {
   it('shows an empty feed with a way to connect the repository', async () => {
     serve({ pages: [{ items: [], nextCursor: null }] });
     open();
-    expect(await screen.findByText('В ленте пока ничего нет', { exact: false })).toBeTruthy();
+    expect(await screen.findByText('В ленте пока пусто', { exact: false })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Подключить репозиторий' }).getAttribute('href')).toBe(
       `/teams/${TEAM_ID}/github`,
     );
@@ -175,7 +175,7 @@ describe('FR-WORK-16: the feed', () => {
     server.use(http.get(`${TEAM_URL}/feed`, () => problem(400, 'VALIDATION_FAILED')));
     open();
     const alerts = await screen.findAllByRole('alert');
-    expect(alerts.some((a) => a.textContent?.includes('Не удалось загрузить ленту'))).toBe(true);
+    expect(alerts.some((a) => a.textContent?.includes('Не получилось загрузить ленту'))).toBe(true);
   });
 
   it('says the team is not available for an outsider (404)', async () => {

@@ -33,7 +33,7 @@ describe('MagicLinkForm', () => {
     renderWithClient(<MagicLinkForm callbackPath="/profile" />);
     type('not-an-address');
     send();
-    expect(screen.getByText(/Введите адрес электронной почты/)).toBeTruthy();
+    expect(screen.getByText(/Введи адрес почты/)).toBeTruthy();
     expect(calls).toBe(0);
   });
 
@@ -48,7 +48,7 @@ describe('MagicLinkForm', () => {
     renderWithClient(<MagicLinkForm callbackPath="/profile" />);
     type('  anna@example.com ');
     send();
-    expect(await screen.findByText('Проверьте почту')).toBeTruthy();
+    expect(await screen.findByText('Проверь почту')).toBeTruthy();
     expect(bodies).toEqual([{ email: 'anna@example.com', callbackURL: '/profile' }]);
   });
 
@@ -61,7 +61,7 @@ describe('MagicLinkForm', () => {
     expect(alert.textContent).toContain('3 секунды');
     const button = screen.getByRole('button', { name: 'Получить ссылку' }) as HTMLButtonElement;
     await waitFor(() => expect(button.disabled).toBe(true));
-    expect(screen.getByText(/Повторить можно через/).textContent).toMatch(/[123] секунд/);
+    expect(screen.getByText(/Новую ссылку можно запросить через/).textContent).toMatch(/[123] секунд/);
     // The wait ends by itself and the button comes back.
     await waitFor(() => expect(button.disabled).toBe(false), { timeout: 4500 });
   });
@@ -73,7 +73,7 @@ describe('MagicLinkForm', () => {
     type('anna@example.com');
     send();
     send();
-    await screen.findByText('Проверьте почту');
+    await screen.findByText('Проверь почту');
     expect(calls).toBe(1);
   });
 });

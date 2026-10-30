@@ -32,14 +32,14 @@ export const creditUi = {
   /** The status of the credit run (`getTeamCredit.status`), an aria-live region. */
   status: (p: Page): Locator => p.getByRole('status', { name: /статус зачёта/i }),
   statusText: {
-    cooling: /охлаждение/i,
+    cooling: /ждём 7 дней/i,
     /** Not "не зачтено": a denied credit must not satisfy a wait for the credited one. */
     credited: /(?<!не )зачтено/i,
     frozen: /заморожено|на ручной проверке/i,
     revoked: /отозван/i,
   },
   /** The countdown to the end of the cooling (an element with role "timer"; it carries a number). */
-  countdown: (p: Page): Locator => p.getByRole('timer', { name: /до конца охлаждения/i }),
+  countdown: (p: Page): Locator => p.getByRole('timer', { name: /осталось ждать/i }),
   /** The credits of the signed-in user by role (`myCredits`). */
   myCredits: (p: Page): Locator => p.getByRole('list', { name: /мой зачёт по ролям/i }),
   myCredit: (p: Page, role: RegExp): Locator =>

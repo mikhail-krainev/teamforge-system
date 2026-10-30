@@ -96,7 +96,7 @@ describe('FR-TEAM-02: TeamDetailPage', () => {
       }),
     );
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Отметить желательным' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Сделать необязательным' }));
     await waitFor(() => expect(body).toEqual({ version: 3, desired: true }));
     expect(key).toBeTruthy();
   });
@@ -109,7 +109,7 @@ describe('FR-TEAM-02: TeamDetailPage', () => {
     fireEvent.change(screen.getByLabelText(/Минимум часов/), { target: { value: '20' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('изменил кто-то другой');
+    expect(alert.textContent).toContain('Кто-то уже изменил');
     expect(screen.getByRole('button', { name: 'Обновить данные' })).toBeTruthy();
   });
 

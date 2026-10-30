@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { useTeam } from '@/features/teams/queries';
@@ -63,6 +65,15 @@ function TeamOfferRow({ offer, roleName }: { offer: SeatOffer; roleName: string 
   );
 }
 
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="empty">
+      <Yeti pose="sleep" size={96} />
+      <p className="muted">{text}</p>
+    </div>
+  );
+}
+
 function TeamOffersList({ teamId, roles }: { teamId: string; roles: readonly CatalogEntry[] }) {
   const offers = useTeamOffers(teamId);
   const items = offers.data?.pages.flatMap((page) => page.items) ?? [];
@@ -87,9 +98,7 @@ function TeamOffersList({ teamId, roles }: { teamId: string; roles: readonly Cat
           </button>
         </Alert>
       ) : null}
-      {offers.isSuccess && items.length === 0 ? (
-        <p className="muted">{t('offers.team.empty')}</p>
-      ) : null}
+      {offers.isSuccess && items.length === 0 ? <EmptyState text={t('offers.team.empty')} /> : null}
       {items.length > 0 ? (
         <ul className="stack">
           {items.map((offer) => (
@@ -120,10 +129,11 @@ export function TeamOffersPage({ teamId }: { teamId: string }) {
   const isLead = Boolean(team.data && me.data && team.data.leadUserId === me.data.id);
   return (
     <div className="stack">
-      <h1>{t('offers.team.title')}</h1>
-      <p>
-        <Link href={`/teams/${teamId}`}>{t('offers.team.back')}</Link>
-      </p>
+      <PageHead title={t('offers.team.title')}>
+        <Link className="text-link" href={`/teams/${teamId}`}>
+          {t('offers.team.back')}
+        </Link>
+      </PageHead>
       {isLead && team.data ? (
         <OfferComposer teamId={teamId} seats={team.data.seats} roles={roles.data ?? []} />
       ) : null}

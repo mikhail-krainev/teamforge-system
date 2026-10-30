@@ -84,7 +84,7 @@ describe('FR-TEAM-30: MyOffersPage', () => {
     );
     fireEvent.click(pending);
     release();
-    expect(await screen.findByText('Вы вступили в команду.')).toBeTruthy();
+    expect(await screen.findByText('Ты в команде.')).toBeTruthy();
     expect(calls).toBe(1);
   });
 
@@ -100,7 +100,7 @@ describe('FR-TEAM-30: MyOffersPage', () => {
   it.each([
     ['TEAM_FULL', 'В команде нет свободных мест.'],
     ['OFFER_LIMIT', 'Слишком много ожидающих предложений'],
-    ['PROJECT_LIMIT', 'Достигнут лимит проектов'],
+    ['PROJECT_LIMIT', 'Ты уже в максимальном числе команд'],
   ])('maps %s to a Russian message', async (code, text) => {
     serve([sampleOffer()]);
     server.use(http.post(ACCEPT, () => problem(409, code)));

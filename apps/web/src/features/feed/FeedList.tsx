@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
 import { t } from '@/i18n';
 import { FeedEntryItem, type EntryContext } from './FeedEntryItem';
@@ -13,11 +14,23 @@ type FeedQuery = ReturnType<typeof useFeed>;
 function EmptyFeed({ teamId, isFiltered }: { teamId: string; isFiltered: boolean }) {
   if (isFiltered) return <p className="muted">{t('feed.emptyFiltered')}</p>;
   return (
-    <div className="stack">
-      <p className="muted">{t('feed.empty')}</p>
-      <p>
-        <Link href={`/teams/${teamId}/github`}>{t('feed.toGithub')}</Link>
-      </p>
+    <div className="empty">
+      <Yeti pose="sleep" size={96} />
+      <div className="stack">
+        <p className="muted">{t('feed.empty')}</p>
+        <p>
+          <Link href={`/teams/${teamId}/github`}>{t('feed.toGithub')}</Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function FeedLoading() {
+  return (
+    <div className="row">
+      <Yeti pose="think" size={96} />
+      <p role="status">{t('feed.loading')}</p>
     </div>
   );
 }
@@ -59,7 +72,7 @@ export function FeedList({
   const feed = useFeed(teamId, filters);
   const entries = feed.data?.pages.flatMap((page) => page.items) ?? [];
   const isFiltered = filters.userId !== '' || filters.source !== '';
-  if (feed.isPending) return <p role="status">{t('feed.loading')}</p>;
+  if (feed.isPending) return <FeedLoading />;
   if (feed.isError && !feed.data) {
     return (
       <Alert tone="error">
@@ -81,7 +94,7 @@ export function FeedList({
       </p>
       {entries.length === 0 ? <EmptyFeed teamId={teamId} isFiltered={isFiltered} /> : null}
       {entries.length > 0 ? (
-        <ul className="stack" aria-label={t('feed.list')}>
+        <ul className="feed-log" aria-label={t('feed.list')}>
           {entries.map((entry) => (
             <FeedEntryItem key={entry.id} entry={entry} context={context} />
           ))}

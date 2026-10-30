@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { useTeam } from '@/features/teams/queries';
@@ -16,10 +17,11 @@ export function TeamSeatsPage({ teamId }: { teamId: string }) {
   const canDecide = Boolean(team.data && me.data && team.data.leadUserId === me.data.id);
   return (
     <div className="stack">
-      <h1>{t('offers.seatsPage.title')}</h1>
-      <p>
-        <Link href={`/teams/${teamId}`}>{t('offers.seatsPage.back')}</Link>
-      </p>
+      <PageHead title={t('offers.seatsPage.title')}>
+        <Link className="text-link" href={`/teams/${teamId}`}>
+          {t('offers.seatsPage.back')}
+        </Link>
+      </PageHead>
       {team.isError ? <Alert tone="error">{t('teams.detail.loadFailed')}</Alert> : null}
       {team.data ? (
         <DeparturesPanel

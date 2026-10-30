@@ -55,7 +55,7 @@ describe('FR-TEAM-01: CreateTeamForm', () => {
     submit();
     await waitFor(() => expect(document.activeElement).toBe(nameField()));
     expect(nameField().getAttribute('aria-invalid')).toBe('true');
-    expect(screen.getByRole('alert').textContent).toContain('Исправьте отмеченные поля');
+    expect(screen.getByRole('alert').textContent).toContain('Поправь отмеченные поля');
   });
 
   it('creates the team with an Idempotency-Key and opens it', async () => {
@@ -105,7 +105,7 @@ describe('FR-TEAM-01: CreateTeamForm', () => {
     await fillValid();
     submit();
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('привяжите аккаунт GitHub');
+    expect(alert.textContent).toContain('привяжи GitHub');
     const link = screen.getByRole('link', { name: 'Привязать GitHub' });
     expect(link.getAttribute('href')).toBe('/settings');
     expect(push).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe('FR-TEAM-01: CreateTeamForm', () => {
     renderWithClient(<CreateTeamForm />);
     await fillValid();
     submit();
-    expect((await screen.findByRole('alert')).textContent).toContain('лимит проектов');
+    expect((await screen.findByRole('alert')).textContent).toContain('максимальном числе команд');
   });
 
   it('a server 422 marks and focuses the rejected field', async () => {

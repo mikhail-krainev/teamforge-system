@@ -60,7 +60,7 @@ describe('ConsentScreen', () => {
   it('offers a retry when the text cannot be loaded and keeps accept disabled', async () => {
     server.use(http.get(`${API}/v1/consent/current`, () => problem(403, 'FORBIDDEN')));
     renderWithClient(<ConsentScreen />);
-    expect(await screen.findByText('Не удалось загрузить текст согласия.')).toBeTruthy();
+    expect(await screen.findByText('Не получилось загрузить текст согласия.')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Принимаю' }) as HTMLButtonElement).disabled).toBe(
       true,
     );

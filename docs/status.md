@@ -21,7 +21,7 @@
 Проверено (2026-10-28): tsc, eslint, depcruise, db:check, contract:check; API integration 3692/3692; web vitest 477/477. concurrency x5 185/185 на чистом стеке (на стеке после многих прогонов массовые 503 LOCK_TIMEOUT: пересоздавать `test:env:down`/`up`). e2e: slice1-6 зелёные, slice7 16/16 после исправления `dueTeams` (M-5: сырой `${now}` в `sql` уходил в postgres-js как Date и падал только на полном стеке; integration это не ловит).
 S7-11: добавлен `rewards/test/cooling-changes.test.ts` (смена тимлида в охлаждении запрещена, зачёт по снимку); остальные граничные случаи уже покрыты (`deleted-user`, `reviews-deleted-user`, `awards` FR-REW-10, `cooling` и CC-6 потерянное событие).
 Повторное ревью: `docs/reviews/slice7-second-review.md`, MEDIUM и LOW исправлены (380c85c). После него: API 3696/3696, concurrency x2 185/185, e2e slice1-7 61/61. Текст PR: `docs/reviews/pr-slice7.md`.
-Дальше: открыть PR `feat/rewards` -> main (нет `gh`: через GitHub), CI, слияние; затем фаза 7. Перед e2e нужен `playwright install chromium`, если кэш браузера очищен.
+Срез 7 слит в main (PR #22, 2026-10-30). `gh` доступен. Дальше: фаза 7. Перед e2e нужен `playwright install chromium`, если кэш браузера очищен.
 Фаза 7: ветка `docs/release` (`docs/release.md`, `scripts/load/` k6); после среза 7 повторить нагрузку, PR.
 Тесты: каждому worktree свой тестовый стек и шаблон БД (общий `tf_template` ломает параллельные прогоны).
 
@@ -34,6 +34,7 @@ S7-11: добавлен `rewards/test/cooling-changes.test.ts` (смена ти�
 
 ## Локальная среда
 
+- Локальный запуск полного стека без домена: `docs/local-run.md` (порты в `docker/local.env`, проверено 2026-10-28: вход по ссылке через Mailpit, согласие, админ). 2026-10-30: реальный GitHub App `teamforge-local`, вход через GitHub в Safari (cookie `Secure` только при https `BETTER_AUTH_URL`).
 - pnpm-обёртка не запускается: использовать `node_modules/.bin`. SeaweedFS в тестах с `SEAWEEDFS_VOLUME_SIZE_MB=32`.
 - Порты 5432, 4000, 9000, 1025, 8025 заняты чужими контейнерами: переопределять порты хоста.
 - e2e slice6 требует чистый стек на каждый прогон и доступ в интернет (https://www.wikipedia.org/, https://example.org/) либо `E2E_RELEASE_URL`. Ключ App для e2e в `apps/web/.e2e/`.

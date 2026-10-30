@@ -5,6 +5,7 @@ import type { NameOf, RoleNameOf } from '@/features/contribution/model';
 import { formatDate } from '@/features/route/model';
 import { t } from '@/i18n';
 import type { FeedEntry } from './api';
+import './feed.css';
 
 export interface EntryContext {
   teamId: string;
@@ -41,11 +42,11 @@ export function FeedEntryItem({ entry, context }: { entry: FeedEntry; context: E
       : []),
   ].join(' · ');
   return (
-    <li className="card nested stack">
+    <li className="feed-entry">
       <h3>
         <EntryTitle entry={entry} />
       </h3>
-      <p className="muted">{meta}</p>
+      <p className="mono muted">{meta}</p>
       <p>
         {t('feed.entry.executor', { name: context.nameOf(entry.userId) })}
         {' · '}

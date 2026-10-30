@@ -14,13 +14,13 @@ export function eventTitle(type: string): string {
 function EventItem({ event, members }: { event: TeamEvent; members: readonly Member[] }) {
   const actor = members.find((m) => m.userId === event.actorUserId)?.displayName;
   return (
-    <li className="card nested">
+    <li>
+      <p className="mono muted">
+        <time dateTime={event.at}>{new Date(event.at).toLocaleString('ru-RU')}</time>
+      </p>
       <p>
         <strong>{eventTitle(event.type)}</strong>
-      </p>
-      <p className="muted">
-        <time dateTime={event.at}>{new Date(event.at).toLocaleString('ru-RU')}</time>
-        {actor ? ` · ${actor}` : ''}
+        {actor ? <span className="muted">{` · ${actor}`}</span> : null}
       </p>
     </li>
   );
@@ -49,7 +49,7 @@ export function TeamEvents({ teamId, members }: { teamId: string; members: reado
         <p className="muted">{t('teams.events.empty')}</p>
       ) : null}
       {items.length > 0 ? (
-        <ul className="stack">
+        <ul className="team-events">
           {items.map((event) => (
             <EventItem key={event.id} event={event} members={members} />
           ))}

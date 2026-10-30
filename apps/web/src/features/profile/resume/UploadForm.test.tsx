@@ -26,7 +26,7 @@ describe('UploadForm', () => {
   it('asks for a file before sending anything', () => {
     renderWithClient(<UploadForm onUploaded={vi.fn()} />);
     submit();
-    expect(screen.getByText('Выберите файл.')).toBeTruthy();
+    expect(screen.getByText('Выбери файл.')).toBeTruthy();
     expect(upload).not.toHaveBeenCalled();
   });
 

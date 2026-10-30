@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Yeti } from '@/components/mascot/Yeti';
+import { PageHead } from '@/components/ui/PageHead';
 import { t } from '@/i18n';
 import { useMe } from '@/features/auth/session';
 import { ChecklistItemCard, type ItemContext } from '@/features/checklist/ChecklistItemCard';
@@ -11,7 +13,8 @@ import { useTeam } from '@/features/teams/queries';
 import { ParticipationConfirm } from '@/features/transition/ParticipationConfirm';
 import { TransitionControl } from '@/features/transition/TransitionControl';
 import type { ChecklistItem, Playbook, PlaybookStep, ProjectStage } from './api';
-import { formatDate, nextStage, stageTitle, stepsByKey } from './model';
+import './route.css';
+import { formatDate, nextStage, stageTitle, stageTone, stepsByKey } from './model';
 import { useChecklist, usePlaybook, useStages } from './queries';
 import { isHiddenError, LoadFailure } from './RouteStates';
 
@@ -31,26 +34,26 @@ function StageNotice({ stage, suspended }: { stage: ProjectStage; suspended: boo
   return null;
 }
 
-function StageHeader({ stage, playbook }: { stage: ProjectStage; playbook: Playbook | undefined }) {
+function StageHeader({ stage, teamId }: { stage: ProjectStage; teamId: string }) {
+  return (
+    <PageHead title={stageTitle(stage)} lead={<strong>{t(`route.status.${stage.status}`)}</strong>}>
+      <Link className="text-link" href={`/teams/${teamId}/route`}>
+        {t('route.stage.back')}
+      </Link>
+    </PageHead>
+  );
+}
+
+function StageGoals({ stage, playbook }: { stage: ProjectStage; playbook: Playbook | undefined }) {
   const definition = playbook?.stages.find((s) => s.ordinal === stage.ordinal);
   return (
     <>
-      <h1>{stageTitle(stage)}</h1>
-      <p>
-        <strong>{t(`route.status.${stage.status}`)}</strong>
-      </p>
       {stage.dueAt && stage.status === 'open' ? (
         <p>{t('route.dueUntil', { date: formatDate(stage.dueAt) })}</p>
       ) : null}
-      {stage.overdue && stage.status === 'open' ? (
-        <p className="muted">{t('route.overdue')}</p>
-      ) : null}
-      {definition ? (
-        <p className="muted">{t('route.stage.goal', { goal: definition.goal })}</p>
-      ) : null}
-      {definition ? (
-        <p className="muted">{t('route.stage.exit', { criteria: definition.exitCriteria })}</p>
-      ) : null}
+      {stage.overdue && stage.status === 'open' ? <p>{t('route.overdue')}</p> : null}
+      {definition ? <p>{t('route.stage.goal', { goal: definition.goal })}</p> : null}
+      {definition ? <p>{t('route.stage.exit', { criteria: definition.exitCriteria })}</p> : null}
     </>
   );
 }
@@ -108,38 +111,51 @@ function StageView(view: ViewProps) {
   const reviewKeys = reviewKeysOf(steps);
   const context = itemContext(view, isLead);
   return (
-    <div className="stack">
-      <StageHeader stage={stage} playbook={playbook} />
-      <p>
-        <Link href={`/teams/${team.id}/route`}>{t('route.stage.back')}</Link>
-      </p>
-      <StageNotice stage={stage} suspended={suspended} />
-      <section className="stack" aria-labelledby="stage-checklist-heading">
-        <h2 id="stage-checklist-heading">{t('route.stage.checklistHeading')}</h2>
-        {items.length === 0 ? <p className="muted">{t('route.stage.empty')}</p> : null}
-        <ul className="stack" aria-label={t('route.stage.checklist')}>
-          {items.map((item) => (
-            <ChecklistItemCard
-              key={item.id}
-              item={item}
-              step={steps.get(item.stepKey)}
-              context={context}
+    <div className="stack-loose">
+      <StageHeader stage={stage} teamId={team.id} />
+      <div className="grid-2">
+        <div className="stack">
+          <StageNotice stage={stage} suspended={suspended} />
+          <section className="stack" aria-labelledby="stage-checklist-heading">
+            <h2 id="stage-checklist-heading">{t('route.stage.checklistHeading')}</h2>
+            {items.length === 0 ? <p className="muted">{t('route.stage.empty')}</p> : null}
+            <ul className="checklist-rows" aria-label={t('route.stage.checklist')}>
+              {items.map((item) => (
+                <ChecklistItemCard
+                  key={item.id}
+                  item={item}
+                  step={steps.get(item.stepKey)}
+                  context={context}
+                />
+              ))}
+            </ul>
+          </section>
+          {isLead && stage.status !== 'pending' ? (
+            <ParticipationConfirm
+              teamId={team.id}
+              stageOrdinal={stage.ordinal}
+              members={team.members}
             />
-          ))}
-        </ul>
-      </section>
-      {isLead ? (
-        <TransitionSection view={view} reviewKeys={reviewKeys} />
-      ) : stage.status === 'open' ? (
-        <p className="muted">{t('transition.leadOnly')}</p>
-      ) : null}
-      {isLead && stage.status !== 'pending' ? (
-        <ParticipationConfirm
-          teamId={team.id}
-          stageOrdinal={stage.ordinal}
-          members={team.members}
-        />
-      ) : null}
+          ) : null}
+        </div>
+        <div className={`block block-${stageTone(stage.ordinal)} stack`}>
+          <StageGoals stage={stage} playbook={playbook} />
+          {isLead ? (
+            <TransitionSection view={view} reviewKeys={reviewKeys} />
+          ) : stage.status === 'open' ? (
+            <p>{t('transition.leadOnly')}</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageLoading() {
+  return (
+    <div className="row">
+      <Yeti pose="think" size={96} />
+      <p role="status">{t('route.stage.loading')}</p>
     </div>
   );
 }
@@ -170,7 +186,7 @@ export function StagePage({ teamId, ordinal }: { teamId: string; ordinal: number
     );
   }
   if (!stages.data || !team.data || !me.data) {
-    return <p role="status">{t('route.stage.loading')}</p>;
+    return <StageLoading />;
   }
   if (!stage) {
     return (
@@ -183,7 +199,7 @@ export function StagePage({ teamId, ordinal }: { teamId: string; ordinal: number
     );
   }
   if (stage.status !== 'pending' && !checklist.data) {
-    return <p role="status">{t('route.stage.loading')}</p>;
+    return <StageLoading />;
   }
   return (
     <StageView

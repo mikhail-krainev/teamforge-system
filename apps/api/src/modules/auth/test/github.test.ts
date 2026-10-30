@@ -171,6 +171,16 @@ describeInfra(
         ).toBe(0);
       });
 
+      it('FR-AUTH-01: a failed sign-in returns to /sign-in with the error and the target page kept', async () => {
+        const identity = uniqueIdentity('error-page');
+        const { authorizeUrl } = await beginGithub(world.browser(), 'sign-in', '/teams');
+        const callback = await finishGithub(world, world.browser(), authorizeUrl, identity);
+        const location = new URL(String(callback.headers.location), 'http://localhost');
+        expect(location.pathname).toBe('/sign-in');
+        expect(location.searchParams.get('next')).toBe('/teams');
+        expect(location.searchParams.get('error')).toBe('state_mismatch');
+      });
+
       it('FR-AUTH-01: a callback code can be used once: replaying it gives no second session or user', async () => {
         const identity = uniqueIdentity('replay');
         const session = world.browser();

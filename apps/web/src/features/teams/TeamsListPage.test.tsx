@@ -94,6 +94,6 @@ describe('FR-TEAM-01: TeamsListPage', () => {
     serveCatalogs(() => problem(403, 'FORBIDDEN'));
     renderWithClient(<TeamsListPage />);
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Не удалось загрузить список команд');
+    expect(alert.textContent).toContain('Не получилось загрузить список команд');
   });
 });

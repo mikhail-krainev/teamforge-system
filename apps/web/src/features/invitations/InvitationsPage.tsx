@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { Field } from '@/components/ui/Field';
 import { useMe } from '@/features/auth/session';
 import { ActionErrorAlert } from '@/features/offers/ActionErrorAlert';
@@ -285,14 +287,34 @@ function InvitationRow({
   );
 }
 
+function SectionMark({ text }: { text: string }) {
+  return (
+    <p className="section-mark" aria-hidden="true">
+      {text}
+    </p>
+  );
+}
+
+function EmptyInvitations() {
+  return (
+    <div className="empty">
+      <Yeti pose="sleep" size={96} />
+      <div className="stack">
+        <p className="muted">{t('invitations.page.empty')}</p>
+      </div>
+    </div>
+  );
+}
+
 function InvitationList({ teamId, roles }: { teamId: string; roles: readonly CatalogEntry[] }) {
   const list = useInvitations(teamId);
   const items = list.data?.pages.flatMap((page) => page.items) ?? [];
   const roleName = (code: string) => roles.find((r) => r.code === code)?.name ?? code;
   return (
     <section className="stack" aria-labelledby="invitations-list-heading">
+      <SectionMark text={t('invitations.page.listMark')} />
       <h2 id="invitations-list-heading">{t('invitations.page.listTitle')}</h2>
-      {list.isPending ? <p role="status">{t('invitations.page.loading')}</p> : null}
+      {list.isPending ? <LoadingState text={t('invitations.page.loading')} /> : null}
       {list.isError ? (
         <Alert tone="error">
           <p>{t('invitations.page.loadFailed')}</p>
@@ -305,9 +327,7 @@ function InvitationList({ teamId, roles }: { teamId: string; roles: readonly Cat
           </button>
         </Alert>
       ) : null}
-      {list.isSuccess && items.length === 0 ? (
-        <p className="muted">{t('invitations.page.empty')}</p>
-      ) : null}
+      {list.isSuccess && items.length === 0 ? <EmptyInvitations /> : null}
       {items.length > 0 ? (
         <ul className="stack">
           {items.map((item) => (
@@ -344,11 +364,15 @@ export function InvitationsPage({ teamId }: { teamId: string }) {
   const missing = team.error instanceof ApiError && team.error.status === 404;
   return (
     <div className="stack">
-      <h1>{t('invitations.page.title')}</h1>
-      <p>
-        <Link href={`/teams/${teamId}`}>{t('invitations.page.back')}</Link>
-      </p>
-      <p className="lead">{t('invitations.page.lead')}</p>
+      <header className="page-head">
+        <h1>{t('invitations.page.title')}</h1>
+        <div className="page-aside">
+          <p className="lead">{t('invitations.page.lead')}</p>
+          <Link href={`/teams/${teamId}`} className="text-link">
+            {t('invitations.page.back')}
+          </Link>
+        </div>
+      </header>
       {missing ? <Alert tone="error">{t('teams.detail.notFound')}</Alert> : null}
       {team.data && !isLead && me.data ? (
         <Alert tone="error">{t('teams.errors.codes.NOT_TEAM_LEAD')}</Alert>

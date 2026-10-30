@@ -14,10 +14,10 @@ export const ROUTES = {
 } as const;
 
 export const signInUi = {
-  heading: (p: Page): Locator => p.getByRole('heading', { level: 1, name: /вход в teamforge/i }),
+  heading: (p: Page): Locator => p.getByRole('heading', { level: 1, name: /вход в корнер/i }),
   email: (p: Page): Locator => p.getByLabel(/электронная почта/i),
   requestLink: (p: Page): Locator => p.getByRole('button', { name: /получить ссылку/i }),
-  /** "Проверьте почту" after the link was requested. */
+  /** "Проверь почту" after the link was requested. */
   sent: (p: Page): Locator => p.getByRole('heading', { name: /проверьте почту/i }),
   github: (p: Page): Locator => p.getByRole('button', { name: /войти через github/i }),
   /** 429 state: the error alert and the retry hint with the countdown. */
@@ -89,12 +89,12 @@ export const resumeUi = {
   heading: (p: Page): Locator => p.getByRole('heading', { name: /^резюме$/i }),
   file: (p: Page): Locator => p.getByLabel(/файл резюме/i),
   upload: (p: Page): Locator => p.getByRole('button', { name: /^загрузить$/i }),
-  /** The aria-live parse status ("Разбор завершён…" is the "ready" state). */
+  /** The aria-live parse status ("Разбор готов…" is the "ready" state). */
   status: (p: Page): Locator => p.getByRole('status', { name: /статус разбора/i }),
   readyText: /разбор завершён|готово|ready/i,
   queuedOrProcessing: /в очереди|разбираем/i,
   failedText: /не удалось разобрать|нет текста|слишком (сложный|много времени)|повреждён/i,
-  extractedHeading: (p: Page): Locator => p.getByRole('heading', { name: /извлечённый текст/i }),
+  assessmentHeading: (p: Page): Locator => p.getByRole('heading', { name: 'Оценка резюме' }),
   suggestions: (p: Page): Locator => p.getByRole('group', { name: /предложения для профиля/i }),
   keepFile: (p: Page): Locator => p.getByRole('checkbox', { name: /хранить файл резюме/i }),
   confirm: (p: Page): Locator => p.getByRole('button', { name: /подтвердить выбранные поля/i }),

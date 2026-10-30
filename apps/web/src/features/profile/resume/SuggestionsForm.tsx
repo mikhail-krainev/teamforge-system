@@ -118,7 +118,6 @@ export function SuggestionsForm(props: Props) {
 
   return (
     <form onSubmit={submit} className="stack" noValidate>
-      <ExtractedText text={upload.extractedText} />
       <SuggestionList
         fields={fields}
         suggestions={suggestions}
@@ -172,19 +171,6 @@ function SuggestionList({ fields, suggestions, selected, onToggle }: ListProps) 
           ))
         : null}
     </fieldset>
-  );
-}
-
-function ExtractedText({ text }: { text: string | null | undefined }) {
-  if (!text) return null;
-  return (
-    <div className="stack">
-      <h3>{t('profile.resume.textTitle')}</h3>
-      {/* Resume text is untrusted: it is rendered only as escaped text. */}
-      <pre className="pre-text" tabIndex={0}>
-        {text}
-      </pre>
-    </div>
   );
 }
 

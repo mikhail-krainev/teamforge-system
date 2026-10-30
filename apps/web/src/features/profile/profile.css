@@ -1,0 +1,184 @@
+.profile-form {
+  gap: var(--s6, 32px);
+}
+
+.form-group {
+  display: grid;
+  gap: var(--s3, 12px);
+  padding-top: var(--s5, 24px);
+  border-top: 2px solid var(--rule);
+}
+
+.form-group-mark {
+  margin: 0;
+}
+
+.form-group-body {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+}
+
+.form-group-body fieldset legend {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  padding: 0;
+  margin-bottom: var(--s3, 12px);
+  border-top: 0;
+}
+
+.save-bar {
+  align-items: center;
+  gap: var(--s4, 16px);
+  padding-top: var(--s5, 24px);
+  border-top: 2px solid var(--rule);
+}
+
+.resume-card {
+  margin-top: var(--s5, 24px);
+}
+
+.resume-assessment {
+  padding: var(--s4, 16px);
+  border: var(--bw) solid var(--ink);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.resume-assessment h4 {
+  margin: var(--s2, 8px) 0 0;
+}
+
+.resume-assessment-summary {
+  display: grid;
+  gap: var(--s3, 12px);
+}
+
+.resume-score {
+  width: 100%;
+  height: 14px;
+}
+
+.resume-assessment-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3, 12px) var(--s5, 24px);
+  margin: 0;
+}
+
+.resume-assessment-facts dt {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.resume-assessment-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.resume-score-value {
+  font-size: 1.5rem;
+}
+
+.resume-level {
+  display: inline-block;
+  padding: 2px 10px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 999px;
+  color: var(--black, #16130f);
+}
+
+[data-level='strong'] .resume-level {
+  background: var(--green);
+}
+
+[data-level='good'] .resume-level {
+  background: var(--blue);
+}
+
+[data-level='fair'] .resume-level {
+  background: var(--yellow);
+}
+
+[data-level='weak'] .resume-level {
+  background: var(--pink);
+}
+
+.resume-criteria {
+  display: grid;
+  gap: var(--s2, 8px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.resume-criteria li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(80px, 2fr) auto;
+  gap: var(--s3, 12px);
+  align-items: center;
+}
+
+.resume-criteria progress {
+  width: 100%;
+}
+
+.resume-conclusion-main {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.resume-pros-cons {
+  display: grid;
+  gap: var(--s4, 16px);
+}
+
+@media (min-width: 768px) {
+  .resume-pros-cons {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.resume-notes ul {
+  display: grid;
+  gap: var(--s2, 8px);
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.resume-notes[data-tone='plus'] li::marker {
+  color: var(--green);
+  content: '+  ';
+  font-weight: 700;
+}
+
+.resume-notes[data-tone='minus'] li::marker {
+  color: var(--pink);
+  content: '−  ';
+  font-weight: 700;
+}
+
+.resume-badge {
+  display: inline-block;
+  margin-left: var(--s2, 8px);
+  padding: 0 8px;
+  border: var(--bw-thin) solid currentColor;
+  border-radius: 999px;
+  color: var(--pink);
+  font-size: var(--fs-small);
+}
+
+@media (min-width: 1024px) {
+  .form-group {
+    grid-template-columns: 3fr 6fr 3fr;
+    gap: 24px;
+  }
+
+  .form-group-mark {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+  }
+}

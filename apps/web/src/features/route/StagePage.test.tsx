@@ -163,7 +163,7 @@ describe('FR-WORK-07: version conflicts', () => {
     const box = view.getByRole('checkbox', { name: 'Выполнен' }) as HTMLInputElement;
     fireEvent.click(box);
     expect(box.checked).toBe(true);
-    expect((await view.findByRole('alert')).textContent).toContain('заполните дату');
+    expect((await view.findByRole('alert')).textContent).toContain('заполни дату');
     await waitFor(() => expect(box.checked).toBe(false));
   });
 });
@@ -177,7 +177,7 @@ describe('FR-WORK-04, SEC-05: links', () => {
       target: { value: 'http://127.0.0.1' },
     });
     fireEvent.click(view.getByRole('button', { name: 'Сохранить ссылку' }));
-    expect((await view.findByRole('alert')).textContent).toContain('Ссылка отклонена');
+    expect((await view.findByRole('alert')).textContent).toContain('Ссылка не подходит');
   });
 
   it('shows LINK_REJECTED from the server as text and the check result in a live region', async () => {
@@ -202,7 +202,7 @@ describe('FR-WORK-04, SEC-05: links', () => {
       target: { value: 'https://169.254.169.254/latest/' },
     });
     fireEvent.click(view.getByRole('button', { name: 'Сохранить ссылку' }));
-    expect((await view.findByRole('alert')).textContent).toContain('Ссылка отклонена');
+    expect((await view.findByRole('alert')).textContent).toContain('Ссылка не подходит');
   });
 });
 
@@ -214,7 +214,7 @@ describe('FR-WORK-05: files', () => {
     const input = view.getByLabelText('Загрузить файл');
     const file = new File(['x'.repeat(2000)], 'run.exe', { type: 'application/octet-stream' });
     fireEvent.change(input, { target: { files: [file] } });
-    expect((await view.findByRole('alert')).textContent).toContain('Этот тип файла не подходит');
+    expect((await view.findByRole('alert')).textContent).toContain('Такой тип файла не подходит');
   });
 
   it('lists an uploaded file with a signed download link', async () => {
@@ -348,7 +348,7 @@ describe('FR-WORK-10: transition', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Перейти к следующему этапу' }));
     fireEvent.click(screen.getByRole('button', { name: 'Да, перейти' }));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('другой участник уже перевёл проект дальше');
+    expect(alert.textContent).toContain('другой участник перевёл проект дальше');
   });
 
   it('shows no transition button to a member who is not the lead', async () => {

@@ -1,9 +1,11 @@
 'use client';
 
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
 import { t } from '@/i18n';
 import { describeError } from '@/lib/api/error-message';
 import type { ReceivedReview, ReviewSentList } from './api';
+import './reviews.css';
 import { formatDay } from './model';
 import { useReceivedReviews } from './queries';
 
@@ -21,11 +23,11 @@ function LoadFailure({ error, onRetry }: { error: unknown; onRetry: () => void }
 
 function ReviewItems({ items }: { items: readonly ReceivedReview[] }) {
   return (
-    <ul className="stack plain-list">
+    <ul className="review-wall plain-list">
       {items.map((item) => (
-        <li key={item.id} className="card nested">
+        <li key={item.id} className="scallop">
           <p className="review-text">{item.text}</p>
-          <p className="muted">
+          <p className="mono">
             {t('reviews.received.published', { date: formatDay(item.publishedOn) })}
             {' / '}
             {t('reviews.received.team', { team: item.teamName })}
@@ -48,10 +50,13 @@ export function ReceivedReviews() {
         <LoadFailure error={query.error} onRetry={() => void query.refetch()} />
       ) : null}
       {query.isSuccess && items.length === 0 ? (
-        <>
-          <p>{t('reviews.received.empty')}</p>
-          <p className="muted">{t('reviews.received.emptyHint')}</p>
-        </>
+        <div className="empty">
+          <Yeti pose="sleep" size={96} />
+          <div className="stack">
+            <p>{t('reviews.received.empty')}</p>
+            <p className="muted">{t('reviews.received.emptyHint')}</p>
+          </div>
+        </div>
       ) : null}
       {items.length > 0 ? <ReviewItems items={items} /> : null}
       {query.hasNextPage ? (
@@ -61,7 +66,9 @@ export function ReceivedReviews() {
           disabled={query.isFetchingNextPage}
           onClick={() => void query.fetchNextPage()}
         >
-          {query.isFetchingNextPage ? t('reviews.received.loadingMore') : t('reviews.received.more')}
+          {query.isFetchingNextPage
+            ? t('reviews.received.loadingMore')
+            : t('reviews.received.more')}
         </button>
       ) : null}
     </section>

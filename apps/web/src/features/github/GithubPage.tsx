@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { useMe } from '@/features/auth/session';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
 import { isHiddenError } from '@/features/route/RouteStates';
@@ -71,7 +72,7 @@ export function GithubPage(props: Props) {
   const failed = team.isError ? team : repository.isError ? repository : null;
   if (failed) return <LoadFailure error={failed.error} onRetry={() => void failed.refetch()} />;
   if (!team.data || repository.data === undefined) {
-    return <p role="status">{t('github.loading')}</p>;
+    return <LoadingState text={t('github.loading')} />;
   }
 
   const isLead = Boolean(me.data && team.data.leadUserId === me.data.id);
@@ -79,11 +80,15 @@ export function GithubPage(props: Props) {
   const bound = link !== null && link.status !== 'unlinked';
   return (
     <div className="stack">
-      <h1>{t('github.title')}</h1>
-      <p>
-        <Link href={`/teams/${teamId}`}>{t('github.back')}</Link>
-      </p>
-      <p className="muted">{t('github.projectsHint')}</p>
+      <header className="page-head">
+        <h1>{t('github.title')}</h1>
+        <div className="page-aside">
+          <p className="muted">{t('github.projectsHint')}</p>
+          <Link href={`/teams/${teamId}`} className="text-link">
+            {t('github.back')}
+          </Link>
+        </div>
+      </header>
       {link && bound ? (
         <LinkedRepository teamId={teamId} repository={link} isLead={isLead} />
       ) : null}

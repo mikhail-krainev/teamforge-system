@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { formatDateTimeDay } from '@/features/reviews/model';
 import { t } from '@/i18n';
 import { describeError } from '@/lib/api/error-message';
@@ -84,10 +85,11 @@ export function FraudCasePage({ caseId }: { caseId: string }) {
   }
   return (
     <div className="stack">
-      <h1>{t('fraud.title')}</h1>
-      <p>
-        <Link href="/admin/fraud">{t('fraud.card.back')}</Link>
-      </p>
+      <PageHead title={t('fraud.title')}>
+        <Link className="text-link" href="/admin/fraud">
+          {t('fraud.card.back')}
+        </Link>
+      </PageHead>
       <Card item={query.data} />
     </div>
   );

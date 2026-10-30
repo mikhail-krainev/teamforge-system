@@ -23,16 +23,16 @@ describe('team error messages', () => {
   it.each([
     ['SEAT_TAKEN', 'уже занято'],
     ['TEAM_FULL', 'нет свободных мест'],
-    ['PROJECT_LIMIT', 'лимит проектов'],
+    ['PROJECT_LIMIT', 'максимальном числе команд'],
     ['OFFER_LIMIT', 'ожидающих предложений'],
-    ['GITHUB_REQUIRED', 'привяжите аккаунт GitHub'],
-    ['VERSION_CONFLICT', 'изменил кто-то другой'],
+    ['GITHUB_REQUIRED', 'привяжи GitHub'],
+    ['VERSION_CONFLICT', 'Кто-то уже изменил'],
   ])('%s has its own Russian text', (code, part) => {
     expect(teamErrorText(conflict(code))).toContain(part);
   });
 
   it('falls back to the generic text for an unknown code', () => {
-    expect(teamErrorText(new Error('x'))).toBe('Что-то пошло не так. Повторите попытку позже.');
+    expect(teamErrorText(new Error('x'))).toBe('Что-то пошло не так. Попробуй позже.');
   });
 
   it('GITHUB_REQUIRED links to GitHub linking, announced as an alert', () => {

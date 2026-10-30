@@ -31,7 +31,7 @@ describe('FR-WORK-04, SEC-05: links', () => {
   });
 
   it('explains LINK_REJECTED as text, with the reason code when the server sends one', () => {
-    expect(itemErrorText(api(422, 'LINK_REJECTED'))).toMatch(/Ссылка отклонена/);
+    expect(itemErrorText(api(422, 'LINK_REJECTED'))).toMatch(/Ссылка не подходит/);
     const withReason = api(422, 'LINK_REJECTED', [
       { pointer: '/linkUrl', code: 'BLOCKED_ADDRESS', message: 'x' },
     ]);
@@ -42,9 +42,9 @@ describe('FR-WORK-04, SEC-05: links', () => {
     expect(itemErrorText(api(422, 'RITUAL_FIELDS_REQUIRED'))).toMatch(
       /дату, ссылку на созвон и итоги/,
     );
-    expect(itemErrorText(api(403, 'REVIEW_OWN_ITEM'))).toMatch(/Проверять свой пункт нельзя/);
+    expect(itemErrorText(api(403, 'REVIEW_OWN_ITEM'))).toMatch(/Свой пункт проверять нельзя/);
     expect(itemErrorText(api(409, 'SOMETHING_NEW'))).toBe(
-      'Не удалось сохранить пункт. Повторите попытку.',
+      'Не получилось сохранить пункт. Попробуй ещё раз.',
     );
   });
 });

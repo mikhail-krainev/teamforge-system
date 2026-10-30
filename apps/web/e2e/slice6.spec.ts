@@ -40,7 +40,7 @@ function setupTests(): void {
 function githubTests(): void {
   test('FR-GH-01, FR-GH-11: A installs the App, comes back, chooses the repository and binds it', async () => {
     await test.step(
-      'FR-GH-01, FR-GH-11: "Установить App", the return page, the list of repositories, the binding (axe)',
+      'FR-GH-01, FR-GH-11: "Установить GitHub App", the return page, the list of repositories, the binding (axe)',
       steps.leadInstallsTheAppAndBindsTheRepository,
     );
   });
