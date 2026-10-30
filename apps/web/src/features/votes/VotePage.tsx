@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { ActionErrorAlert } from '@/features/offers/ActionErrorAlert';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
@@ -16,6 +18,15 @@ import { PhaseBanner } from './PhaseBanner';
 import { useVoteRequests, useVotes } from './queries';
 import { useRequestVote, useReturnAsLead } from './useVoteActions';
 import { VoteActions } from './VoteActions';
+
+function Loading() {
+  return (
+    <div className="row">
+      <Yeti pose="think" size={96} />
+      <p role="status">{t('votes.loading')}</p>
+    </div>
+  );
+}
 
 function Outcome({ vote, nameOf }: { vote: LeaderVote; nameOf: (id: string) => string }) {
   if (vote.status !== 'closed' && vote.status !== 'cancelled') return null;
@@ -138,7 +149,7 @@ function VoteBody({ teamId, meId }: Props) {
       </Alert>
     );
   }
-  if (votes.isPending || team.isPending) return <p role="status">{t('votes.loading')}</p>;
+  if (votes.isPending || team.isPending) return <Loading />;
   const vote = pickVote(votes.data);
   if (!vote) return <RequestVote teamId={teamId} />;
   return <VoteView teamId={teamId} vote={vote} team={team.data} meId={meId} />;
@@ -149,15 +160,12 @@ export function VotePage({ teamId }: { teamId: string }) {
   useTeamChannel(teamId);
   return (
     <div className="stack">
-      <h1>{t('votes.title')}</h1>
-      <p>
-        <Link href={`/teams/${teamId}`}>{t('votes.back')}</Link>
-      </p>
-      {me.data ? (
-        <VoteBody teamId={teamId} meId={me.data.id} />
-      ) : (
-        <p role="status">{t('votes.loading')}</p>
-      )}
+      <PageHead title={t('votes.title')}>
+        <Link className="text-link" href={`/teams/${teamId}`}>
+          {t('votes.back')}
+        </Link>
+      </PageHead>
+      {me.data ? <VoteBody teamId={teamId} meId={me.data.id} /> : <Loading />}
     </div>
   );
 }

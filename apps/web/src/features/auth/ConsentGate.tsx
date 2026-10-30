@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { t } from '@/i18n';
 import { ConsentScreen } from './ConsentScreen';
 import { useMe } from './session';
@@ -22,7 +23,7 @@ export function ConsentGate({ children }: { children: ReactNode }) {
     if (guest) router.replace(`/sign-in?next=${encodeURIComponent(pathname)}`);
   }, [guest, pathname, router]);
 
-  if (me.isPending) return <p role="status">{t('auth.session.loading')}</p>;
+  if (me.isPending) return <LoadingState text={t('auth.session.loading')} />;
   if (me.isError) {
     return (
       <div role="alert" className="alert alert-error">
@@ -33,7 +34,7 @@ export function ConsentGate({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (!me.data) return <p role="status">{t('auth.session.redirecting')}</p>;
+  if (!me.data) return <LoadingState text={t('auth.session.redirecting')} />;
   if (me.data.consentRequired) return <ConsentScreen />;
   return (
     <>

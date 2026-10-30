@@ -8544,6 +8544,17 @@
             ],
             "description": "Предложения по правилам; применяются только после подтверждения"
           },
+          "assessment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResumeAssessment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Скоринг и скрининг текста резюме; есть только у разобранного резюме с текстом"
+          },
           "keepFile": {
             "type": "boolean"
           },
@@ -8564,6 +8575,190 @@
           "status",
           "keepFile",
           "createdAt"
+        ]
+      },
+      "ResumeAssessment": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Оценка резюме по правилам (подсказка пользователю, ничего не решает): баллы по критериям, стоп-факторы скрининга, уровень резюме и оценка грейда",
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "strong",
+              "good",
+              "fair",
+              "weak"
+            ]
+          },
+          "seniority": {
+            "type": "string",
+            "enum": [
+              "intern",
+              "junior",
+              "middle",
+              "senior",
+              "lead"
+            ]
+          },
+          "experienceMonths": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "structure",
+                    "achievements",
+                    "experience",
+                    "skills",
+                    "readability"
+                  ]
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "code",
+                "points",
+                "max"
+              ]
+            }
+          },
+          "redFlags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_contacts",
+                "job_hopping",
+                "employment_gap",
+                "cliches",
+                "too_short",
+                "too_long",
+                "no_achievements"
+              ]
+            }
+          },
+          "tips": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "add_contacts",
+                "add_position",
+                "add_experience",
+                "add_education",
+                "add_skills",
+                "name_technologies",
+                "add_about",
+                "quantify_results",
+                "use_action_verbs",
+                "add_links",
+                "adjust_length",
+                "use_bullets",
+                "replace_cliches"
+              ]
+            }
+          },
+          "roles": {
+            "type": "array",
+            "maxItems": 3,
+            "description": "Роли каталога, на которые резюме подходит больше всего, лучшая первой; пусто, если роль не распознана",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Код роли каталога"
+                },
+                "match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Доля признаков роли среди всех найденных, %"
+                }
+              },
+              "required": [
+                "code",
+                "match"
+              ]
+            }
+          },
+          "strengths": {
+            "type": "array",
+            "description": "Существенные плюсы резюме",
+            "items": {
+              "type": "string",
+              "enum": [
+                "measurable_results",
+                "result_oriented",
+                "solid_experience",
+                "leadership",
+                "broad_stack",
+                "portfolio_links",
+                "complete_structure",
+                "stable_career",
+                "easy_to_read"
+              ]
+            }
+          },
+          "weaknesses": {
+            "type": "array",
+            "description": "Минусы и пробелы резюме: все стоп-факторы и недостающие части",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_contacts",
+                "job_hopping",
+                "employment_gap",
+                "cliches",
+                "too_short",
+                "too_long",
+                "no_achievements",
+                "no_position",
+                "no_experience",
+                "no_education",
+                "no_skills",
+                "no_about",
+                "few_results",
+                "weak_wording",
+                "narrow_stack",
+                "no_links",
+                "hard_to_read"
+              ]
+            }
+          }
+        },
+        "required": [
+          "score",
+          "level",
+          "seniority",
+          "experienceMonths",
+          "criteria",
+          "redFlags",
+          "tips",
+          "roles",
+          "strengths",
+          "weaknesses"
         ]
       },
       "ResumeConfirmation": {

@@ -10,6 +10,8 @@ import { useProductTypes } from './queries';
 interface Props {
   applied: TeamFilters;
   onApply: (filters: TeamFilters) => void;
+  /** Number of teams found; shown on the right once the list is complete. */
+  count?: number;
 }
 
 interface FieldsProps {
@@ -86,7 +88,7 @@ function StackAndStatus({ draft, patch }: FieldsProps) {
 }
 
 /** Filters of the team list; applied on submit so each change is one request, not one per key. */
-export function TeamFiltersForm({ applied, onApply }: Props) {
+export function TeamFiltersForm({ applied, onApply, count }: Props) {
   const [draft, setDraft] = useState(applied);
   const patch = (change: Partial<TeamFilters>) => setDraft((prev) => ({ ...prev, ...change }));
   function submit(event: FormEvent) {
@@ -98,18 +100,21 @@ export function TeamFiltersForm({ applied, onApply }: Props) {
     onApply(EMPTY_FILTERS);
   }
   return (
-    <form onSubmit={submit} className="card stack" aria-label={t('teams.filters.title')}>
-      <div className="grid-2">
+    <form onSubmit={submit} className="team-filters" aria-label={t('teams.filters.title')}>
+      <div className="team-filter-fields">
         <CatalogFilters draft={draft} patch={patch} />
         <StackAndStatus draft={draft} patch={patch} />
       </div>
-      <div className="row">
+      <div className="row team-filter-actions">
         <button type="submit" className="button">
           {t('teams.filters.apply')}
         </button>
         <button type="button" className="button button-secondary" onClick={reset}>
           {t('teams.filters.reset')}
         </button>
+        {count === undefined ? null : (
+          <span className="mono muted team-count">{t('teams.list.count', { count })}</span>
+        )}
       </div>
     </form>
   );

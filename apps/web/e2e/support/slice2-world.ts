@@ -19,7 +19,7 @@ export const PROFILE = {
   strength: 'Быстро учусь новому',
   weakness: 'Плохо оцениваю сроки',
   experience: {
-    title: 'Teamforge: учебный проект',
+    title: 'Корнер: учебный проект',
     description: 'Разрабатывал серверную часть и тесты.',
     from: '2024-02-01',
     to: '2025-06-30',

@@ -1,0 +1,100 @@
+.yeti-chat {
+  position: relative;
+  box-sizing: border-box;
+  width: 240px;
+  max-width: 100%;
+  padding: 12px 16px;
+  border: var(--bw, 2px) solid var(--ink);
+  border-radius: 22px 22px 22px 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.yeti-chat-form {
+  display: grid;
+  gap: 8px;
+  padding-right: 20px;
+}
+
+.yeti-chat-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.yeti-chat-close:hover {
+  background: var(--surface-2);
+}
+
+.yeti-chat-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.yeti-chat-input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 4px 8px;
+  border: var(--bw, 2px) solid var(--ink);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
+.yeti-chat-send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: var(--bw, 2px) solid var(--ink);
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--on-candy, var(--ink));
+  cursor: pointer;
+}
+
+.yeti-chat-input:focus-visible,
+.yeti-chat-send:focus-visible,
+.yeti-chat-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .yeti-chat {
+    transform-origin: 0 100%;
+    animation: yeti-chat-pop var(--dur) var(--ease-spring) both;
+  }
+
+  @keyframes yeti-chat-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.85);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}

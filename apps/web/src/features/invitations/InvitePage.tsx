@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { useMe } from '@/features/auth/session';
 import { stripFragment } from '@/features/auth/fragment';
 import { ActionErrorAlert } from '@/features/offers/ActionErrorAlert';
@@ -57,7 +58,9 @@ function PreviewDetails({ preview }: { preview: InvitationPreview }) {
 function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="page-narrow">
-      <h1>{t('invitations.invite.title')}</h1>
+      <header className="page-head">
+        <h1>{t('invitations.invite.title')}</h1>
+      </header>
       <div className="card stack">{children}</div>
     </div>
   );
@@ -105,9 +108,7 @@ function PreviewFailed({ error, pending, onRetry }: PreviewErrorProps) {
 function Waiting({ text, spinner }: { text: string; spinner?: boolean }) {
   return (
     <Shell>
-      <p role="status">
-        {spinner ? <span className="spinner" aria-hidden="true" /> : null} {text}
-      </p>
+      <LoadingState text={text} spinner={spinner ?? false} />
     </Shell>
   );
 }

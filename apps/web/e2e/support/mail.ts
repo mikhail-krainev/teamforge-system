@@ -35,8 +35,8 @@ export function tokenLink(message: MailMessage, path: RegExp): { link: string; t
 }
 
 /** Subjects of the mails the scenarios wait for (apps/api: magic-link-mail.ts, deletion-mail.ts). */
-export const SIGN_IN_SUBJECT = 'Вход в Teamforge';
-export const DELETION_SUBJECT = 'Запрос на удаление учётной записи Teamforge';
+export const SIGN_IN_SUBJECT = 'Вход в Корнер';
+export const DELETION_SUBJECT = 'Запрос на удаление учётной записи Корнера';
 
 /** Ids of the mails to `address` that exist now; take it before the action that triggers a mail. */
 export async function mailSnapshot(address: string): Promise<ReadonlySet<string>> {

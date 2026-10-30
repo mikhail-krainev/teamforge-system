@@ -4,7 +4,7 @@ import { creditReason, formatCountdown } from './model';
 
 export function StatusBlock({ credit, now }: { credit: CreditStatus; now: Date }) {
   return (
-    <section className="card stack" aria-labelledby="credit-status-title">
+    <section className="block block-yellow stack" aria-labelledby="credit-status-title">
       <h2 id="credit-status-title">{t('rewards.credit.statusLabel')}</h2>
       <p role="status" aria-label={t('rewards.credit.statusLabel')} className="credit-status">
         {t(`rewards.credit.status.${credit.status}`)}

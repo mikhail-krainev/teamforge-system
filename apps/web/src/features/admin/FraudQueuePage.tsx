@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { Field } from '@/components/ui/Field';
 import { formatDateTimeDay } from '@/features/reviews/model';
 import { t } from '@/i18n';
@@ -67,8 +68,7 @@ export function FraudQueuePage() {
   if (!allowed) return null;
   return (
     <div className="stack">
-      <h1>{t('fraud.title')}</h1>
-      <p className="lead">{t('fraud.lead')}</p>
+      <PageHead title={t('fraud.title')} lead={t('fraud.lead')} />
       <Field id={`${id}-status`} label={t('fraud.queue.filter')}>
         {(control) => (
           <select

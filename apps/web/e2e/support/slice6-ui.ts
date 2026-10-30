@@ -75,7 +75,7 @@ export const completeUi = {
   /** Not "не пройдена": a stale failed result must not satisfy a wait for the green one. */
   passed: /(?<!не )(пройдена|выполнена)|\bок\b/i,
   failed: /не пройдена|не выполнена|ошибка/i,
-  /** "Вторая проверка релиза возможна через ..." */
+  /** "Вторую проверку релиза можно будет сделать через ..." */
   secondCheckTimer: (p: Page): Locator => p.getByText(/вторая проверка релиза/i),
   finish: (p: Page): Locator => p.getByRole('button', { name: /^завершить проект$/i }),
   finishConfirm: (p: Page): Locator => p.getByRole('button', { name: /^да, завершить$/i }),

@@ -24,7 +24,7 @@ export function validEnv(overrides: Record<string, string | undefined> = {}): No
     DATA_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
     IP_HASH_SALT: TEST_SECRET,
     SMTP_URL: 'smtp://127.0.0.1:1025',
-    MAIL_FROM: 'Teamforge <no-reply@localhost>',
+    MAIL_FROM: 'Корнер <no-reply@localhost>',
     // The GitHub App group is complete in every test environment, so production-mode tests start too.
     GITHUB_APP_ID: '424242',
     GITHUB_APP_SLUG: 'teamforge-test',

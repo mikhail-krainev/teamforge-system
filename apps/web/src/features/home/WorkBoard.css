@@ -1,0 +1,314 @@
+/* Work board: notes, files and marker scribbles on a dotted board. */
+.board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--s6) var(--gap);
+  padding: clamp(28px, 4vw, 56px);
+  border: 10px solid var(--brown);
+  border-radius: 18px;
+  background-color: var(--surface-2);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--ink) 22%, transparent) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 22px 22px;
+  box-shadow:
+    inset 0 0 0 2px var(--black),
+    0 10px 0 color-mix(in srgb, var(--black) 60%, transparent);
+  font-family: var(--font-hand), var(--font-sans);
+}
+
+.board-stain {
+  position: absolute;
+  right: 6%;
+  bottom: 10%;
+  width: 84px;
+  height: 84px;
+  border: 7px solid color-mix(in srgb, var(--brown) 40%, transparent);
+  border-radius: 50%;
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 86% 100%, 0 100%);
+  pointer-events: none;
+}
+
+.board-item {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--on-candy);
+  cursor: grab;
+  touch-action: pan-y;
+  translate: var(--dx, 0) var(--dy, 0);
+  rotate: var(--tilt, 0deg);
+  box-shadow: 4px 6px 0 color-mix(in srgb, var(--black) 70%, transparent);
+  transition:
+    box-shadow var(--dur) var(--ease-out),
+    scale var(--dur) var(--ease-spring);
+  user-select: none;
+}
+
+.board-item[data-is-dragging='true'] {
+  scale: 1.04;
+  cursor: grabbing;
+  box-shadow: 10px 16px 0 color-mix(in srgb, var(--black) 55%, transparent);
+  transition: none;
+}
+
+.board-note {
+  display: grid;
+  align-content: start;
+  gap: var(--s3);
+  padding: clamp(20px, 2.4vw, 32px);
+  font-family: var(--font-sans);
+}
+
+.board-note h3 {
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.board-note p {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.board-note-1 {
+  --tilt: -2.5deg;
+  grid-column: 1 / span 4;
+  background: var(--tex-grain), var(--tex-fiber), var(--yellow);
+}
+
+.board-note-2 {
+  --tilt: 1.5deg;
+  grid-column: 5 / span 4;
+  margin-top: var(--s6);
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(
+      transparent 0 27px,
+      color-mix(in srgb, var(--black) 18%, transparent) 27px 28px
+    ),
+    var(--tex-grain),
+    var(--tex-fiber),
+    var(--blue);
+}
+
+.board-note-3 {
+  --tilt: -1deg;
+  grid-column: 9 / span 4;
+  background: var(--tex-grain), var(--tex-fiber), var(--pink);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
+}
+
+.board-tape,
+.board-pushpin,
+.board-clip {
+  position: absolute;
+  pointer-events: none;
+}
+
+.board-tape {
+  top: -12px;
+  left: 50%;
+  width: 90px;
+  height: 24px;
+  background:
+    var(--tex-fiber),
+    repeating-linear-gradient(90deg, transparent 0 6px, rgb(22 19 15 / 0.05) 6px 7px),
+    color-mix(in srgb, #f3ead7 72%, transparent);
+  clip-path: polygon(3% 8%, 0 30%, 4% 52%, 1% 76%, 4% 100%, 96% 94%, 100% 72%, 97% 48%, 100% 26%, 96% 0);
+  transform: translateX(-50%) rotate(-4deg);
+}
+
+.board-tape-small {
+  width: 60px;
+  height: 18px;
+}
+
+.board-pushpin {
+  top: -10px;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border: var(--bw) solid var(--black);
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 3px 4px 0 color-mix(in srgb, var(--black) 55%, transparent);
+}
+
+.board-clip {
+  top: -14px;
+  right: 28px;
+  width: 18px;
+  height: 52px;
+  border: 3px solid var(--black);
+  border-radius: 9px;
+}
+
+.board-marker {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 110px;
+  height: 56px;
+  color: var(--red);
+  font:
+    700 1.5rem / 1 var(--font-hand),
+    var(--font-sans);
+  rotate: -6deg;
+}
+
+.board-marker svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.board-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  padding: 6px 12px 6px 10px;
+  border: var(--bw) solid var(--black);
+  border-radius: 6px;
+  background: var(--white);
+  font: 500 0.8125rem / 1 var(--font-mono);
+  rotate: -2deg;
+}
+
+.board-file svg {
+  width: 14px;
+  height: 18px;
+}
+
+.board-scrawl {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  font:
+    700 1.375rem / 1 var(--font-hand),
+    var(--font-sans);
+  rotate: -5deg;
+}
+
+.board-scrawl svg {
+  width: 44px;
+  height: 22px;
+}
+
+.board-todo {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font:
+    700 1.25rem / 1.1 var(--font-hand),
+    var(--font-sans);
+}
+
+.board-todo li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.board-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: var(--bw) solid var(--black);
+  border-radius: 4px 7px 5px 6px;
+}
+
+.board-check svg {
+  width: 16px;
+  height: 16px;
+  margin: -6px -4px 0 0;
+  color: var(--red);
+}
+
+.board-photo {
+  --tilt: 3deg;
+  grid-column: 3 / span 2;
+  grid-row: 2;
+  padding: 10px 10px 4px;
+  background: var(--white);
+}
+
+.board-photo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.board-photo figcaption {
+  padding: 6px 0 2px;
+  color: var(--black);
+  font:
+    700 1.125rem / 1 var(--font-hand),
+    var(--font-sans);
+  text-align: center;
+}
+
+.board-sticky {
+  --tilt: -4deg;
+  grid-column: 6 / span 2;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  padding: 16px;
+  background: var(--tex-grain), var(--tex-fiber), var(--orange);
+  font:
+    700 1.5rem / 1.1 var(--font-hand),
+    var(--font-sans);
+  text-align: center;
+}
+
+@media (max-width: 1023px) {
+  .board {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .board-note-1,
+  .board-note-2,
+  .board-note-3,
+  .board-photo,
+  .board-sticky {
+    grid-column: auto;
+    grid-row: auto;
+    margin-top: 0;
+  }
+
+  .board-note-3 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 639px) {
+  .board {
+    grid-template-columns: 1fr;
+    border-width: 6px;
+  }
+
+  .board-note-3 {
+    grid-column: auto;
+  }
+
+  .board-item {
+    touch-action: auto;
+  }
+}

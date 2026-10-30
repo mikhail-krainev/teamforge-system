@@ -35,7 +35,7 @@ describe('FR-TEAM-12: DeparturesPanel', () => {
   it('shows an empty state', async () => {
     serve([]);
     show(true);
-    expect(await screen.findByText('Выходов, ожидающих решения, нет.')).toBeTruthy();
+    expect(await screen.findByText('Решений по уходам сейчас ждать не нужно.')).toBeTruthy();
   });
 
   it('the lead continues without the member and closes the chosen seat', async () => {

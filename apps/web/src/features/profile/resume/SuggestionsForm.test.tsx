@@ -84,11 +84,11 @@ const confirm = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Подтвердить выбранные поля' }));
 
 describe('SuggestionsForm', () => {
-  it('renders the resume text as escaped text and sends only the ticked fields', async () => {
+  it('does not show the extracted resume text and sends only the ticked fields', async () => {
     const seen = recordConfirmations(() => HttpResponse.json(sampleProfile({ version: 2 })));
     const onConfirmed = vi.fn();
     renderForm({ profileVersion: 1, onConfirmed });
-    expect(screen.getByText('Текст резюме <b>не html</b>')).toBeTruthy();
+    expect(screen.queryByText(/Текст резюме/)).toBeNull();
     tick('Имя');
     confirm();
     await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
@@ -103,7 +103,7 @@ describe('SuggestionsForm', () => {
     const seen = recordConfirmations(() => HttpResponse.json(sampleProfile()));
     renderForm({ profileVersion: 1 });
     confirm();
-    expect(screen.getByRole('alert').textContent).toContain('Отметьте хотя бы одно поле');
+    expect(screen.getByRole('alert').textContent).toContain('Отметь хотя бы одно поле');
     expect(seen).toHaveLength(0);
   });
 
@@ -168,7 +168,7 @@ describe('SuggestionsForm', () => {
     renderForm({ profileVersion: 1 });
     tick('Имя');
     confirm();
-    await screen.findByText(/Внутренняя ошибка/);
+    await screen.findByText(/Ошибка на нашей стороне/);
     confirm(); // the same input after an inconclusive 500: the same key
     await waitFor(() => expect(seen).toHaveLength(2));
     await waitFor(() => expect(calls).toBe(2));

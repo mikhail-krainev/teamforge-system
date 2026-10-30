@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Schema } from 'shared';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { apiClient } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { describeError } from '@/lib/api/error-message';
@@ -44,7 +45,7 @@ export function PublicProfileView({ userId }: { userId: string }) {
   });
   const roles = useRoles();
 
-  if (query.isPending) return <p role="status">{t('profile.public.loading')}</p>;
+  if (query.isPending) return <LoadingState text={t('profile.public.loading')} />;
   if (query.isError) {
     return (
       <Alert tone="error">
@@ -82,12 +83,16 @@ function ProfileCard({
   const roles = profile.rolePrefs.map((r) => `${roleName(r.roleCode)}, ${levelLabel(r.level)}`);
   return (
     <article className="card stack" aria-labelledby="public-name">
-      <h1 id="public-name">{profile.displayName || t('profile.public.anonymous')}</h1>
-      <p className="muted">
-        {t('profile.public.timezone', { timezone: profile.timezone })}
-        <br />
-        {t('profile.public.hours', { hours: profile.hoursPerWeek })}
-      </p>
+      <header className="page-head">
+        <h1 id="public-name">{profile.displayName || t('profile.public.anonymous')}</h1>
+        <div className="page-aside">
+          <p className="muted">
+            {t('profile.public.timezone', { timezone: profile.timezone })}
+            <br />
+            {t('profile.public.hours', { hours: profile.hoursPerWeek })}
+          </p>
+        </div>
+      </header>
       <TagSection id="public-roles" title={t('profile.public.roles')} items={roles} />
       <TagSection id="public-stack" title={t('profile.public.stack')} items={profile.stack} />
       <PublicExperience items={profile.experience ?? []} />

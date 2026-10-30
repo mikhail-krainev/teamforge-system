@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useCallback, useRef, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { t } from '@/i18n';
 import { PROFILE_KEY } from './api';
 import { emptyDraft, toDraft, type Profile } from './model';
@@ -59,7 +60,7 @@ export function ProfilePage() {
     );
   }
   if (profile.isPending || !roles.data || !tags.data) {
-    return <p role="status">{t('profile.page.loading')}</p>;
+    return <LoadingState text={t('profile.page.loading')} />;
   }
 
   const stored = profile.data;

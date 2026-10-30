@@ -3,6 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
 import type { CatalogEntry } from '@/features/profile/api';
 import { browserTimezone } from '@/features/profile/TimezoneSelect';
@@ -11,6 +12,7 @@ import { t } from '@/i18n';
 import { invalidFields } from '@/lib/api/error-message';
 import { useIdempotentMutation } from '@/lib/api/idempotency';
 import { createTeam, teamKey } from './api';
+import './teams.css';
 import { CreateTeamFields } from './CreateTeamFields';
 import {
   emptySeat,
@@ -115,34 +117,71 @@ function SeatsSection({ draft, roles, error, fieldError, patch }: SeatsProps) {
   );
 }
 
+/** What the team will look like in the list; fills in while the form is typed. */
+function TeamPreview({ draft, roles }: { draft: TeamDraft; roles: readonly CatalogEntry[] }) {
+  const seatCount = draft.seats.reduce((sum, seat) => sum + (Number(seat.count) || 0), 0);
+  const roleNames = draft.seats
+    .map((seat) => roles.find((r) => r.code === seat.roleCode)?.name)
+    .filter((name): name is string => Boolean(name));
+  return (
+    <aside className="create-preview" aria-hidden="true">
+      <span className="section-mark">{t('teams.create.previewTitle')}</span>
+      <div className="team-row">
+        <div>
+          <h3>{draft.name.trim() || t('teams.create.previewName')}</h3>
+          <p className="muted">{draft.description.trim() || t('teams.create.previewPitch')}</p>
+        </div>
+        <div className="team-seats">
+          <span className="mono">{t('teams.create.previewSeats', { count: seatCount })}</span>
+          <span className="seat-grid">
+            {Array.from({ length: Math.min(seatCount, 12) }, (_, index) => (
+              <i key={index} />
+            ))}
+          </span>
+        </div>
+        <ul className="tag-list">
+          {[...new Set(roleNames)].map((name) => (
+            <li key={name} className="tag">
+              {name}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </aside>
+  );
+}
+
 function CreateTeamFormBody({ roles }: { roles: readonly CatalogEntry[] }) {
   const types = useProductTypes();
   const { draft, patch, errors, create, fieldError, submit } = useCreateTeamForm();
   return (
-    <form onSubmit={submit} noValidate className="stack" aria-label={t('teams.create.title')}>
-      <CreateTeamFields
-        draft={draft}
-        patch={patch}
-        fieldError={fieldError}
-        productTypes={types.data ?? []}
-      />
-      <SeatsSection
-        draft={draft}
-        roles={roles}
-        error={errors.seats ? t(errors.seats) : undefined}
-        fieldError={fieldError}
-        patch={patch}
-      />
-      {Object.keys(errors).length > 0 ? (
-        <Alert tone="error">{t('teams.create.fixErrors')}</Alert>
-      ) : null}
-      {create.isError ? <TeamErrorAlert error={create.error} /> : null}
-      <div className="row">
-        <button type="submit" className="button" disabled={create.isPending || create.isSuccess}>
-          {create.isPending ? t('teams.create.submitting') : t('teams.create.submit')}
-        </button>
-      </div>
-    </form>
+    <div className="grid-2">
+      <form onSubmit={submit} noValidate className="stack" aria-label={t('teams.create.title')}>
+        <CreateTeamFields
+          draft={draft}
+          patch={patch}
+          fieldError={fieldError}
+          productTypes={types.data ?? []}
+        />
+        <SeatsSection
+          draft={draft}
+          roles={roles}
+          error={errors.seats ? t(errors.seats) : undefined}
+          fieldError={fieldError}
+          patch={patch}
+        />
+        {Object.keys(errors).length > 0 ? (
+          <Alert tone="error">{t('teams.create.fixErrors')}</Alert>
+        ) : null}
+        {create.isError ? <TeamErrorAlert error={create.error} /> : null}
+        <div className="row">
+          <button type="submit" className="button" disabled={create.isPending || create.isSuccess}>
+            {create.isPending ? t('teams.create.submitting') : t('teams.create.submit')}
+          </button>
+        </div>
+      </form>
+      <TeamPreview draft={draft} roles={roles} />
+    </div>
   );
 }
 
@@ -152,6 +191,15 @@ export function CreateTeamForm() {
   if (types.isError || roles.isError) {
     return <Alert tone="error">{t('teams.create.loadFailed')}</Alert>;
   }
-  if (types.isPending || roles.isPending) return <p role="status">{t('teams.create.loading')}</p>;
+  if (types.isPending || roles.isPending) {
+    return (
+      <div className="row">
+        <Yeti pose="think" size={96} />
+        <p role="status" className="mono muted">
+          {t('teams.create.loading')}
+        </p>
+      </div>
+    );
+  }
   return <CreateTeamFormBody roles={roles.data} />;
 }

@@ -265,7 +265,7 @@ function Bell() {
       <button
         ref={button}
         type="button"
-        className="button button-secondary bell-button"
+        className="icon-button bell-button"
         aria-label={t('notifications.bell')}
         aria-haspopup="menu"
         aria-expanded={open}

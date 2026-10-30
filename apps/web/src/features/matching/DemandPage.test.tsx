@@ -66,7 +66,7 @@ describe('FR-MATCH-09: DemandPage', () => {
       '3',
       '7',
       'около 3 дн.',
-      'дефицит',
+      'не хватает',
     ]);
     expect(within(rows[2] as HTMLElement).getAllByRole('cell').map((c) => c.textContent)).toEqual([
       '0',
@@ -90,7 +90,7 @@ describe('FR-MATCH-09: DemandPage', () => {
     server.use(http.get(`${API}/v1/demand`, () => problem(403, 'FORBIDDEN')));
     renderWithClient(<DemandPage />);
     expect(screen.getByRole('status').textContent).toBe('Загружаем спрос…');
-    expect(await screen.findByText('Не удалось загрузить спрос на роли.')).toBeTruthy();
+    expect(await screen.findByText('Не получилось загрузить данные о спросе.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
   });
 });
@@ -120,7 +120,7 @@ describe('FR-PROF-07: RoleDemandBlock', () => {
       }),
     );
     renderWithClient(<RoleDemandBlock />);
-    expect(await screen.findByText(/Укажите желаемые роли в профиле/)).toBeTruthy();
+    expect(await screen.findByText(/Выбери желаемые роли в профиле/)).toBeTruthy();
     expect(query).toBe('');
   });
 
@@ -128,6 +128,6 @@ describe('FR-PROF-07: RoleDemandBlock', () => {
     serveRoles();
     server.use(http.get(`${API}/v1/demand`, () => problem(403, 'FORBIDDEN')));
     renderWithClient(<RoleDemandBlock />);
-    expect(await screen.findByText('Не удалось загрузить спрос.')).toBeTruthy();
+    expect(await screen.findByText('Не получилось загрузить спрос.')).toBeTruthy();
   });
 });

@@ -142,7 +142,7 @@ describe('FR-WORK-13, FR-WORK-14: the wizard', () => {
       target: { value: 'http://notes.example.org' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить ссылку' }));
-    expect(await screen.findByText('Принимаются только ссылки по https.')).toBeTruthy();
+    expect(await screen.findByText('Подходят только ссылки по https.')).toBeTruthy();
     expect(sent).toBe(false);
   });
 
@@ -198,7 +198,7 @@ describe('FR-WORK-13, FR-WORK-14: the wizard', () => {
     });
     open();
     expect(
-      await screen.findByText('Вторая проверка релиза возможна через 5 ч', { exact: false }),
+      await screen.findByText('Вторую проверку релиза можно будет сделать через 5 ч', { exact: false }),
     ).toBeTruthy();
   });
 
@@ -216,7 +216,7 @@ describe('FR-WORK-13, FR-WORK-14: the wizard', () => {
   it('does not offer "Завершить проект" for an expired result and says so', async () => {
     serve({ latest: sampleCheck({ validUntil: new Date(Date.now() - 1000).toISOString() }) });
     open();
-    expect(await screen.findByText('Результат устарел: запустите проверки заново.')).toBeTruthy();
+    expect(await screen.findByText('Результат устарел. Запусти проверки заново.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Завершить проект' }).hasAttribute('disabled')).toBe(
       true,
     );
@@ -227,7 +227,7 @@ describe('FR-WORK-13, FR-WORK-14: the wizard', () => {
     open();
     expect(await screen.findByLabelText('Ссылка на релиз')).toBeTruthy();
     expect(
-      screen.getByText('Запустить проверки и завершить проект может только тимлид', {
+      screen.getByText('Запускать проверки и завершать проект может только тимлид', {
         exact: false,
       }),
     ).toBeTruthy();
@@ -313,7 +313,7 @@ describe('FR-WORK-15: the results screen', () => {
     const contributions = await screen.findByRole('region', { name: 'Вклад по ролям' });
     await waitFor(() => expect(contributions.textContent).toContain('Backend-разработчик'));
     expect(contributions.textContent).toContain('devops');
-    expect(screen.getByText('Идёт период охлаждения', { exact: false })).toBeTruthy();
+    expect(screen.getByText('Ждём', { exact: false })).toBeTruthy();
   });
 
   it('shows the days of delay', async () => {

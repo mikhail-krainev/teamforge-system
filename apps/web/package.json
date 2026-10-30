@@ -11,6 +11,7 @@
     "start": "next start",
     "typecheck": "node scripts/generate-registries.mjs && tsc -p tsconfig.json --noEmit",
     "lint": "node scripts/generate-registries.mjs && eslint .",
+    "hero-scene": "node scripts/hero-scene/index.mjs",
     "test": "node scripts/generate-registries.mjs && vitest run",
     "test:e2e": "playwright test"
   },

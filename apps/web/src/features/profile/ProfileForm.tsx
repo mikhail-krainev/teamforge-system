@@ -60,18 +60,14 @@ function fieldErrorLookup(errors: DraftErrors, serverInvalid: ReadonlySet<string
   };
 }
 
-export function ProfileForm({
-  initial,
-  version,
-  roles,
-  tags,
-  onAdoptCurrent,
-  onDirtyChange,
-}: Props) {
+function useProfileDraft(
+  initial: ProfileDraft,
+  version: number | null,
+  onDirtyChange?: (dirty: boolean) => void,
+) {
   const [draft, setDraft] = useState(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const { mutation: save, baseVersion, saved, markDirty } = useProfileSave(version, onDirtyChange);
-
   const patch = (change: Partial<ProfileDraft>) => {
     markDirty();
     setDraft((prev) => ({ ...prev, ...change }));
@@ -82,13 +78,33 @@ export function ProfileForm({
     setErrors(found);
     if (Object.keys(found).length === 0) save.mutate(toInput(draft, baseVersion));
   }
+  return { draft, errors, patch, submit, save, saved };
+}
 
+export function ProfileForm({
+  initial,
+  version,
+  roles,
+  tags,
+  onAdoptCurrent,
+  onDirtyChange,
+}: Props) {
+  const { draft, errors, patch, submit, save, saved } = useProfileDraft(
+    initial,
+    version,
+    onDirtyChange,
+  );
   const conflict = isVersionConflict(save.error);
   const serverInvalid = save.isError && !conflict ? invalidFields(save.error) : new Set<string>();
   const fieldError = fieldErrorLookup(errors, serverInvalid);
 
   return (
-    <form onSubmit={submit} noValidate className="stack" aria-label={t('profile.page.title')}>
+    <form
+      onSubmit={submit}
+      noValidate
+      className="profile-form"
+      aria-label={t('profile.page.title')}
+    >
       {conflict ? (
         <ConflictPanel
           current={currentFromConflict(save.error)}
@@ -105,19 +121,29 @@ export function ProfileForm({
         roles={roles}
         tags={tags}
       />
-      {Object.keys(errors).length > 0 ? (
-        <Alert tone="error">{t('profile.form.fixErrors')}</Alert>
-      ) : null}
-      {save.isError && !conflict ? <Alert tone="error">{describeError(save.error)}</Alert> : null}
+      <FormAlerts
+        hasErrors={Object.keys(errors).length > 0}
+        saveError={conflict ? null : save.error}
+      />
       <SaveRow pending={save.isPending} saved={saved} />
     </form>
   );
 }
 
+function FormAlerts({ hasErrors, saveError }: { hasErrors: boolean; saveError: unknown }) {
+  return (
+    <>
+      {hasErrors ? <Alert tone="error">{t('profile.form.fixErrors')}</Alert> : null}
+      {saveError ? <Alert tone="error">{describeError(saveError)}</Alert> : null}
+    </>
+  );
+}
+
 function SaveRow({ pending, saved }: { pending: boolean; saved: boolean }) {
   return (
-    <div className="row">
+    <div className="row save-bar">
       <button type="submit" className="button" disabled={pending}>
+        {pending ? <span className="spinner" aria-hidden="true" /> : null}
         {pending ? t('profile.form.saving') : t('profile.form.save')}
       </button>
       <span role="status" aria-live="polite">

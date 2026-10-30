@@ -79,7 +79,7 @@ describe('ConsentGate', () => {
     );
     renderGate();
     expect(
-      (await screen.findByText(/Удаление аккаунта запрошено/)).getAttribute('class'),
+      (await screen.findByText(/Запрошено удаление аккаунта/)).getAttribute('class'),
     ).toContain('alert-warn');
     expect(screen.getByText(/Страница/)).toBeTruthy();
   });

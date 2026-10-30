@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
 import { ActionErrorAlert } from '@/features/offers/ActionErrorAlert';
@@ -142,8 +143,7 @@ export function SeatCandidatesPage({ teamId, seatId }: { teamId: string; seatId:
   }
   return (
     <div className="stack">
-      <h1>{t('matching.candidates.title')}</h1>
-      {back}
+      <PageHead title={t('matching.candidates.title')}>{back}</PageHead>
       {body}
     </div>
   );

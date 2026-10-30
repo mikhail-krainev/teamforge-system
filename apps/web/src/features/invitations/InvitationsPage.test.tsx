@@ -77,7 +77,7 @@ describe('FR-TEAM-08: InvitationsPage', () => {
     })) as HTMLInputElement;
     expect(body).toEqual({ seatId: SEAT_ID });
     expect(link.value).toBe(`${window.location.origin}/invite#${TOKEN}`);
-    expect(screen.getByText(/Ссылка показана один раз/)).toBeTruthy();
+    expect(screen.getByText(/Ссылку показываем один раз/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Скопировать' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(link.value));
     expect(await screen.findByText('Скопировано в буфер обмена.')).toBeTruthy();
@@ -93,7 +93,7 @@ describe('FR-TEAM-08: InvitationsPage', () => {
     fireEvent.change(screen.getByLabelText(/Электронная почта/), { target: { value: 'nope' } });
     fireEvent.click(screen.getByRole('button', { name: 'Создать приглашение' }));
     expect(await screen.findByText(/Логин GitHub: до 39/)).toBeTruthy();
-    expect(screen.getByText(/Введите адрес электронной почты/)).toBeTruthy();
+    expect(screen.getByText(/Введи адрес почты/)).toBeTruthy();
   });
 
   it('shows INVITATION_LIMIT and keeps the button usable', async () => {

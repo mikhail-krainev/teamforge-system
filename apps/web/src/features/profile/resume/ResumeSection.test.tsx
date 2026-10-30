@@ -49,7 +49,7 @@ describe('ResumeSection', () => {
     expect(status().getAttribute('aria-live')).toBe('polite');
     await waitFor(() => expect(status().textContent).toContain('в очереди'));
     await waitFor(() => expect(status().textContent).toContain('Разбираем резюме'));
-    await waitFor(() => expect(status().textContent).toContain('Разбор завершён'));
+    await waitFor(() => expect(status().textContent).toContain('Разбор готов'));
     expect(screen.getByRole('button', { name: 'Подтвердить выбранные поля' })).toBeTruthy();
     const settled = polls;
     await new Promise((resolve) => setTimeout(resolve, 120));
@@ -67,7 +67,7 @@ describe('ResumeSection', () => {
       }),
     );
     renderWithClient(<ResumeSection profileVersion={1} onProfileChanged={vi.fn()} />);
-    await screen.findByText('Не удалось обновить статус. Повторяем попытку.');
+    await screen.findByText('Не получилось обновить статус. Пробуем ещё раз.');
     expect(status().textContent).toContain('Разбираем резюме');
   });
 
@@ -80,6 +80,46 @@ describe('ResumeSection', () => {
     renderWithClient(<ResumeSection profileVersion={1} onProfileChanged={vi.fn()} />);
     await waitFor(() => expect(status().textContent).toContain('похоже на скан'));
     expect(screen.getByRole('button', { name: 'Загрузить' })).toBeTruthy();
+  });
+
+  it('shows the score, conclusion, pros, cons and tips of a parsed resume', async () => {
+    const assessment = {
+      score: 58,
+      level: 'fair' as const,
+      seniority: 'middle' as const,
+      experienceMonths: 30,
+      criteria: [{ code: 'achievements' as const, points: 8, max: 25 }],
+      redFlags: ['job_hopping' as const],
+      tips: ['quantify_results' as const],
+      roles: [
+        { code: 'backend', match: 70 },
+        { code: 'frontend', match: 30 },
+      ],
+      strengths: ['portfolio_links' as const],
+      weaknesses: ['job_hopping' as const, 'no_about' as const],
+    };
+    server.use(
+      http.get(RESUME_URL, () => HttpResponse.json(sampleUpload({ status: 'done', assessment }))),
+    );
+    renderWithClient(<ResumeSection profileVersion={1} onProfileChanged={vi.fn()} />);
+    expect(await screen.findByRole('heading', { name: 'Оценка резюме' })).toBeTruthy();
+    expect(screen.getByText('58 из 100')).toBeTruthy();
+    expect(screen.getByText('Среднее')).toBeTruthy();
+    expect(screen.getByText('Middle')).toBeTruthy();
+    expect(screen.getByText(/2 года 6 месяцев/)).toBeTruthy();
+    expect(screen.getByText('8 из 25')).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'Больше всего подходишь на роль «Backend-разработчик», грейд — Middle.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Также подходишь: Frontend-разработчик (30%).')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Плюсы' })).toBeTruthy();
+    expect(screen.getByText(/Есть ссылки на код или портфолио/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Минусы и пробелы' })).toBeTruthy();
+    expect(screen.getByText(/Частая смена работы/).textContent).toContain('стоп-фактор');
+    expect(screen.getByText('Нет раздела «О себе»')).toBeTruthy();
+    expect(screen.getByText(/Опиши результаты в цифрах/)).toBeTruthy();
   });
 
   it('offers an upload when there is no resume (404)', async () => {

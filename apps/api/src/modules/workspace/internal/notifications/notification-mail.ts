@@ -9,7 +9,7 @@ interface Template {
 /** ru texts of the transactional mails; no personal data and no names, only a link (13.13). */
 const TEMPLATES: Partial<Record<NotificationType, Template>> = {
   seat_offer: {
-    subject: 'Вам предложили место в команде Teamforge',
+    subject: 'Вам предложили место в команде на Корнере',
     lines: ['Тимлид предложил вам место в команде.', 'Предложение действует ограниченное время.'],
   },
   vote_opened: {
@@ -21,7 +21,7 @@ const TEMPLATES: Partial<Record<NotificationType, Template>> = {
     lines: ['Вам предложили роль тимлида команды.', 'Ответьте на предложение в течение 24 часов.'],
   },
   auto_added: {
-    subject: 'Вы добавлены в команду Teamforge',
+    subject: 'Вы добавлены в команду на Корнере',
     lines: ['Вас автоматически добавили в команду по вашей заявке.'],
   },
 };
@@ -35,6 +35,6 @@ export function notificationMail(
   const template = TEMPLATES[type];
   if (template === undefined) return null;
   const text = ['Здравствуйте!', '', ...template.lines, '', `Открыть: ${link}`].join('\n');
-  const html = `<p>Здравствуйте!</p>${template.lines.map((l) => `<p>${l}</p>`).join('')}<p><a href="${link}">Открыть в Teamforge</a></p>`;
+  const html = `<p>Здравствуйте!</p>${template.lines.map((l) => `<p>${l}</p>`).join('')}<p><a href="${link}">Открыть в Корнере</a></p>`;
   return { to, subject: template.subject, text, html };
 }

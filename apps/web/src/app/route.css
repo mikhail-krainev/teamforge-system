@@ -1,0 +1,260 @@
+/* Route and teams: stages, connectors, checklists, seats, team rows. Loaded after globals.css. */
+/* route: stages, connectors, checklists, seats */
+.stage-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1.5px solid var(--black);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--black);
+  font: 500 11px / 1 var(--font-mono);
+  font-stretch: 87.5%;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.stage-pill-idea,
+.stage-pill[data-stage='idea'] {
+  background: var(--yellow);
+}
+
+.stage-pill-development,
+.stage-pill[data-stage='development'] {
+  background: var(--blue);
+}
+
+.stage-pill-release,
+.stage-pill[data-stage='release'] {
+  background: var(--green);
+}
+
+.stage-pill-done,
+.stage-pill[data-stage='done'],
+.stage-pill[data-stage='completed'] {
+  border-color: var(--black);
+  background: var(--black);
+  color: var(--white);
+}
+
+/* dark ink pill needs a light rim on the dark page (system dark or forced dark theme) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light'])
+    :is(.stage-pill-done, .stage-pill[data-stage='done'], .stage-pill[data-stage='completed']) {
+    border-color: var(--white);
+  }
+}
+
+:root[data-theme='dark']
+  :is(.stage-pill-done, .stage-pill[data-stage='done'], .stage-pill[data-stage='completed']) {
+  border-color: var(--white);
+}
+
+.connector {
+  position: relative;
+  height: 48px;
+  margin-left: 28px;
+  border-left: 3px dashed var(--ink);
+}
+
+.connector::after {
+  content: '';
+  position: absolute;
+  left: -10px;
+  bottom: -6px;
+  border: 7.5px solid transparent;
+  border-top: 11px solid var(--ink);
+  border-bottom: 0;
+}
+
+@media (min-width: 768px) {
+  .connector {
+    height: 72px;
+    margin-left: 0;
+    border-bottom: 3px dashed var(--ink);
+    border-bottom-left-radius: 36px;
+  }
+
+  .connector::after {
+    left: auto;
+    right: -2px;
+    bottom: -9px;
+    border: 7.5px solid transparent;
+    border-left: 11px solid var(--ink);
+    border-right: 0;
+  }
+}
+
+.checks {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks > li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 0;
+  border-top: 1.5px solid currentcolor;
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.checks > li::before {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: var(--bw) solid currentcolor;
+  border-radius: 5px;
+}
+
+.checks > li.done::before,
+.checks > li[data-done='true']::before {
+  background: currentcolor;
+  box-shadow: inset 0 0 0 3px var(--block-bg, var(--yellow));
+}
+
+.block-pink .checks {
+  --block-bg: var(--pink);
+}
+
+.block-blue .checks {
+  --block-bg: var(--blue);
+}
+
+.block-green .checks {
+  --block-bg: var(--green);
+}
+
+.block-orange .checks {
+  --block-bg: var(--orange);
+}
+
+.seat-grid {
+  display: flex;
+  gap: 4px;
+}
+
+.seat-grid > i {
+  width: 18px;
+  height: 18px;
+  border: var(--bw) solid currentcolor;
+}
+
+.seat-grid > i.taken {
+  background: currentcolor;
+}
+
+/* team list: rows, not cards */
+.team-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-list > li {
+  padding-block: 4px;
+  border-top: var(--bw-thin) solid var(--rule-soft);
+}
+
+.team-list > li:first-child {
+  border-top: var(--bw) solid var(--rule);
+}
+
+.team-list > li:last-child {
+  border-bottom: var(--bw-thin) solid var(--rule-soft);
+}
+
+.team-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: var(--gap);
+  align-items: center;
+  margin-inline: -12px;
+  padding: 16px 12px;
+  border-radius: var(--r-nested);
+  transition: background var(--dur) var(--ease-out);
+}
+
+.team-row > :first-child,
+.team-row > :nth-child(2),
+.team-row > :nth-child(3) {
+  grid-column: 1;
+}
+
+.team-row > .icon-button,
+.team-row > .arrow-dot {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+}
+
+.team-row:hover {
+  background: var(--pink);
+  color: var(--black);
+}
+
+.team-row:hover .muted {
+  color: var(--black);
+}
+
+.team-row:hover .icon-button {
+  background: var(--black);
+  color: var(--pink);
+}
+
+.team-row h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.team-row h3 a {
+  text-decoration: none;
+}
+
+.team-row h3 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.team-row p {
+  margin-top: 6px;
+  font-size: var(--fs-small);
+}
+
+@media (min-width: 1024px) {
+  .team-row {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr) 44px;
+    margin-inline: -20px;
+    padding: 20px;
+  }
+
+  .team-row > :first-child {
+    grid-column: 1;
+  }
+
+  .team-row > :nth-child(2) {
+    grid-column: 2;
+  }
+
+  .team-row > :nth-child(3) {
+    grid-column: 3;
+  }
+
+  .team-row > .icon-button,
+  .team-row > .arrow-dot {
+    grid-column: 4;
+    align-self: center;
+  }
+}

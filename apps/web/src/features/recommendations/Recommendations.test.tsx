@@ -111,7 +111,7 @@ describe('FR-MATCH-02: RecommendedTeams', () => {
     first.unmount();
     server.use(http.get(`${API}/v1/me/recommended-teams`, () => problem(403, 'FORBIDDEN')));
     renderWithClient(<RecommendedTeams roles={ROLE_LIST} />);
-    expect(await screen.findByText('Не удалось загрузить рекомендации.')).toBeTruthy();
+    expect(await screen.findByText('Не получилось загрузить рекомендации.')).toBeTruthy();
   });
 
   it('loads the next page by cursor', async () => {
@@ -196,7 +196,7 @@ describe('FR-MATCH-01: SeatCandidatesPage', () => {
   it('says so when the seat is not open any more or is not in the team', async () => {
     serveSeat(LEAD_ID, [sampleSeat({ status: 'filled', holderUserId: MEMBER_ID })]);
     const first = openPage();
-    expect(await screen.findByText(/Место уже не открыто/)).toBeTruthy();
+    expect(await screen.findByText(/Это место уже закрыто/)).toBeTruthy();
     first.unmount();
     serveSeat(LEAD_ID, []);
     openPage();

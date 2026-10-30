@@ -83,7 +83,7 @@ function fixtureTests(): void {
 }
 
 function creditTests(): void {
-  test('FR-REW-11, AF-24: the participant sees "охлаждение" with a countdown on /teams/[id]/credit and nothing is applied yet', async () => {
+  test('FR-REW-11, AF-24: the participant sees "ожидание" with a countdown on /teams/[id]/credit and nothing is applied yet', async () => {
     await test.step(
       'FR-REW-11, AF-24: the status, the countdown, no awards yet, 404 for an outsider (axe)',
       steps.participantSeesTheCooling,

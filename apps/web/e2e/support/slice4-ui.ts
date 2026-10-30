@@ -21,7 +21,7 @@ export const searchUi = {
   heading: (p: Page): Locator => p.getByRole('heading', { level: 1, name: /очередь поиска/i }),
   addRole: (p: Page): Locator => p.getByLabel(/^добавить роль$/i),
   submit: (p: Page): Locator => p.getByRole('button', { name: /^встать в очередь$/i }),
-  /** "Вы в очереди" - the status of an active application. */
+  /** "Ты в очереди" - the status of an active application. */
   inQueue: (p: Page): Locator => p.getByText(/вы в очереди/i).first(),
   roles: (p: Page): Locator => p.getByRole('list', { name: /роли по приоритету/i }),
   save: (p: Page): Locator => p.getByRole('button', { name: /^сохранить изменения$/i }),

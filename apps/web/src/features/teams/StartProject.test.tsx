@@ -93,7 +93,7 @@ describe('FR-TEAM-27: start the project', () => {
     open();
     fireEvent.click(await startButton());
     fireEvent.click(screen.getByRole('button', { name: 'Да, начать' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Проект уже начат');
+    expect((await screen.findByRole('alert')).textContent).toContain('Проект уже начался');
   });
 
   it('TEAM_STATUS_BLOCKS_ACTION (voting or suspended) is explained', async () => {

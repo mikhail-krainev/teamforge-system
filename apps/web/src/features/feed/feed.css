@@ -1,0 +1,25 @@
+/* Feed: a log, so it reads like one. */
+.feed-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-bottom: var(--bw-thin) solid var(--rule-soft);
+}
+
+.feed-entry {
+  display: grid;
+  gap: var(--s2);
+  padding-block: var(--s4);
+  border-top: var(--bw-thin) solid var(--rule-soft);
+}
+
+.feed-entry:first-child {
+  border-top: var(--bw) solid var(--rule);
+}
+
+.feed-entry h3 {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.4;
+}

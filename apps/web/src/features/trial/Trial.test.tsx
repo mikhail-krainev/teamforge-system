@@ -85,7 +85,7 @@ describe('FR-TEAM-22: trial in the roster', () => {
   it('everyone sees the badge, only the lead sees the buttons', async () => {
     serve(MEMBER_ID);
     open();
-    expect(await screen.findByText(/Испытательный срок до/)).toBeTruthy();
+    expect(await screen.findByText(/Пробный период до/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Исключить участника/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Подтвердить участника/ })).toBeNull();
   });
@@ -94,7 +94,7 @@ describe('FR-TEAM-22: trial in the roster', () => {
     serve(LEAD_ID, autoMember({ joinedVia: 'offer' }));
     open();
     await screen.findByText('Пётр Новиков');
-    expect(screen.queryByText(/Испытательный срок до/)).toBeNull();
+    expect(screen.queryByText(/Пробный период до/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Исключить участника/ })).toBeNull();
   });
 
@@ -109,7 +109,7 @@ describe('FR-TEAM-22: trial in the roster', () => {
     );
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Подтвердить участника Пётр Новиков' }));
-    expect(await screen.findByText('Испытательный срок подтверждён.')).toBeTruthy();
+    expect(await screen.findByText('Пробный период подтверждён.')).toBeTruthy();
     expect(key).toBeTruthy();
   });
 
@@ -143,8 +143,8 @@ describe('FR-TEAM-22: trial in the roster', () => {
   });
 
   it.each([
-    ['TRIAL_EXPIRED', 'Испытательный срок уже закончился'],
-    ['NOT_AUTO_ADDED', 'Исключить можно только автодобавленного участника'],
+    ['TRIAL_EXPIRED', 'Пробный период уже закончился'],
+    ['NOT_AUTO_ADDED', 'Исключить можно только автоматически добавленного участника'],
   ])('409 %s is announced in Russian', async (code, text) => {
     serve(LEAD_ID);
     server.use(http.delete(MEMBER_URL, () => problem(409, code)));
@@ -159,6 +159,6 @@ describe('FR-TEAM-22: trial in the roster', () => {
     server.use(http.post(`${MEMBER_URL}/trial-confirmation`, () => problem(409, 'TRIAL_EXPIRED')));
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Подтвердить участника Пётр Новиков' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Испытательный срок уже закончился');
+    expect((await screen.findByRole('alert')).textContent).toContain('Пробный период уже закончился');
   });
 });

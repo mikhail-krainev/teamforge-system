@@ -81,7 +81,7 @@ describe('FR-TEAM-09: InvitePage', () => {
     expect(window.location.hash).toBe('');
     expect(bodies).toEqual([{ token: TOKEN }]);
     fireEvent.click(screen.getByRole('button', { name: 'Принять приглашение' }));
-    expect(await screen.findByText('Вы вступили в команду.')).toBeTruthy();
+    expect(await screen.findByText('Ты в команде.')).toBeTruthy();
     expect(bodies).toEqual([{ token: TOKEN }, { token: TOKEN }]);
     expect(key).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Перейти в команду' }).getAttribute('href')).toBe(
@@ -102,7 +102,7 @@ describe('FR-TEAM-09: InvitePage', () => {
     server.use(http.post(`${API}/v1/invitation-previews`, () => problem(410, 'INVITATION_GONE')));
     renderWithClient(<InvitePage />);
     expect((await screen.findByRole('alert')).textContent).toContain(
-      'Приглашение уже недействительно',
+      'Приглашение больше не действует',
     );
     expect(screen.queryByRole('button', { name: 'Повторить' })).toBeNull();
   });
@@ -116,7 +116,7 @@ describe('FR-TEAM-09: InvitePage', () => {
     );
     renderWithClient(<InvitePage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Принять приглашение' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('недействительно');
+    expect((await screen.findByRole('alert')).textContent).toContain('не действует');
   });
 
   it('GITHUB_REQUIRED on accept links to GitHub linking; accept retry reuses the key on 503', async () => {
@@ -145,6 +145,6 @@ describe('FR-TEAM-09: InvitePage', () => {
     withHash(`#${TOKEN}`);
     renderWithClient(<InvitePage />);
     expect(await screen.findByRole('link', { name: 'Войти' })).toBeTruthy();
-    expect(screen.getByText(/войдите в аккаунт/)).toBeTruthy();
+    expect(screen.getByText(/войди в аккаунт/)).toBeTruthy();
   });
 });

@@ -1,0 +1,98 @@
+/* Shared, restrained motion for every page: press, lift, heading entrance, reveal, link wipe.
+   Flat hard shadows in ink, no blur. Product pages stay still while the user reads. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Buttons press like a printed sticker. */
+  .button:not([disabled], [aria-disabled='true'], [aria-busy='true']) {
+    transition:
+      background var(--dur) var(--ease-out),
+      color var(--dur) var(--ease-out),
+      border-color var(--dur) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  .button:not([disabled], [aria-disabled='true'], [aria-busy='true']):hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  .button:not([disabled], [aria-disabled='true'], [aria-busy='true']):active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 var(--ink);
+  }
+
+  /* Interactive cards lift with a hard offset shadow. */
+  a.card,
+  a.block,
+  .card[data-interactive] {
+    transition:
+      background var(--dur) var(--ease-out),
+      transform var(--dur) var(--ease-spring),
+      box-shadow var(--dur) var(--ease-out);
+  }
+
+  a.card:hover,
+  a.block:hover,
+  .card[data-interactive]:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+
+  /* Page heading rises once on load. */
+  .page-head h1 {
+    animation: motion-rise var(--dur-slow) var(--ease-out) both;
+  }
+
+  .page-head .page-aside {
+    animation: motion-rise var(--dur-slow) var(--ease-out) 90ms both;
+  }
+
+  /* Link underline wipe. */
+  .text-link {
+    position: relative;
+  }
+
+  .text-link::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(50% - 0.95em);
+    height: 3px;
+    background: var(--pink);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur) var(--ease-out);
+    pointer-events: none;
+  }
+
+  .text-link:hover::after,
+  .text-link:focus-visible::after {
+    transform: scaleX(1);
+  }
+}
+
+/* Scroll reveal utility: content stays visible where unsupported. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: motion-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+  }
+}
+
+@keyframes motion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes motion-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}

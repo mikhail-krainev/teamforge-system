@@ -1,0 +1,53 @@
+/* Reviews: received texts as scallop quote cards, alternating candy fills, tilt on every other one. */
+.review-wall {
+  display: grid;
+  gap: var(--s6);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-block: var(--s4);
+}
+
+.review-wall > li {
+  color: var(--on-candy);
+  background: var(--pink);
+}
+
+.review-wall > li:nth-child(3n + 2) {
+  background: var(--yellow);
+}
+
+.review-wall > li:nth-child(3n + 3) {
+  background: var(--orange);
+}
+
+.review-wall > li:nth-child(4n + 1) {
+  transform: rotate(-2deg);
+}
+
+.review-wall > li:nth-child(4n + 4) {
+  transform: rotate(2deg);
+}
+
+.review-wall .review-text {
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
+
+.review-wall .mono {
+  margin-top: var(--s4);
+}
+
+@media (max-width: 767px) {
+  .review-wall {
+    grid-template-columns: 1fr;
+  }
+
+  .review-wall > li {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-wall > li {
+    transform: none;
+  }
+}

@@ -65,7 +65,7 @@ describe('FR-TEAM-28: TeamOffersPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Предложить место' }));
     await screen.findByRole('option', { name: /Backend-разработчик/ });
     fireEvent.change(screen.getByLabelText('Место'), { target: { value: SEAT_ID } });
-    fireEvent.change(screen.getByLabelText('Идентификатор пользователя'), {
+    fireEvent.change(screen.getByLabelText('ID пользователя'), {
       target: { value: OTHER_USER_ID },
     });
     fireEvent.change(screen.getByLabelText(/Сообщение/), { target: { value: 'Привет' } });
@@ -80,8 +80,8 @@ describe('FR-TEAM-28: TeamOffersPage', () => {
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Предложить место' }));
     fireEvent.click(screen.getByRole('button', { name: 'Отправить предложение' }));
-    expect(await screen.findByText('Выберите место.')).toBeTruthy();
-    expect(screen.getByText(/Укажите идентификатор пользователя/)).toBeTruthy();
+    expect(await screen.findByText('Выбери место.')).toBeTruthy();
+    expect(screen.getByText(/Укажи ID пользователя/)).toBeTruthy();
     await waitFor(() => expect(document.activeElement?.id).toBe('offer-seat'));
   });
 
@@ -94,7 +94,7 @@ describe('FR-TEAM-28: TeamOffersPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Предложить место' }));
     await screen.findByRole('option', { name: /Backend-разработчик/ });
     fireEvent.change(screen.getByLabelText('Место'), { target: { value: SEAT_ID } });
-    fireEvent.change(screen.getByLabelText('Идентификатор пользователя'), {
+    fireEvent.change(screen.getByLabelText('ID пользователя'), {
       target: { value: OTHER_USER_ID },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить предложение' }));

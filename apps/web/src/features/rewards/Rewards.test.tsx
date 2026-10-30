@@ -118,7 +118,7 @@ describe('FR-REW-05, FR-PROF-06: the awards block', () => {
     serveAwards();
     server.use(http.get(`${API}/v1/users/${USER_ID}/awards`, () => problem(403, 'FORBIDDEN')));
     renderWithClient(<AwardsBlock userId={USER_ID} />);
-    expect(await screen.findByText('Не удалось загрузить награды.')).toBeTruthy();
+    expect(await screen.findByText('Не получилось загрузить награды.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
   });
 });
@@ -165,8 +165,8 @@ describe('FR-REW-11: the credit page', () => {
     );
     renderWithClient(<CreditPage teamId={TEAM_ID} />);
     expect(await screen.findByRole('heading', { level: 1, name: 'Зачёт проекта' })).toBeTruthy();
-    expect(screen.getByRole('status', { name: 'Статус зачёта' }).textContent).toMatch(/охлаждение/i);
-    expect(screen.getByRole('timer', { name: /до конца охлаждения/i }).textContent).toMatch(/\d/);
+    expect(screen.getByRole('status', { name: 'Статус зачёта' }).textContent).toMatch(/ждём 7 дней/i);
+    expect(screen.getByRole('timer', { name: /осталось ждать/i }).textContent).toMatch(/\d/);
     expect(document.body.textContent).not.toMatch(/AF-\d\d/);
   });
 
@@ -199,7 +199,7 @@ describe('FR-REW-11: the credit page', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Оспорить проект' }));
     fireEvent.change(screen.getByLabelText('Причина жалобы'), { target: { value: 'коротко' } });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить жалобу' }));
-    expect(await screen.findByText(/не меньше 20 символов/)).toBeTruthy();
+    expect(await screen.findByText(/Опиши причину подробнее/)).toBeTruthy();
     expect(keys).toHaveLength(0);
     fireEvent.change(screen.getByLabelText('Причина жалобы'), {
       target: { value: 'Проект заморожен по ошибке, все задачи выполнены.' },
@@ -223,7 +223,7 @@ describe('FR-REW-11: the credit page', () => {
       target: { value: 'Проект заморожен по ошибке, все задачи выполнены.' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить жалобу' }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/только в период охлаждения/);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/только пока идёт ожидание/);
     code = 'SOMETHING_NEW';
     fireEvent.click(await screen.findByRole('button', { name: 'Отправить жалобу' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Жалоба уже подана/));
@@ -235,6 +235,6 @@ describe('FR-REW-11: the credit page', () => {
       http.get(`${API}/v1/teams/${TEAM_ID}/credit`, () => problem(404, 'NOT_FOUND')),
     );
     renderWithClient(<CreditPage teamId={TEAM_ID} />);
-    expect(await screen.findByText(/не найден или у вас нет к нему доступа/)).toBeTruthy();
+    expect(await screen.findByText(/не найден, или у тебя нет к нему доступа/)).toBeTruthy();
   });
 });

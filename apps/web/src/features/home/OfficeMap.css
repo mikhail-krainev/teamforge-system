@@ -1,0 +1,440 @@
+/* Isometric office diorama. Colours are fixed paint (see office/Box.tsx); outlines are always ink. */
+.office-wrap {
+  position: relative;
+  margin-block: var(--s8) var(--s9);
+}
+
+.office-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--font-mono);
+  --office-line: #16130f;
+}
+
+/* blocks */
+.iso polygon {
+  stroke: var(--office-line);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+.iso-t {
+  fill: var(--c);
+}
+
+.iso-e {
+  fill: color-mix(in oklab, var(--c) 80%, #16130f);
+}
+
+.iso-s {
+  fill: color-mix(in oklab, var(--c) 64%, #16130f);
+}
+
+.iso-wall .iso-t {
+  fill: #2fa4a0;
+}
+
+.iso-backwall .iso-t {
+  fill: #2fa4a0;
+}
+
+.iso-backwall .iso-s,
+.iso-backwall .iso-e {
+  fill: var(--c);
+}
+
+.iso-slab polygon {
+  stroke-width: 1.6;
+}
+
+.iso-slab .iso-s,
+.iso-slab .iso-e {
+  fill: #1f6f6c;
+}
+
+.iso-glass .iso-t,
+.iso-glass .iso-e,
+.iso-glass .iso-s {
+  fill-opacity: 0.8;
+}
+
+.iso-net polygon {
+  stroke-width: 0.8;
+}
+
+/* floor */
+.office-tile-grid {
+  fill: none;
+  stroke: #16130f;
+  stroke-opacity: 0.07;
+  stroke-width: 0.03;
+}
+
+.office-contact polygon {
+  fill: #16130f;
+  opacity: 0.16;
+}
+
+.office-outline-thin {
+  stroke: #16130f;
+  stroke-width: 0.04;
+}
+
+.office-fringe {
+  fill: none;
+  stroke: #ffc1df;
+  stroke-width: 0.18;
+  stroke-dasharray: 0.04 0.08;
+}
+
+.office-runner-line {
+  fill: none;
+  stroke: #f6f1e7;
+  stroke-width: 0.05;
+  stroke-dasharray: 0.3 0.2;
+  opacity: 0.8;
+}
+
+.office-floor-label text {
+  fill: #16130f;
+  fill-opacity: 0.72;
+  font-size: 0.4px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.office-free {
+  fill: color-mix(in srgb, #ffc93c 30%, transparent);
+  stroke: #16130f;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+}
+
+/* walls */
+.office-skirting {
+  fill: #2fa4a0;
+  stroke: #16130f;
+  stroke-width: 1;
+}
+
+.office-sign rect {
+  stroke: #16130f;
+  stroke-width: 1.4;
+}
+
+.office-sign text {
+  fill: #16130f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.office-ticket rect {
+  fill: #16130f;
+}
+
+.office-ticket text {
+  fill: #ff5a1f;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.office-window .office-sky {
+  fill: #bfe3f2;
+}
+
+.office-hill {
+  fill: none;
+  stroke: #3c9a5a;
+  stroke-width: 3;
+}
+
+.office-blind {
+  stroke: #f6f1e7;
+  stroke-width: 1.4;
+  opacity: 0.85;
+}
+
+.office-frame {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 1.6;
+}
+
+.office-board rect:first-child {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1.4;
+}
+
+.office-board rect + rect,
+.office-poster rect {
+  stroke: #16130f;
+  stroke-width: 1;
+}
+
+.office-door rect {
+  fill: #3a2c20;
+}
+
+.office-door path {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 2.4;
+}
+
+.office-shelf-line {
+  stroke: #a86f3e;
+  stroke-width: 3;
+}
+
+.office-day rect {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1.3;
+  transition: fill 0.3s;
+}
+
+.office-day-done rect {
+  fill: #2fa4a0;
+}
+
+.office-day text {
+  fill: #16130f;
+  font-size: 8px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.office-day-done text {
+  fill: #f6f1e7;
+}
+
+.office-day-check {
+  fill: none;
+  stroke: #ffc93c;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.office-clock circle {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1.6;
+}
+
+.office-clock path {
+  stroke: #16130f;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* props */
+.office-glow {
+  fill: #26304f;
+}
+
+.office-code-line {
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.office-code-0 {
+  stroke: #ff6fb5;
+}
+
+.office-code-1 {
+  stroke: #ffc93c;
+}
+
+.office-code-2 {
+  stroke: #8c9bff;
+}
+
+.office-code-3 {
+  stroke: #b8e6c9;
+}
+
+.office-bar {
+  fill: #ffc93c;
+}
+
+.office-bar-1,
+.office-bar-3 {
+  fill: #ff6fb5;
+}
+
+.office-chalk {
+  stroke: #f6f1e7;
+  stroke-width: 1;
+}
+
+.office-handle,
+.office-seam {
+  stroke: #16130f;
+  stroke-width: 1.4;
+}
+
+.office-plant ellipse {
+  stroke: #16130f;
+  stroke-width: 1.2;
+}
+
+.office-beanbag path:first-child {
+  fill: #ffc93c;
+  stroke: #16130f;
+  stroke-width: 1.3;
+}
+
+.office-crease {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.office-knob {
+  fill: #ffc93c;
+  stroke: #16130f;
+  stroke-width: 1;
+}
+
+.office-rope {
+  fill: none;
+  stroke: #c43d5a;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.office-ball {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1;
+}
+
+.office-ball-shadow {
+  fill: #16130f;
+  opacity: 0.25;
+}
+
+.office-grain {
+  fill: url(#office-grain);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* people */
+.fig-line {
+  stroke: #16130f;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+.fig-shadow {
+  fill: #16130f;
+  opacity: 0.22;
+}
+
+.fig-sleeve-out {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 5.6;
+  stroke-linecap: round;
+}
+
+.fig-sleeve {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.fig-collar {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 1.1;
+}
+
+.fig-face circle {
+  fill: #16130f;
+}
+
+.fig-smile {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.fig-head-ring {
+  fill: none;
+  stroke: #16130f;
+  stroke-width: 1.3;
+}
+
+.fig-glyph {
+  fill: #16130f;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+/* labels and bubbles */
+.office-pill rect {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1.3;
+}
+
+.office-pill-you rect {
+  fill: #ffc93c;
+}
+
+.office-pill text {
+  fill: #16130f;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.office-talk path {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+.office-callout path {
+  fill: #fbf8f2;
+  stroke: #16130f;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  filter: drop-shadow(2px 3px 0 rgb(22 19 15 / 0.85));
+}
+
+.office-callout text {
+  fill: #16130f;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+/* Phones: keep people readable and let the office scroll sideways. */
+@media (max-width: 767px) {
+  .office-wrap {
+    overflow-x: auto;
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+    scrollbar-width: none;
+  }
+
+  .office-map {
+    min-width: 720px;
+  }
+}

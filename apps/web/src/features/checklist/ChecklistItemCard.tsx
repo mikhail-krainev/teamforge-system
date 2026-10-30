@@ -7,6 +7,7 @@ import { ArtifactFiles } from '@/features/artifacts/ArtifactFiles';
 import { ReviewSection } from '@/features/review/ReviewSection';
 import type { ChecklistItem, PlaybookStep } from '@/features/route/api';
 import type { Member } from '@/features/teams/api';
+import './checklist.css';
 import { AssignControl } from './AssignControl';
 import { ConflictPanel } from './ConflictPanel';
 import { itemErrorText } from './errors';
@@ -100,7 +101,7 @@ export function ChecklistItemCard({ item, step, context }: Props) {
   const { editable, isLead } = context;
 
   return (
-    <li className="card nested stack">
+    <li className="checklist-row">
       <h3>{item.title}</h3>
       <p>{assigneeLine(item, context.members)}</p>
       <p className="muted">

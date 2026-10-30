@@ -58,7 +58,7 @@ describe('DeletionSection', () => {
     renderWithClient(<DeletionSection />);
     await open();
     confirm();
-    expect(screen.getByText('Отметьте подтверждение.')).toBeTruthy();
+    expect(screen.getByText('Поставь галочку подтверждения.')).toBeTruthy();
     expect(calls).toBe(0);
   });
 
@@ -106,7 +106,7 @@ describe('DeletionSection', () => {
     await open();
     fireEvent.click(screen.getByRole('checkbox'));
     confirm();
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('недавно войти'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('войти заново'));
     expect(screen.getByRole('button', { name: 'Запросить удаление' })).toBeTruthy();
   });
 });

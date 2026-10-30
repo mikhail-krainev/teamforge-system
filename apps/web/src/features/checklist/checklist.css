@@ -1,0 +1,13 @@
+/* One checklist row: large title, 2px separators, no card. */
+.checklist-row {
+  display: grid;
+  gap: var(--s3);
+  padding-block: var(--s5);
+  border-top: var(--bw) solid var(--rule);
+}
+
+.checklist-row h3 {
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}

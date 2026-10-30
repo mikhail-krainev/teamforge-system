@@ -1,0 +1,157 @@
+/* Teams: list, filters, detail, create. Shared classes (.page-head, .team-row, .seat-grid, .stage-pill, .empty) live in globals.css. */
+
+/* Filters */
+.team-filters {
+  border-top: var(--bw) solid var(--rule);
+  padding-block: var(--s5);
+  display: grid;
+  gap: var(--s5);
+}
+
+.team-filter-fields {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.team-filter-actions {
+  align-items: center;
+}
+
+.team-count {
+  margin-left: auto;
+}
+
+/* List rows */
+.team-row h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.team-row h2 a {
+  text-decoration: none;
+}
+
+.team-row h2 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.team-row {
+  position: relative;
+}
+
+.team-seats {
+  display: grid;
+  gap: var(--s2);
+}
+
+/* Status pills use the team status where the list has no stage data */
+.team-status-forming {
+  background: var(--yellow);
+}
+
+.team-status-voting {
+  background: var(--pink);
+}
+
+.team-status-active {
+  background: var(--blue);
+}
+
+.team-status-suspended {
+  background: var(--grey);
+}
+
+.team-status-completed,
+.team-status-archived {
+  background: var(--black);
+  color: var(--white);
+}
+
+/* Loading skeleton */
+.skeleton-bar {
+  display: block;
+  height: 14px;
+  margin-top: 10px;
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+.skeleton-title {
+  height: 28px;
+  width: 60%;
+  margin-top: 0;
+}
+
+/* Detail */
+.team-detail-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s5);
+}
+
+.team-seat-row {
+  display: grid;
+  gap: var(--s3);
+  padding-block: var(--s4);
+  border-top: var(--bw-thin) solid var(--rule-soft);
+}
+
+.team-seat-row h3 {
+  font-size: 1.375rem;
+}
+
+.team-seat-row.is-free {
+  border: var(--bw) dashed var(--ink);
+  border-radius: var(--r-nested);
+  padding: var(--s4) var(--s5);
+}
+
+.team-member-row {
+  display: grid;
+  gap: var(--s2);
+  padding-block: var(--s4);
+  border-top: var(--bw-thin) solid var(--rule-soft);
+}
+
+.team-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.team-events > li {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) 1fr;
+  gap: var(--s4);
+  padding-block: var(--s3);
+  border-top: var(--bw-thin) solid var(--rule-soft);
+}
+
+@media (max-width: 767px) {
+  .team-events > li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* Create team preview */
+.create-preview {
+  position: sticky;
+  top: var(--s5);
+  display: grid;
+  gap: var(--s3);
+}
+
+.create-preview .team-row {
+  margin-inline: 0;
+  grid-template-columns: 1fr;
+}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { t } from '@/i18n';
 import { describeError } from '@/lib/api/error-message';
@@ -50,8 +51,7 @@ export function ReviewsPage() {
   const finished = useFinishedTeams();
   return (
     <div className="stack">
-      <h1>{t('reviews.title')}</h1>
-      <p className="lead">{t('reviews.lead')}</p>
+      <PageHead title={t('reviews.title')} lead={t('reviews.lead')} />
       <p className="muted">{t('reviews.batchHint')}</p>
       {finished.isPending ? <p role="status">{t('reviews.loading')}</p> : null}
       {finished.isError ? <Alert tone="error">{describeError(finished.error)}</Alert> : null}

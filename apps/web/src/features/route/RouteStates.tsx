@@ -1,5 +1,6 @@
 'use client';
 
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
 import { t } from '@/i18n';
 import { ApiError } from '@/lib/api/errors';
@@ -22,13 +23,16 @@ export function LoadFailure({
   onRetry: () => void;
 }) {
   return (
-    <Alert tone="error">
-      <p>{t(hidden ? notFoundKey : loadFailedKey)}</p>
-      {hidden ? null : (
-        <button type="button" className="button button-secondary" onClick={onRetry}>
-          {t('route.retry')}
-        </button>
-      )}
-    </Alert>
+    <div className="stack">
+      <Yeti pose="sad" size={96} />
+      <Alert tone="error">
+        <p>{t(hidden ? notFoundKey : loadFailedKey)}</p>
+        {hidden ? null : (
+          <button type="button" className="button button-secondary" onClick={onRetry}>
+            {t('route.retry')}
+          </button>
+        )}
+      </Alert>
+    </div>
   );
 }

@@ -29,7 +29,8 @@
     "test:coverage": "node scripts/with-env.mjs .env.test -- pnpm --filter api run test:coverage",
     "test:concurrency": "node scripts/with-env.mjs .env.test --repeat 5 -- pnpm --filter api exec vitest run test/concurrency",
     "test:e2e": "pnpm --filter web run test:e2e",
-    "deps:check": "node scripts/check-deps.mjs"
+    "deps:check": "node scripts/check-deps.mjs",
+    "seed:demo": "node apps/api/scripts/demo-seed/index.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

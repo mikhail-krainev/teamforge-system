@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useMe } from '@/features/auth/session';
 import { useTeamChannel } from '@/features/notifications/RealtimeProvider';
 import { useRoles } from '@/features/profile/useProfileQueries';
@@ -22,14 +24,17 @@ import { useNow } from './useNow';
 function PageFailure({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const hidden = isHiddenError(error);
   return (
-    <Alert tone="error">
-      <p>{t(hidden ? 'completion.notFound' : 'completion.loadFailed')}</p>
-      {hidden ? null : (
-        <button type="button" className="button button-secondary" onClick={onRetry}>
-          {t('completion.retry')}
-        </button>
-      )}
-    </Alert>
+    <div className="stack">
+      <Yeti pose="sad" size={96} />
+      <Alert tone="error">
+        <p>{t(hidden ? 'completion.notFound' : 'completion.loadFailed')}</p>
+        {hidden ? null : (
+          <button type="button" className="button button-secondary" onClick={onRetry}>
+            {t('completion.retry')}
+          </button>
+        )}
+      </Alert>
+    </div>
   );
 }
 
@@ -61,10 +66,11 @@ function Wizard({ team, isLead }: { team: Team; isLead: boolean }) {
   const canFinish = isLead && team.status === 'active' && isCheckGreen(latest.data, now);
   return (
     <div className="stack">
-      <h1>{t('completion.title')}</h1>
-      <p>
-        <Link href={`/teams/${team.id}`}>{t('completion.back')}</Link>
-      </p>
+      <PageHead title={t('completion.title')}>
+        <Link className="text-link" href={`/teams/${team.id}`}>
+          {t('completion.back')}
+        </Link>
+      </PageHead>
       {team.status === 'forming' ? <p className="muted">{t('completion.notStarted')}</p> : null}
       {team.status === 'voting' || suspended ? (
         <Alert tone="warn">{t('completion.blockedStatus')}</Alert>
@@ -96,7 +102,14 @@ export function CompletionPage({ teamId }: { teamId: string }) {
   const team = useTeam(teamId);
   const roles = useRoles();
   if (team.isError) return <PageFailure error={team.error} onRetry={() => void team.refetch()} />;
-  if (!team.data) return <p role="status">{t('completion.loading')}</p>;
+  if (!team.data) {
+    return (
+      <div className="row">
+        <Yeti pose="think" size={96} />
+        <p role="status">{t('completion.loading')}</p>
+      </div>
+    );
+  }
   const roleName = (code: string) => roles.data?.find((role) => role.code === code)?.name ?? code;
   if (team.data.status === 'completed') return <Results team={team.data} roleName={roleName} />;
   const isLead = Boolean(me.data && team.data.leadUserId === me.data.id);

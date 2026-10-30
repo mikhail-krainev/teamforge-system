@@ -41,7 +41,7 @@ function queueTests(): void {
   });
   test('FR-MATCH-03, FR-AUTH-05: B, with a linked GitHub, stands in the queue for Backend', async () => {
     await test.step(
-      'FR-MATCH-03: the form, the status "Вы в очереди", the role list (axe)',
+      'FR-MATCH-03: the form, the status "Ты в очереди", the role list (axe)',
       steps.bStandsInTheQueue,
     );
   });

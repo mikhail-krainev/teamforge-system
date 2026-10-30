@@ -70,8 +70,8 @@ describe('FR-PROF-08: the form', () => {
     const form = await screen.findByRole('form', { name: 'Оставить отзыв' });
     const select = within(form).getByLabelText('Кому') as HTMLSelectElement;
     const names = Array.from(select.options).map((option) => option.textContent);
-    expect(names).toEqual(['Выберите коллегу', 'Борис Иванов']);
-    expect(screen.getByText(/Отзывы будут опубликованы пакетом/)).toBeTruthy();
+    expect(names).toEqual(['Выбери коллегу', 'Борис Иванов']);
+    expect(screen.getByText(/Отзывы опубликуются пакетом/)).toBeTruthy();
 
     fireEvent.change(select, { target: { value: MEMBER_ID } });
     fireEvent.change(within(form).getByLabelText('Текст отзыва'), {
@@ -79,9 +79,9 @@ describe('FR-PROF-08: the form', () => {
     });
     fireEvent.click(within(form).getByRole('button', { name: 'Отправить отзыв' }));
     const notice = await screen.findByRole('status', { name: '' });
-    expect(notice.textContent).toMatch(/Отзывы будут опубликованы пакетом/);
+    expect(notice.textContent).toMatch(/Отзывы опубликуются пакетом/);
     expect(posts).toEqual([{ subjectUserId: MEMBER_ID, text: 'Спасибо за аккуратные pull request-ы.' }]);
-    expect(await screen.findByText(/Вы уже оставили отзывы всем коллегам/)).toBeTruthy();
+    expect(await screen.findByText(/Ты уже оставил отзывы всем коллегам/)).toBeTruthy();
     const sent = screen.getByRole('region', { name: 'Отправленные отзывы' });
     expect(within(sent).getAllByRole('listitem')).toHaveLength(1);
   });
@@ -91,7 +91,7 @@ describe('FR-PROF-08: the form', () => {
     renderWithClient(<ReviewsPage />);
     const form = await screen.findByRole('form', { name: 'Оставить отзыв' });
     fireEvent.click(within(form).getByRole('button', { name: 'Отправить отзыв' }));
-    expect(await within(form).findByText('Выберите коллегу.')).toBeTruthy();
+    expect(await within(form).findByText('Выбери коллегу.')).toBeTruthy();
     expect(posts).toHaveLength(0);
   });
 

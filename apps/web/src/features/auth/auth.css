@@ -1,0 +1,64 @@
+.sign-in {
+  display: grid;
+  gap: var(--s6, 32px);
+  align-items: center;
+}
+
+.sign-in-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--s5, 24px);
+  min-height: 280px;
+}
+
+.sign-in-hero h1 {
+  margin: 0;
+}
+
+.sign-in-hero-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s4, 16px);
+}
+
+.sign-in-hero-foot p {
+  max-width: 24ch;
+  margin: 0;
+  font-weight: 500;
+  font-size: 20px;
+}
+
+.sign-in-hero-foot .yeti {
+  flex: none;
+  width: 88px;
+  height: 88px;
+}
+
+.sign-in-form {
+  display: grid;
+  gap: var(--s4, 16px);
+  max-width: 480px;
+}
+
+.sign-in-form h2,
+.sign-in-form p {
+  margin: 0;
+}
+
+@media (min-width: 1024px) {
+  .sign-in {
+    grid-template-columns: 7fr 5fr;
+    gap: 24px;
+  }
+
+  .sign-in-hero {
+    min-height: 560px;
+  }
+
+  .sign-in-hero-foot .yeti {
+    width: 152px;
+    height: 152px;
+  }
+}

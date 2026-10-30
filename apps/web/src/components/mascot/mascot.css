@@ -1,0 +1,408 @@
+/* Yeti palette. Fallbacks read on white and black; the theme may override the tokens. */
+.yeti-fur {
+  fill: var(--yeti-fur, #f3ead8);
+}
+
+.yeti-shade {
+  fill: var(--yeti-shade, #a8875a);
+}
+
+.yeti-face {
+  fill: var(--yeti-face, #0088cc);
+}
+
+.yeti-ink {
+  fill: var(--yeti-ink, #141414);
+}
+
+.yeti-eye {
+  fill: var(--yeti-ink, #141414);
+}
+
+.yeti-cheek {
+  fill: var(--yeti-cheek, var(--pink, #ffade4));
+}
+
+/* Prop palette (life/sprites.ts), token fills only */
+.px-red {
+  fill: var(--red);
+}
+
+.px-orange {
+  fill: var(--orange);
+}
+
+.px-yellow {
+  fill: var(--yellow);
+}
+
+.px-wood {
+  fill: var(--brown);
+}
+
+.px-pink {
+  fill: var(--pink);
+}
+
+.px-ultramarine {
+  fill: var(--ultramarine);
+}
+
+.px-green {
+  fill: var(--green);
+}
+
+.px-mint {
+  fill: var(--mint);
+}
+
+.px-paper {
+  fill: var(--white);
+}
+
+.px-line {
+  fill: var(--ink);
+}
+
+/* Interactive Yeti */
+.live-yeti {
+  --yeti-cheek: var(--pink);
+  position: relative;
+  display: inline-block;
+}
+
+.live-yeti-button {
+  position: relative;
+  display: block;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.live-yeti-button:focus-visible {
+  outline: 3px solid var(--focus, currentColor);
+  outline-offset: 4px;
+}
+
+.live-yeti-body {
+  display: block;
+  transform-origin: 50% 100%;
+}
+
+.live-yeti-body svg {
+  display: block;
+}
+
+.live-yeti-bang {
+  position: absolute;
+  top: 0;
+  right: 8%;
+}
+
+.live-yeti-z {
+  position: absolute;
+  top: 0;
+  right: 4%;
+}
+
+.live-yeti-burst {
+  display: contents;
+}
+
+.live-yeti-confetti {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  opacity: 0;
+  background: var(--pink);
+}
+
+.live-yeti-confetti:nth-of-type(3n + 1) {
+  background: var(--yellow);
+}
+
+.live-yeti-confetti:nth-of-type(3n + 2) {
+  background: var(--blue);
+}
+
+.live-yeti-confetti:nth-of-type(4n) {
+  background: var(--green);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-yeti-body {
+    animation: yeti-bob 3.2s steps(2, jump-none) infinite;
+  }
+
+  .live-yeti-button[data-reaction='sleep'] .live-yeti-body {
+    animation-duration: 5s;
+  }
+
+  .live-yeti-z {
+    animation: yeti-float 2.4s linear infinite;
+  }
+
+  .live-yeti-bang {
+    animation: yeti-pop var(--dur, 200ms) var(--ease-spring, ease-out);
+  }
+
+  .live-yeti-line {
+    display: inline-block;
+    animation: yeti-pop var(--dur, 200ms) var(--ease-spring, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='perk'] .live-yeti-body {
+    animation: yeti-hop 650ms var(--ease-out, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='tilt'] .live-yeti-body {
+    animation: yeti-tilt 700ms var(--ease-out, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='jump'] .live-yeti-body {
+    animation: yeti-jump 800ms var(--ease-out, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='spin'] .live-yeti-body {
+    animation: yeti-spin 800ms var(--ease-out, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='celebrate'] .live-yeti-body {
+    animation: yeti-hop 600ms var(--ease-out, ease-out) 2;
+  }
+
+  .live-yeti-button[data-reaction='blush'] .live-yeti-body {
+    animation: yeti-shy 1000ms var(--ease-out, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='surprised'] .live-yeti-body {
+    animation: yeti-startle 800ms var(--ease-spring, ease-out);
+  }
+
+  .live-yeti-button[data-reaction='wave'] .live-yeti-body {
+    animation: yeti-wave 1000ms ease-in-out;
+  }
+
+  .live-yeti-button[data-reaction='dizzy'] .live-yeti-body {
+    animation: yeti-wobble 1200ms ease-in-out;
+  }
+
+  .live-yeti-confetti {
+    animation: yeti-confetti 1100ms var(--ease-out, ease-out) forwards;
+  }
+
+  .live-yeti-confetti:nth-of-type(1) {
+    --dx: -90px;
+    --dy: -110px;
+  }
+  .live-yeti-confetti:nth-of-type(2) {
+    --dx: -60px;
+    --dy: -150px;
+  }
+  .live-yeti-confetti:nth-of-type(3) {
+    --dx: -20px;
+    --dy: -170px;
+  }
+  .live-yeti-confetti:nth-of-type(4) {
+    --dx: 20px;
+    --dy: -160px;
+  }
+  .live-yeti-confetti:nth-of-type(5) {
+    --dx: 60px;
+    --dy: -140px;
+  }
+  .live-yeti-confetti:nth-of-type(6) {
+    --dx: 95px;
+    --dy: -105px;
+  }
+  .live-yeti-confetti:nth-of-type(7) {
+    --dx: -110px;
+    --dy: -50px;
+  }
+  .live-yeti-confetti:nth-of-type(8) {
+    --dx: 110px;
+    --dy: -60px;
+  }
+  .live-yeti-confetti:nth-of-type(9) {
+    --dx: -40px;
+    --dy: -90px;
+  }
+  .live-yeti-confetti:nth-of-type(10) {
+    --dx: 45px;
+    --dy: -95px;
+  }
+}
+
+@keyframes yeti-bob {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-2%);
+  }
+}
+
+@keyframes yeti-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 8px);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -16px);
+  }
+}
+
+@keyframes yeti-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes yeti-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-12%);
+  }
+}
+
+@keyframes yeti-tilt {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30%,
+  70% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes yeti-jump {
+  0% {
+    transform: scale(1, 1);
+  }
+  15% {
+    transform: scale(1.14, 0.84);
+  }
+  45% {
+    transform: translateY(-30%) scale(0.9, 1.14);
+  }
+  75% {
+    transform: translateY(0) scale(1.14, 0.84);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+@keyframes yeti-spin {
+  0% {
+    transform: perspective(500px) rotateY(0);
+  }
+  100% {
+    transform: perspective(500px) rotateY(720deg);
+  }
+}
+
+@keyframes yeti-shy {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  30%,
+  70% {
+    transform: rotate(-4deg) scale(0.94);
+  }
+}
+
+@keyframes yeti-startle {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: translateY(-10%) scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes yeti-wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(3deg);
+  }
+  75% {
+    transform: rotate(-3deg);
+  }
+}
+
+@keyframes yeti-wobble {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(9deg);
+  }
+  40% {
+    transform: rotate(-9deg);
+  }
+  60% {
+    transform: rotate(6deg);
+  }
+  80% {
+    transform: rotate(-6deg);
+  }
+}
+
+@keyframes yeti-confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), calc(var(--dy) + 80px)) rotate(240deg);
+  }
+}
+
+/* The hero mascot hides while Толик is out on the page (life/YetiLife). */
+.hero-yeti-slot[data-away] {
+  visibility: hidden;
+}
+
+/* His greeting bubble goes with him and comes back when he returns. */
+.hero-mascot .bubble {
+  transition:
+    opacity 200ms ease,
+    visibility 200ms;
+}
+
+.hero-mascot:has(.hero-yeti-slot[data-away]) .bubble {
+  opacity: 0;
+  visibility: hidden;
+}

@@ -97,7 +97,7 @@ describe('FR-TEAM-14: vote phases', () => {
     open();
     expect(await screen.findByText(/Нужно запросов: 2, сейчас: 1/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Запросить голосование' }));
-    expect(await screen.findByText('Ваш запрос учтён.')).toBeTruthy();
+    expect(await screen.findByText('Твой запрос учтён.')).toBeTruthy();
   });
 
   it('a non-member sees the explanation instead of the vote', async () => {
@@ -212,7 +212,7 @@ describe('FR-TEAM-16 / FR-TEAM-21: ballot', () => {
     expect(await screen.findByText('Проголосовали: 0 из 3 (кворум: 2)')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Голосовать за Борис Иванов' }));
     await waitFor(() => expect(body).toEqual({ candidateUserId: BOB_ID }));
-    expect(await screen.findByText(/Ваш голос учтён/)).toBeTruthy();
+    expect(await screen.findByText(/Твой голос учтён/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Голосовать за/ })).toBeNull();
     expect(screen.queryByText(/Голосов: /)).toBeNull();
   });
@@ -222,13 +222,13 @@ describe('FR-TEAM-16 / FR-TEAM-21: ballot', () => {
     server.use(http.post(`${VOTE_URL}/ballots`, () => problem(409, 'ALREADY_VOTED')));
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Голосовать за Вера Орлова' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Вы уже проголосовали');
+    expect((await screen.findByRole('alert')).textContent).toContain('Ты уже проголосовал');
   });
 
   it('a member who cannot vote gets no ballot buttons', async () => {
     serve(sampleVote({ ...twoCandidates, canVote: false }));
     open();
-    expect(await screen.findByText('Вы не можете голосовать в этом этапе.')).toBeTruthy();
+    expect(await screen.findByText('На этом этапе ты не можешь голосовать.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Голосовать за/ })).toBeNull();
   });
 
@@ -328,7 +328,7 @@ describe('FR-TEAM-17: confirmation and offer', () => {
       }),
     );
     open();
-    const actions = await screen.findByRole('region', { name: 'Ваши действия' });
+    const actions = await screen.findByRole('region', { name: 'Твои действия' });
     expect(within(actions).queryByRole('button')).toBeNull();
     expect(within(actions).getByText(/Ждём ответа до/)).toBeTruthy();
   });

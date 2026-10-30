@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Yeti } from '@/components/mascot/Yeti';
 import { Alert } from '@/components/ui/Alert';
+import { PageHead } from '@/components/ui/PageHead';
 import { useRoles } from '@/features/profile/useProfileQueries';
 import { useNow } from '@/features/completion/useNow';
 import { isHiddenError } from '@/features/route/RouteStates';
@@ -18,7 +20,14 @@ export function CreditPage({ teamId }: { teamId: string }) {
   const roles = useRoles();
   const now = useNow(TICK_MS);
 
-  if (credit.isPending) return <p role="status">{t('rewards.credit.loading')}</p>;
+  if (credit.isPending) {
+    return (
+      <div className="row">
+        <Yeti pose="think" size={96} />
+        <p role="status">{t('rewards.credit.loading')}</p>
+      </div>
+    );
+  }
   if (credit.isError) {
     const hidden = isHiddenError(credit.error);
     return (
@@ -40,11 +49,16 @@ export function CreditPage({ teamId }: { teamId: string }) {
   const roleName = (code: string) => roles.data?.find((role) => role.code === code)?.name ?? code;
   return (
     <div className="stack">
-      <h1>{t('rewards.credit.title')}</h1>
-      <p className="row">
-        <Link href={`/teams/${teamId}`}>{t('rewards.credit.back')}</Link>
-        <Link href="/reviews">{t('rewards.credit.reviewsLink')}</Link>
-      </p>
+      <PageHead title={t('rewards.credit.title')}>
+        <p className="row">
+          <Link className="text-link" href={`/teams/${teamId}`}>
+            {t('rewards.credit.back')}
+          </Link>
+          <Link className="text-link" href="/reviews">
+            {t('rewards.credit.reviewsLink')}
+          </Link>
+        </p>
+      </PageHead>
       <CreditParts teamId={teamId} credit={credit.data} now={now} roleName={roleName} />
     </div>
   );

@@ -75,7 +75,7 @@ describe('FR-WORK-01, FR-WORK-12: route of a project', () => {
   it('says the project has not started when there are no stages', async () => {
     serve([], null);
     renderWithClient(<RoutePage teamId={TEAM_ID} />);
-    expect(await screen.findByText(/Проект ещё не начат/)).toBeTruthy();
+    expect(await screen.findByText(/Проект ещё не начался/)).toBeTruthy();
   });
 
   it('reports a missing team without a retry button', async () => {
