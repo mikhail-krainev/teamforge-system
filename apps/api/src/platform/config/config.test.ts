@@ -118,6 +118,19 @@ describe('loadConfig', () => {
     ).toEqual([]);
   });
 
+  it('production accepts a plain-http BETTER_AUTH_URL on loopback only (session cookies follow its scheme)', () => {
+    const production = { NODE_ENV: 'production', APP_ORIGIN: 'https://teamforge.example' };
+    expect(
+      issuesOf(validEnv({ ...production, BETTER_AUTH_URL: 'http://teamforge.example' })),
+    ).toEqual([{ name: 'BETTER_AUTH_URL', reason: 'invalid' }]);
+    expect(issuesOf(validEnv({ ...production, BETTER_AUTH_URL: 'http://localhost:3000' }))).toEqual(
+      [],
+    );
+    expect(
+      issuesOf(validEnv({ ...production, BETTER_AUTH_URL: 'https://teamforge.example' })),
+    ).toEqual([]);
+  });
+
   it('reports a missing BETTER_AUTH_SECRET by name', () => {
     expect(issuesOf(validEnv({ BETTER_AUTH_SECRET: undefined }))).toEqual([
       { name: 'BETTER_AUTH_SECRET', reason: 'missing' },

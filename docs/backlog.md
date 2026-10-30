@@ -305,3 +305,4 @@ HIGH и основные MEDIUM исправлены в `feat/playbooks`. Ост
 
 - `ADMIN_GITHUB_IDS` объявлена в `config.ts`, `.env.example` и сервисе `migrate`, но нигде не применяется (FR-AUTH-08, architecture 13): посева администраторов нет. Пока флаг ставится SQL-запросом (`docs/local-run.md`). Реализовать посев в `migrate` или убрать переменную.
 - `.env.example` по умолчанию даёт `BETTER_AUTH_URL=http://localhost:4000`: OAuth-колбэки и относительные редиректы Better Auth уходят на порт api, а не на сайт (e2e поэтому ставит `WEB_URL`). Ссылка из письма не затронута: она ведёт на `/auth/confirm` сайта. Локальный запуск переопределяет значение в `docker/local.env`; поменять значение по умолчанию на `WEB_URL` после проверки dev-режима (`next dev`).
+- `docs/release.md` 1.4 (ветка `docs/release`) не называет право аккаунта Email addresses (read): без него вход через GitHub падает, `github-provider.ts` читает `/user/emails`. Дописать при слиянии фазы 7.

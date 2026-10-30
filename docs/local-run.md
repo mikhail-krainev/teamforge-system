@@ -6,7 +6,7 @@
 
 - Docker Desktop (Compose v2) и Node.js 24.
 - Свободный порт 3000 и порты из `docker/local.env` (34000, 35432, 36432, 36379, 39000, 31025, 38025). Если какой-то занят, поменяйте его в `docker/local.env`.
-- Браузер Chrome или Firefox. В режиме `production` cookie входа помечены `Secure`. Chrome и Firefox принимают такие cookie на `http://localhost`, Safari их не сохраняет.
+- Любой браузер, Safari тоже. Флаг `Secure` у cookie входа зависит от схемы `BETTER_AUTH_URL`, а не от `NODE_ENV`: на `http://localhost` cookie без `Secure` (Safari отбрасывает `Secure`-cookie на http). В `production` адрес `http://` разрешён только на loopback, иначе `api` не стартует.
 
 ## Запуск
 
@@ -37,7 +37,12 @@
 ## Вход
 
 - По email: введите адрес на странице `/sign-in`, письмо со ссылкой придёт в Mailpit. Подойдёт любой адрес, наружу письма не уходят. При первом входе сайт попросит принять согласие на обработку ПД (текст пока черновик).
-- Через GitHub локально не работает. `env-init` пишет заглушки `GITHUB_APP_*`, чтобы `api` стартовал без App. Вход, привязка репозитория и вебхуки требуют реального GitHub App и публичного адреса (`docs/release.md`, раздел 1.4).
+- Через GitHub: нужен свой GitHub App. `env-init` пишет заглушки `GITHUB_APP_*`, чтобы `api` стартовал без App; вход с заглушками не работает. Настройки App для локального запуска:
+  - Homepage URL `http://localhost:3000`; Callback URL `http://localhost:3000/api/auth/callback/github`; Setup URL `http://localhost:3000/api/v1/github/setup`, Redirect on update включён.
+  - Права репозитория: Metadata, Issues, Pull requests, Actions (read). Права аккаунта: Email addresses (read), без него вход падает (`/user/emails`).
+  - Webhook: GitHub не достучится до localhost. Без туннеля снять Active (вклад по issue и PR не считается); с туннелем URL `https://<туннель>/api/v1/webhooks/github`, секрет = `GITHUB_WEBHOOK_SECRET`. События: Issues, Pull request, Pull request review, Repository.
+  - В `.env`: `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY` (PEM одной строкой с `\n`). После правки: `up -d --force-recreate api worker`.
+- Ошибка входа через GitHub возвращает на `/sign-in?error=<код>` и показывается над формой.
 
 ## Администратор
 
