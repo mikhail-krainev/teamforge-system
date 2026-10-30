@@ -6,9 +6,12 @@ import { githubComposeEnv } from './github';
 /** Repository root: compose files and `.env` live there. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
-export const E2E_PROJECT = 'e2e';
+/** Compose project name; override with E2E_PROJECT when another `e2e` project already runs on the machine. */
+export const E2E_PROJECT = process.env.E2E_PROJECT ?? 'e2e';
 const WEB_PORT = process.env.E2E_WEB_PORT ?? '3100';
 const API_PORT = process.env.E2E_API_PORT ?? '4100';
+/** Host-side ports and addresses, overridable for machines where the defaults are taken. */
+const fromEnv = (name: string, fallback: string): string => process.env[name] ?? fallback;
 export const E2E_WEB_URL = `http://localhost:${WEB_PORT}`;
 
 /**
@@ -22,15 +25,15 @@ export const E2E_ENV: Record<string, string> = {
   // The browser reaches the api only through the web origin (it proxies /api): OAuth callbacks and
   // relative redirects (callbackURL '/profile') must resolve there, not on the api port.
   BETTER_AUTH_URL: E2E_WEB_URL,
-  POSTGRES_HOST_PORT: '15432',
-  PGBOUNCER_HOST_PORT: '16432',
-  REDIS_HOST_PORT: '16379',
-  S3_HOST_PORT: '19000',
-  SMTP_HOST_PORT: '11025',
-  MAILPIT_UI_PORT: '18025',
+  POSTGRES_HOST_PORT: fromEnv('E2E_POSTGRES_HOST_PORT', '15432'),
+  PGBOUNCER_HOST_PORT: fromEnv('E2E_PGBOUNCER_HOST_PORT', '16432'),
+  REDIS_HOST_PORT: fromEnv('E2E_REDIS_HOST_PORT', '16379'),
+  S3_HOST_PORT: fromEnv('E2E_S3_HOST_PORT', '19000'),
+  SMTP_HOST_PORT: fromEnv('E2E_SMTP_HOST_PORT', '11025'),
+  MAILPIT_UI_PORT: fromEnv('E2E_MAILPIT_UI_PORT', '18025'),
   // Own subnet and web address: the dev stack keeps 172.29.250.0/24, and api trusts only its web (/32).
-  TF_NET_SUBNET: '172.29.251.0/24',
-  TF_WEB_IP: '172.29.251.10',
+  TF_NET_SUBNET: fromEnv('E2E_NET_SUBNET', '172.29.251.0/24'),
+  TF_WEB_IP: fromEnv('E2E_WEB_IP', '172.29.251.10'),
   // Production refuses GITHUB_*_BASE_URL, so api and worker run as development here.
   APP_NODE_ENV: 'development',
   // GitHub sign-in goes to the double the spec starts on the host (support/github.ts).

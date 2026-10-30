@@ -8,6 +8,7 @@ import { InstallationStateStore } from './internal/installation/installation-sta
 import { InstallationController } from './internal/installation/installation.controller.js';
 import { InstallationRepository } from './internal/installation/installation.repository.js';
 import { GITHUB_API } from './public.js';
+import { AntifraudFactsService } from './internal/services/antifraud-facts.service.js';
 import { GithubFacade } from './internal/services/github-facade.service.js';
 import { RepoController } from './internal/services/repo.controller.js';
 import { RepoInspectionService } from './internal/services/repo-inspection.service.js';
@@ -50,6 +51,7 @@ import { WebhookReceiver } from './internal/webhook/webhook-receiver.service.js'
     RateLimitGate,
     SyncStateRepository,
     RepoChecksService,
+    AntifraudFactsService,
     RepoSyncService,
     AccountSyncService,
     GithubSync,

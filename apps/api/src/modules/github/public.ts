@@ -42,6 +42,29 @@ export interface AccountEligibility {
   reasons: string[];
 }
 
+/** FR-GH-09 and AF-16 for one account; `ageDays` and `hasPublicActivity` are `null` until the account was checked. */
+export interface AccountCheckView {
+  eligibility: AccountEligibility;
+  ageDays: number | null;
+  hasPublicActivity: boolean | null;
+}
+
+/** AF-05: the changed lines (additions + deletions) of the merged pull requests and the share of the biggest one. */
+export interface PullRequestStats {
+  changedLines: number;
+  maxPrShare: number;
+}
+
+/** AF-01, AF-03: the repository of the project as stored. */
+export interface RepositoryFacts {
+  repositoryId: number;
+  createdAt: Date;
+  /** Another completed project holds the same repository. */
+  heldByOtherProject: boolean;
+  /** The last `repo_final` check found a fork without commits of its own. */
+  forkWithoutOwnCommits: boolean;
+}
+
 export interface GithubApi {
   /** The repository that holds the team now (active or of a completed project), or `null`. */
   getRepoLink(teamId: TeamId): Promise<RepoLinkView | null>;
@@ -62,6 +85,19 @@ export interface GithubApi {
   getCiState(teamId: TeamId): Promise<'success' | 'none' | null>;
   /** FR-GH-09 for the credit (FR-REW-01 item 5), from the daily account check. */
   getAccountEligibility(userId: string): Promise<AccountEligibility>;
+  /**
+   * FR-GH-09 for several accounts at once (rewards reads it before its transaction): stored checks only. A caller
+   * that has read the GitHub ids of the users from auth already passes them (`userId -> githubUserId`), so auth is
+   * not asked twice.
+   */
+  getAccountChecks(
+    userIds: string[],
+    githubIds?: ReadonlyMap<string, number | null>,
+  ): Promise<Map<string, AccountCheckView>>;
+  /** AF-05 from the stored pull requests of the team's repository. */
+  getPullRequestStats(teamId: TeamId): Promise<PullRequestStats>;
+  /** AF-01, AF-03: `null` when the team has no repository. */
+  getRepositoryFacts(teamId: TeamId): Promise<RepositoryFacts | null>;
   /**
    * Whether the issue is closed or the pull request merged now, as the last event or the sync left it;
    * `null` for an item that is not known. Handlers of contribution events reconcile against it:

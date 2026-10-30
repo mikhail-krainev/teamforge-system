@@ -1,4 +1,5 @@
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { TimerHandlers } from '../../../../platform/queues/maintenance-tasks.js';
 import { type JobProcessor, ProcessorRegistry } from '../../../../platform/queues/queue-workers.js';
 import type { QueueJob } from '../../../../platform/queues/queues.service.js';
 import { DEPARTURE_DEFAULT_JOB } from '../services/departure-leave.service.js';
@@ -11,7 +12,8 @@ import { SUSPENSION_EXPIRE_JOB, VOTE_DEADLINE_JOB, parseVoteDeadline } from './v
 /**
  * Processor of the `timers` queue for the jobs of teams. `departure-default` (C-14): a decision the
  * lead did not take in 7 days becomes "replace" (the seats stay open). `vote-deadline` and
- * `suspension-expire` (S3-08) and `trial-expire` (S4-06, FR-TEAM-24) share the `handlers` table, because one queue has one worker.
+ * `suspension-expire` (S3-08) and `trial-expire` (S4-06, FR-TEAM-24) share the `handlers` table, because one queue has one worker;
+ * the names of the other modules (`rewards-cooling-end`, `review-publish`) come from `TimerHandlers`.
  */
 @Injectable()
 export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
@@ -23,6 +25,7 @@ export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
     @Inject(DepartureService) private readonly departures: DepartureService,
     @Inject(VoteDeadlineService) private readonly voteDeadlines: VoteDeadlineService,
     @Inject(TrialService) private readonly trials: TrialService,
+    @Inject(TimerHandlers) private readonly moduleTimers: TimerHandlers,
   ) {
     this.handlers.set(DEPARTURE_DEFAULT_JOB, (job) => this.departureDefault(job));
     this.handlers.set(VOTE_DEADLINE_JOB, (job) => {
@@ -39,8 +42,11 @@ export class TeamsTimersProcessor implements JobProcessor, OnModuleInit {
 
   process(job: QueueJob): Promise<unknown> {
     const handler = this.handlers.get(job.name);
-    if (handler === undefined) throw new Error(`Unknown timers job: ${job.name}`);
-    return handler(job);
+    if (handler !== undefined) return handler(job);
+    // Jobs of the other modules (rewards, profiles) register their names in `TimerHandlers`.
+    const moduleHandler = this.moduleTimers.get(job.name);
+    if (moduleHandler === undefined) throw new Error(`Unknown timers job: ${job.name}`);
+    return moduleHandler(job.data);
   }
 
   private departureDefault(job: QueueJob): Promise<boolean> {

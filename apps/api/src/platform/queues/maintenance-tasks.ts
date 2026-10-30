@@ -56,3 +56,24 @@ export class RepeatingJobs {
     return [...this.jobs.values()];
   }
 }
+
+/** A handler of one job name of the `timers` queue that a module owns (e.g. `rewards-cooling-end`). */
+export type TimerHandler = (data: Record<string, unknown>) => Promise<unknown>;
+
+/**
+ * Registry of the `timers` jobs of the modules. One queue has one worker (`TeamsTimersProcessor`), which asks
+ * this registry for every job name it does not handle itself; a module registers its names in `onModuleInit`.
+ */
+@Injectable()
+export class TimerHandlers {
+  private readonly handlers = new Map<string, TimerHandler>();
+
+  register(name: string, handler: TimerHandler): void {
+    if (this.handlers.has(name)) throw new Error(`Timer job ${name} already exists`);
+    this.handlers.set(name, handler);
+  }
+
+  get(name: string): TimerHandler | undefined {
+    return this.handlers.get(name);
+  }
+}

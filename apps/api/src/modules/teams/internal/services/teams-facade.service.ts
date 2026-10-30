@@ -13,6 +13,7 @@ import type {
   OpenSeatView,
   RosterMember,
   RosterSnapshot,
+  TeamBrief,
   TeamId,
   TeamLockView,
   TeamStatus,
@@ -204,6 +205,21 @@ export class TeamsFacade implements TeamsApi {
       .from(team)
       .where(inArray(team.id, teamIds));
     return new Map(rows.map((r) => [r.id, r.name]));
+  }
+
+  async getTeamBriefs(teamIds: TeamId[]): Promise<Map<TeamId, TeamBrief>> {
+    if (teamIds.length === 0) return new Map();
+    const rows = await this.tx.tx
+      .select({
+        teamId: team.id,
+        name: team.name,
+        description: team.description,
+        createdAt: team.createdAt,
+        startedAt: team.startedAt,
+      })
+      .from(team)
+      .where(inArray(team.id, teamIds));
+    return new Map(rows.map((r) => [r.teamId, r]));
   }
 
   async lockTeam(teamId: TeamId, mode: 'update' | 'share' = 'update'): Promise<TeamLockView> {

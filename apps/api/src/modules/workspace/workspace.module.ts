@@ -54,8 +54,11 @@ import { CompletionCheckService } from './internal/services/completion-check.ser
 import { CompletionService } from './internal/services/completion.service.js';
 import { LinkChecks } from './internal/services/link-checks.js';
 import { ReleaseTargetService } from './internal/services/release-target.service.js';
+import { AntifraudRepository } from './internal/repositories/antifraud.repository.js';
 import { WorkspaceFacade } from './internal/services/workspace-facade.service.js';
 import { WorkspaceOperations } from './internal/authz/workspace-operations.js';
+import { CompletedProjects } from './internal/services/completed-projects.port.js';
+import { COMPLETED_PROJECTS_PORT } from '../profiles/public.js';
 import { WORKSPACE_API } from './public.js';
 
 /**
@@ -106,6 +109,7 @@ import { WORKSPACE_API } from './public.js';
     StepSignalsConsumer,
     WorkspaceOperations,
     CompletionRepository,
+    AntifraudRepository,
     LinkChecks,
     ReleaseTargetService,
     ReleaseCheckRecorder,
@@ -115,6 +119,8 @@ import { WORKSPACE_API } from './public.js';
     CompletionCheckSweep,
     WorkspaceFacade,
     { provide: WORKSPACE_API, useExisting: WorkspaceFacade },
+    CompletedProjects,
+    { provide: COMPLETED_PROJECTS_PORT, useExisting: CompletedProjects },
     LinkCheckRepository,
     LinkResultService,
     LinkCheckSweep,
@@ -129,6 +135,6 @@ import { WORKSPACE_API } from './public.js';
     RealtimeRelayConsumer,
     RealtimeGateway,
   ],
-  exports: [TEAM_LIFECYCLE_PORT, DEPARTURE_ITEMS_PORT, WORKSPACE_API],
+  exports: [TEAM_LIFECYCLE_PORT, DEPARTURE_ITEMS_PORT, WORKSPACE_API, COMPLETED_PROJECTS_PORT],
 })
 export class WorkspaceModule {}

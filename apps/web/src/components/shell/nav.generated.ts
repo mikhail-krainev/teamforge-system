@@ -4,6 +4,7 @@ import { navItems as homeNav } from '@/features/home/nav';
 import { navItems as matchingNav } from '@/features/matching/nav';
 import { navItems as offersNav } from '@/features/offers/nav';
 import { navItems as profileNav } from '@/features/profile/nav';
+import { navItems as reviewsNav } from '@/features/reviews/nav';
 import { navItems as teamsNav } from '@/features/teams/nav';
 
 export const allNavItems: readonly NavItem[] = [
@@ -11,5 +12,6 @@ export const allNavItems: readonly NavItem[] = [
   ...matchingNav,
   ...offersNav,
   ...profileNav,
+  ...reviewsNav,
   ...teamsNav,
 ];

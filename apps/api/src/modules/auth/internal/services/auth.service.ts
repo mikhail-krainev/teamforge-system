@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
-import { and, eq, gt, gte, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNotNull, or } from 'drizzle-orm';
 import { APP_CONFIG } from '../../../../platform/config/config.module.js';
 import type { AppConfig } from '../../../../platform/config/config.js';
 import { hmacBytes } from '../../../../platform/crypto/secret-box.js';
@@ -9,6 +9,7 @@ import { DomainError } from '../../../../platform/errors/domain-error.js';
 import { LockService } from '../../../../platform/tx/locks.js';
 import { TxRunner } from '../../../../platform/tx/tx-runner.js';
 import type {
+  AccountFacts,
   AuthApi,
   DeletionModule,
   IdentitySignal,
@@ -140,6 +141,15 @@ export class AuthService implements AuthApi {
     return this.consent.usersWithValidConsent(active.map((row) => row.id));
   }
 
+  async filterActive(userIds: UserId[]): Promise<Set<UserId>> {
+    if (userIds.length === 0) return new Set();
+    const rows = await this.db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(inArray(user.id, userIds), eq(user.status, 'active')));
+    return new Set(rows.map((row) => row.id));
+  }
+
   async getIdentitySignals(userIds: UserId[], since: Date): Promise<IdentitySignal[]> {
     if (userIds.length === 0) return [];
     const rows = await this.db
@@ -188,5 +198,66 @@ export class AuthService implements AuthApi {
       if (found.length > 0) return true;
     }
     return false;
+  }
+
+  async getAccountFacts(userIds: UserId[]): Promise<Map<UserId, AccountFacts>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({
+        id: user.id,
+        github: user.githubUserId,
+        email: user.emailNormalized,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .where(inArray(user.id, userIds));
+    const hashes = await this.tombstonedHmacs(rows);
+    const salt = this.config.IP_HASH_SALT;
+    const matched = (kind: string, value: string | null): boolean =>
+      value !== null && hashes.has(`${kind}:${hmacBytes(salt, value).toString('hex')}`);
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        {
+          userId: row.id,
+          githubUserId: row.github,
+          registeredAt: row.createdAt,
+          tombstoneMatch:
+            matched('github_user_id', row.github === null ? null : String(row.github)) ||
+            matched('email_normalized', row.email),
+        },
+      ]),
+    );
+  }
+
+  /** The `kind:hex` of every tombstone that matches one of the accounts, in one statement. */
+  private async tombstonedHmacs(
+    rows: { github: number | null; email: string | null }[],
+  ): Promise<Set<string>> {
+    const salt = this.config.IP_HASH_SALT;
+    const candidates = rows.flatMap((row) => [
+      ...(row.github === null
+        ? []
+        : [
+            and(
+              eq(identityTombstone.kind, 'github_user_id'),
+              eq(identityTombstone.valueHmac, hmacBytes(salt, String(row.github))),
+            ),
+          ]),
+      ...(row.email === null
+        ? []
+        : [
+            and(
+              eq(identityTombstone.kind, 'email_normalized'),
+              eq(identityTombstone.valueHmac, hmacBytes(salt, row.email)),
+            ),
+          ]),
+    ]);
+    if (candidates.length === 0) return new Set();
+    const found = await this.db
+      .select({ kind: identityTombstone.kind, hmac: identityTombstone.valueHmac })
+      .from(identityTombstone)
+      .where(and(or(...candidates), gt(identityTombstone.expiresAt, new Date())));
+    return new Set(found.map((f) => `${f.kind}:${f.hmac.toString('hex')}`));
   }
 }

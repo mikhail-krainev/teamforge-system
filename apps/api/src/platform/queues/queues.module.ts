@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { CliJobs } from './cli-jobs.js';
-import { MaintenanceTasks, RepeatingJobs } from './maintenance-tasks.js';
+import { MaintenanceTasks, RepeatingJobs, TimerHandlers } from './maintenance-tasks.js';
 import { ProcessorRegistry } from './queue-workers.js';
 import { QueuesService } from './queues.service.js';
 import { ResultListeners } from './result-listeners.js';
@@ -14,6 +14,7 @@ import { ResultListeners } from './result-listeners.js';
     ResultListeners,
     MaintenanceTasks,
     RepeatingJobs,
+    TimerHandlers,
   ],
   exports: [
     CliJobs,
@@ -22,6 +23,7 @@ import { ResultListeners } from './result-listeners.js';
     ResultListeners,
     MaintenanceTasks,
     RepeatingJobs,
+    TimerHandlers,
   ],
 })
 export class QueuesModule {}

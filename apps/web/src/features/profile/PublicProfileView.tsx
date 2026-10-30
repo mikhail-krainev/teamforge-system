@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/Alert';
 import { apiClient } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { describeError } from '@/lib/api/error-message';
+import { AwardsBlock } from '@/features/rewards/AwardsBlock';
 import { t } from '@/i18n';
 import { useRoles } from './useProfileQueries';
 import { levelLabel } from './model';
@@ -62,7 +63,12 @@ export function PublicProfileView({ userId }: { userId: string }) {
   if (!profile) return <Alert tone="info">{t('profile.public.notFound')}</Alert>;
   if (profile.isDeleted) return <Alert tone="info">{t('profile.public.deleted')}</Alert>;
   const roleName = (code: string) => roles.data?.find((r) => r.code === code)?.name ?? code;
-  return <ProfileCard profile={profile} roleName={roleName} />;
+  return (
+    <div className="stack">
+      <ProfileCard profile={profile} roleName={roleName} />
+      <AwardsBlock userId={userId} />
+    </div>
+  );
 }
 
 function ProfileCard({

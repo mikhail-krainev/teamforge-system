@@ -25,6 +25,8 @@ export interface CompletionSnapshot {
       seatId: string;
       roleCode: string;
       desired: boolean;
+      /** When the mark "желательная" last changed (AF-14); absent in records made before slice 7. */
+      desiredChangedAt?: string | null;
       holderUserId: string | null;
     }[];
     departedUserIds: string[];
@@ -60,7 +62,13 @@ export interface SnapshotInput {
       joinedVia: string;
       roles: { roleCode: string; deficitAtJoin: boolean }[];
     }[];
-    seats: { seatId: string; roleCode: string; desired: boolean; holderUserId: string | null }[];
+    seats: {
+      seatId: string;
+      roleCode: string;
+      desired: boolean;
+      desiredChangedAt?: Date | null;
+      holderUserId: string | null;
+    }[];
     departedUserIds: string[];
   };
   stages: { ordinal: number; stageKey: string; openedAt: Date | null; closedAt: Date | null }[];
@@ -96,6 +104,7 @@ function rosterOf(roster: SnapshotInput['roster']): CompletionSnapshot['roster']
         seatId: s.seatId,
         roleCode: s.roleCode,
         desired: s.desired,
+        desiredChangedAt: iso(s.desiredChangedAt ?? null),
         holderUserId: s.holderUserId,
       })),
     departedUserIds: [...roster.departedUserIds].sort(),

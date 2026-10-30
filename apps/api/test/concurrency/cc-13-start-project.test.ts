@@ -88,7 +88,7 @@ describeInfra('CC-13 (start part): starting the project (FR-TEAM-10)', ['db', 'r
             }),
     );
     expect(fired.filter((f) => f.index < 15 && f.status === 200)).toHaveLength(1);
-    expect(fired.filter((f) => f.index >= 15).every((f) => f.status === 200)).toBe(true);
+    expect(fired.filter((f) => f.index >= 15).map((f) => f.status)).toEqual([200, 200, 200, 200, 200]);
     expect(await teamRow(world, t.id)).toMatchObject({ status: 'active', member_count: 6 });
   });
 

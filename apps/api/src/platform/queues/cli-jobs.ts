@@ -4,7 +4,11 @@ import { Injectable } from '@nestjs/common';
  * Jobs the operator CLI (`src/cli/run-job.ts`) may run once by hand. A closed list: the CLI refuses
  * every other name before it opens a connection, so it cannot be used to start arbitrary code.
  */
-export const CLI_JOB_NAMES = ['matching-auto-add'] as const;
+export const CLI_JOB_NAMES = [
+  'matching-auto-add',
+  'rewards-cooling-end',
+  'review-publish',
+] as const;
 export type CliJobName = (typeof CLI_JOB_NAMES)[number];
 
 export function isCliJobName(value: string): value is CliJobName {

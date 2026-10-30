@@ -36,7 +36,7 @@ describeInfra(
       return { requestId, userId: person.id };
     }
 
-    it('FR-AUTH-09: profiles and matching report in parallel, 20 rounds -> every saga completes exactly once', async () => {
+    it('FR-AUTH-09: profiles, matching and rewards report in parallel, 20 rounds -> every saga completes exactly once', async () => {
       const auth = world.app.get<AuthApi>(AUTH_API);
       const rounds = await Promise.all(
         Array.from({ length: ROUNDS }, (_, i) => startedRequest(`saga-race-${i}`)),
@@ -45,14 +45,14 @@ describeInfra(
       for (const { requestId } of rounds) {
         // Each round: the two reports start together; the rounds themselves run one after another so
         // that the pair of one saga is the only contention (a pool-wide stampede would hide the race).
-        const gate = barrier(2);
+        const gate = barrier(3);
         const results = await Promise.allSettled(
-          (['profiles', 'matching'] as const).map(async (module) => {
+          (['profiles', 'matching', 'rewards'] as const).map(async (module) => {
             await gate.wait();
             await auth.reportDeletionStep(requestId, module, { rows: 1 });
           }),
         );
-        expect(results.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled']);
+        expect(results.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
       }
 
       for (const { requestId, userId } of rounds) {
@@ -62,7 +62,7 @@ describeInfra(
         expect(request[0]?.completed_at).not.toBeNull();
         const steps = await world.sql<{ module: string }[]>`
           SELECT module FROM auth.deletion_step WHERE request_id = ${requestId} ORDER BY module`;
-        expect(steps.map((s) => s.module)).toEqual(['matching', 'profiles']);
+        expect(steps.map((s) => s.module)).toEqual(['matching', 'profiles', 'rewards']);
         const anonymized = await world.sql<{ n: number }[]>`
           SELECT count(*)::int AS n FROM auth.deletion_log
            WHERE request_id = ${requestId} AND module = 'auth' AND action = 'anonymize'`;
@@ -76,16 +76,16 @@ describeInfra(
     it('a module that reports twice does not finish the saga early or twice', async () => {
       const auth = world.app.get<AuthApi>(AUTH_API);
       const { requestId } = await startedRequest('saga-race-repeat');
-      const gate = barrier(3);
+      const gate = barrier(4);
       await Promise.all(
-        (['profiles', 'profiles', 'matching'] as const).map(async (module) => {
+        (['profiles', 'profiles', 'matching', 'rewards'] as const).map(async (module) => {
           await gate.wait();
           await auth.reportDeletionStep(requestId, module, { rows: 1 });
         }),
       );
       const steps = await world.sql<{ n: number }[]>`
         SELECT count(*)::int AS n FROM auth.deletion_step WHERE request_id = ${requestId}`;
-      expect(steps[0]?.n).toBe(2);
+      expect(steps[0]?.n).toBe(3);
       const status = await world.sql<{ status: string }[]>`
         SELECT status FROM auth.deletion_request WHERE id = ${requestId}`;
       expect(status[0]?.status).toBe('completed');

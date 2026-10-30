@@ -10,6 +10,7 @@ import {
   smallint,
   text,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { bytea, tstz } from '../../../../platform/db/schema/columns.js';
@@ -137,5 +138,75 @@ export const resumeUpload = profilesSchema.table(
       sql`${t.status} IN ('queued','processing','done','failed')`,
     ),
     index('resume_upload_user_idx').on(t.userId, t.createdAt.desc()),
+  ],
+);
+
+/** Projection of `workspace.project_completed`: who may review whom, until when (FR-PROF-08, C-27). */
+export const reviewEligibility = profilesSchema.table(
+  'review_eligibility',
+  {
+    teamId: uuid('team_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    teamName: text('team_name').notNull(),
+    /** `completed_at` + 14 days (C-27). */
+    windowUntil: tstz('window_until').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'review_eligibility_pkey', columns: [t.teamId, t.userId] }),
+    index('review_eligibility_window_idx').on(t.windowUntil),
+    index('review_eligibility_user_idx').on(t.userId),
+  ],
+);
+
+/**
+ * What the subject reads (SEC-04): no author column and no time of writing. `id` is a random UUID v4
+ * (an exception to the UUID v7 rule: no timestamp in it), `sort_key` orders a batch without time.
+ */
+export const peerReview = profilesSchema.table(
+  'peer_review',
+  {
+    id: uuid('id').primaryKey(),
+    teamId: uuid('team_id').notNull(),
+    subjectUserId: uuid('subject_user_id').notNull(),
+    text: text('text').notNull(),
+    status: text('status').notNull().default('pending'),
+    /** The day the window closed: one for the whole batch. */
+    publishedOn: date('published_on', { mode: 'string' }),
+    sortKey: integer('sort_key').notNull(),
+    /** Withheld reviews are deleted after this day (window + 30 days). */
+    purgeAfter: date('purge_after', { mode: 'string' }),
+  },
+  (t) => [
+    check('peer_review_text_check', sql`char_length(${t.text}) BETWEEN 1 AND 2000`),
+    check('peer_review_status_check', sql`${t.status} IN ('pending','published','withheld')`),
+    index('peer_review_subject_idx')
+      .on(t.subjectUserId, t.publishedOn.desc(), t.teamId, t.sortKey, t.id)
+      .where(sql`${t.status} = 'published'`),
+    index('peer_review_team_subject_idx').on(t.teamId, t.subjectUserId),
+    /** M-5: the sweep of the publication starts from the pending reviews, never from the whole history. */
+    index('peer_review_pending_team_idx')
+      .on(t.teamId)
+      .where(sql`${t.status} = 'pending'`),
+    index('peer_review_purge_idx')
+      .on(t.purgeAfter)
+      .where(sql`${t.status} = 'withheld'`),
+  ],
+);
+
+/** Only the anti-spam pair and the erasure of an author; never joined into what a subject reads (SEC-04). */
+export const peerReviewAuthorship = profilesSchema.table(
+  'peer_review_authorship',
+  {
+    reviewId: uuid('review_id')
+      .primaryKey()
+      .references(() => peerReview.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id').notNull(),
+    authorUserId: uuid('author_user_id').notNull(),
+    subjectUserId: uuid('subject_user_id').notNull(),
+  },
+  (t) => [
+    check('peer_review_authorship_self_check', sql`${t.authorUserId} <> ${t.subjectUserId}`),
+    uniqueIndex('peer_review_pair_uq').on(t.teamId, t.authorUserId, t.subjectUserId),
+    index('peer_review_authorship_author_idx').on(t.authorUserId),
   ],
 );

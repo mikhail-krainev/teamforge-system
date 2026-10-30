@@ -30,7 +30,11 @@ export const world = {
   otherTeamName: `Соседняя команда ${Date.now()}`,
   /** `ref`s of the contributions the webhooks produced in step 2. */
   titles: [] as string[],
-  releaseUrl: 'https://release.example.org/app/',
+  /**
+   * The release address of the project under test: a page the link-checker container can reach. AF-02 refuses
+   * an address that another completed project holds, so a later scenario on the same stack sets its own.
+   */
+  releaseUrl: process.env.E2E_RELEASE_URL ?? 'https://www.wikipedia.org/',
 };
 
 let people: Record<PersonKey, Person> | undefined;

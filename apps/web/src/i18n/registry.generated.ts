@@ -5,6 +5,7 @@ import checklist from './ru/checklist.json';
 import completion from './ru/completion.json';
 import errors from './ru/errors.json';
 import feed from './ru/feed.json';
+import fraud from './ru/fraud.json';
 import github from './ru/github.json';
 import home from './ru/home.json';
 import invitations from './ru/invitations.json';
@@ -14,6 +15,8 @@ import notifications from './ru/notifications.json';
 import offers from './ru/offers.json';
 import profile from './ru/profile.json';
 import review from './ru/review.json';
+import reviews from './ru/reviews.json';
+import rewards from './ru/rewards.json';
 import route from './ru/route.json';
 import shell from './ru/shell.json';
 import status from './ru/status.json';
@@ -28,6 +31,7 @@ export const ruDictionaries = {
   "completion": completion,
   "errors": errors,
   "feed": feed,
+  "fraud": fraud,
   "github": github,
   "home": home,
   "invitations": invitations,
@@ -37,6 +41,8 @@ export const ruDictionaries = {
   "offers": offers,
   "profile": profile,
   "review": review,
+  "reviews": reviews,
+  "rewards": rewards,
   "route": route,
   "shell": shell,
   "status": status,

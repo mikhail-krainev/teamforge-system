@@ -77,6 +77,14 @@ export interface TeamLockView {
   releaseKey: string | null;
 }
 
+export interface TeamBrief {
+  teamId: TeamId;
+  name: string;
+  description: string;
+  createdAt: Date;
+  startedAt: Date | null;
+}
+
 export interface RosterMember {
   userId: UserId;
   joinedAt: Date;
@@ -171,6 +179,8 @@ export interface TeamsApi {
   seatBelongsToTeam(teamId: TeamId, seatId: SeatId): Promise<boolean>;
   /** Names of the teams; absent ids are absent from the map. */
   getTeamNames(teamIds: TeamId[]): Promise<Map<TeamId, string>>;
+  /** Name, description and dates of the teams in one statement (AF-08, AF-11); absent ids are absent from the map. */
+  getTeamBriefs(teamIds: TeamId[]): Promise<Map<TeamId, TeamBrief>>;
   /** @requiresTx, the team must be locked by the caller: members, seats with `desired`, and those who left. */
   getCompletionRosterSnapshot(teamId: TeamId): Promise<RosterSnapshot>;
   /** @requiresTx */

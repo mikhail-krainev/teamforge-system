@@ -50,7 +50,6 @@ import {
  *     stays red and "Завершить" is correctly refused.
  */
 
-const RELEASE_URL = process.env.E2E_RELEASE_URL ?? 'https://www.wikipedia.org/';
 /**
  * The link-checker looks at one domain once a minute (SEC-05), so a run of the checks that meets a domain
  * looked at a moment ago waits up to a minute for its turn.
@@ -87,6 +86,15 @@ export async function setupPlaybookAndStartedTeam(): Promise<void> {
 
 let sharedOrganization: TwinAccount | undefined;
 
+/**
+ * The next installation is made in a new organization. The double puts the repositories of an installation
+ * together when the organization is first installed and does not add repositories to an installation that
+ * exists, so a second project that binds a second repository needs an organization of its own.
+ */
+export function nextInstallationInANewOrganization(): void {
+  sharedOrganization = undefined;
+}
+
 async function queueInstall(who: Person, repoName?: string): Promise<GithubIdentityRef> {
   const server = await double();
   const [a, d, b, c] = await Promise.all([
@@ -95,12 +103,21 @@ async function queueInstall(who: Person, repoName?: string): Promise<GithubIdent
     githubOf(person('b')),
     githubOf(person('c')),
   ]);
-  sharedOrganization ??= {
-    id: 9_500_000 + (Date.now() % 100_000),
-    login: `e2e-org-${Date.now()}`,
-    type: 'Organization',
-    ownerIds: [a.id, d.id],
-  };
+  // Reused by the lead (A) and the second team's lead (D) of one scenario. The module outlives a spec
+  // file in the same worker (slice 6 -> slice 7 sign in new people), so an organization whose owners
+  // are not these two people belongs to the earlier scenario: with it the installation is refused
+  // (`setup_action=request`, no installation_id) and the setup callback answers 400.
+  if (
+    !sharedOrganization?.ownerIds?.includes(a.id) ||
+    !sharedOrganization.ownerIds.includes(d.id)
+  ) {
+    sharedOrganization = {
+      id: 9_500_000 + (Date.now() % 100_000),
+      login: `e2e-org-${Date.now()}`,
+      type: 'Organization',
+      ownerIds: [a.id, d.id],
+    };
+  }
   const me = await githubOf(who);
   server.app.queueBrowserInstall(
     me,
@@ -409,12 +426,12 @@ export async function leadPastesTheReleaseLinkAndRunsTheChecks(): Promise<void> 
   const { page } = a.session;
   await page.goto(ROUTES.complete(teamId()));
   await expect(completeUi.heading(page)).toBeVisible();
-  await completeUi.releaseLink(page).fill(RELEASE_URL);
+  await completeUi.releaseLink(page).fill(world.releaseUrl);
   await completeUi.saveRelease(page).click();
   // the first check of the release is made when the link is saved (FR-WORK-14)
   await expect
     .poll(async () => (await itemOf(a, 'mini_final_links', 3)).linkUrl, { timeout: 30_000 })
-    .toBe(RELEASE_URL);
+    .toBe(world.releaseUrl);
   const finalLinks = await itemOf(a, 'mini_final_links', 3);
   if (finalLinks.status !== 'done') await patchItem(a, finalLinks, { status: 'done' });
 
